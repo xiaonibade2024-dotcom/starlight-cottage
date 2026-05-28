@@ -1,12 +1,4 @@
-// Vercel Serverless Function: Supabase Proxy
-// 解决浏览器无法直接访问 Supabase 域名的问题
-
-// 关闭 Vercel 的自动 body 解析，拿到原始 body
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};
+// Vercel Serverless Function: Supabase Proxy (CommonJS)
 
 /**
  * 从 IncomingMessage 中读取原始 body
@@ -20,7 +12,7 @@ function getRawBody(req) {
   });
 }
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   // CORS 预检
   if (req.method === 'OPTIONS') {
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -41,15 +33,15 @@ export default async function handler(req, res) {
   try {
     const parsed = new URL(targetUrl);
     if (parsed.hostname !== ALLOWED_HOST) {
-      return res.status(403).json({ error: `Proxy only allowed for ${ALLOWED_HOST}` });
+      return res.status(403).json({ error: 'Proxy only allowed for ' + ALLOWED_HOST });
     }
-  } catch {
+  } catch (e) {
     return res.status(400).json({ error: 'Invalid URL' });
   }
 
   // 转发关键 headers
-  const forwardHeaders = {};
-  const headerKeys = [
+  var forwardHeaders = {};
+  var headerKeys = [
     'content-type',
     'apikey',
     'authorization',
@@ -60,22 +52,23 @@ export default async function handler(req, res) {
     'content-profile',
     'x-supabase-api-version',
   ];
-  for (const key of headerKeys) {
+  for (var i = 0; i < headerKeys.length; i++) {
+    var key = headerKeys[i];
     if (req.headers[key]) {
       forwardHeaders[key] = req.headers[key];
     }
   }
 
   // 构建 fetch 选项
-  const fetchOptions = {
+  var fetchOptions = {
     method: req.method,
     headers: forwardHeaders,
   };
 
-  // 有 body 的请求（POST, PUT, PATCH, DELETE）
+  // 有 body 的请求
   if (req.method !== 'GET' && req.method !== 'HEAD') {
     try {
-      const rawBody = await getRawBody(req);
+      var rawBody = await getRawBody(req);
       if (rawBody.length > 0) {
         fetchOptions.body = rawBody;
       }
@@ -86,20 +79,15 @@ export default async function handler(req, res) {
 
   // 发起代理请求
   try {
-    const upstream = await fetch(targetUrl, fetchOptions);
+    var upstream = await fetch(targetUrl, fetchOptions);
 
-    // 转发响应状态和关键 headers
     res.status(upstream.status);
 
-    const passthroughHeaders = ['content-type', 'x-supabase-api-version', 'retry-after'];
-    for (const h of passthroughHeaders) {
-      const val = upstream.headers.get(h);
-      if (val) res.setHeader(h, val);
-    }
+    var ct = upstream.headers.get('content-type');
+    if (ct) res.setHeader('Content-Type', ct);
     res.setHeader('Access-Control-Allow-Origin', '*');
 
-    // 返回响应体
-    const responseBody = await upstream.text();
+    var responseBody = await upstream.text();
     res.send(responseBody);
   } catch (err) {
     console.error('[proxy] Upstream fetch failed:', err);
@@ -109,4 +97,11 @@ export default async function handler(req, res) {
       target: targetUrl,
     });
   }
-}
+};
+
+// 关闭 Vercel 自动 body 解析（CommonJS 写法）
+module.exports.config = {
+  api: {
+    bodyParser: false,
+  },
+};
