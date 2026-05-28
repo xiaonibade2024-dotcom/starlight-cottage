@@ -1,6 +1,6 @@
 {
   "rewrites": [
-    { "source": "/sb/:path*", "destination": "https://ltcouifrhmsmsicvsgz.supabase.co/:path*" },
+    { "source": "/sb/:path*", "destination": "/api/sb/:path*" },
     { "source": "/(.*)", "destination": "/" }
   ]
 }
