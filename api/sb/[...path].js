@@ -1,54 +1,45 @@
 export default async function handler(req, res) {
-  const supabaseUrl = 'https://ltcouifrhmsmsicvsgz.supabase.co';
-  const path = req.url.replace(/^\/api\/sb\/?/, '');
-  const targetUrl = `${supabaseUrl}/${path}`;
+  if (req.method === 'OPTIONS') {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', '*');
+    return res.status(200).end();
+  }
 
-  const forwardHeaders = {};
-  const skipHeaders = ['host', 'connection', 'transfer-encoding'];
-  for (const [key, value] of Object.entries(req.headers)) {
-    if (!skipHeaders.includes(key.toLowerCase())) {
-      forwardHeaders[key] = value;
+  const supabaseHost = 'ltcouifrhmsmsicvsgz.supabase.co';
+  const path = req.url.replace(/^\/api\/sb\/?/, '');
+  const targetUrl = 'https://' + supabaseHost + '/' + path;
+
+  var headers = { host: supabaseHost };
+  var forwardList = ['apikey', 'authorization', 'content-type', 'x-client-info', 'prefer', 'accept', 'accept-profile', 'content-profile', 'range', 'x-supabase-api-version'];
+  for (var i = 0; i < forwardList.length; i++) {
+    if (req.headers[forwardList[i]]) {
+      headers[forwardList[i]] = req.headers[forwardList[i]];
     }
   }
-  forwardHeaders['host'] = 'ltcouifrhmsmsicvsgz.supabase.co';
 
-  let body = null;
-  if (req.method !== 'GET' && req.method !== 'HEAD') {
-    const chunks = [];
-    for await (const chunk of req) {
-      chunks.push(chunk);
-    }
-    if (chunks.length > 0) {
-      body = Buffer.concat(chunks);
-    }
+  var body = undefined;
+  if (req.method !== 'GET' && req.method !== 'HEAD' && req.body) {
+    body = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
   }
 
   try {
-    const response = await fetch(targetUrl, {
+    var response = await fetch(targetUrl, {
       method: req.method,
-      headers: forwardHeaders,
-      body: body,
+      headers: headers,
+      body: body
     });
 
-    const responseHeaders = {};
-    response.headers.forEach((value, key) => {
-      if (key !== 'transfer-encoding' && key !== 'content-encoding') {
-        responseHeaders[key] = value;
-      }
-    });
+    var text = await response.text();
+    
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    var ct = response.headers.get('content-type');
+    if (ct) res.setHeader('Content-Type', ct);
+    var cr = response.headers.get('content-range');
+    if (cr) res.setHeader('Content-Range', cr);
 
-    const data = await response.arrayBuffer();
-    
-    for (const [key, value] of Object.entries(responseHeaders)) {
-      res.setHeader(key, value);
-    }
-    
-    res.status(response.status).send(Buffer.from(data));
+    return res.status(response.status).send(text);
   } catch (error) {
-    res.status(502).json({ error: 'proxy_error', message: error.message });
+    return res.status(502).json({ error: 'proxy_error', message: error.message });
   }
 }
-
-export const config = {
-  api: { bodyParser: false }
-};
