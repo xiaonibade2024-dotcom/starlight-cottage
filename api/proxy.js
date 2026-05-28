@@ -34,7 +34,7 @@ export default async function handler(req, res) {
   }
 
   // 安全检查
-  const ALLOWED_HOST = 'ltcouifrhmsmsicvsgz.supabase.co';
+  const ALLOWED_HOST = 'ltcouifrhmsmssicvsgz.supabase.co';
   try {
     const parsed = new URL(targetUrl);
     if (parsed.hostname !== ALLOWED_HOST) {
