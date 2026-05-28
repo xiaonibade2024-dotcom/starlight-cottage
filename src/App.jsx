@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from './lib/supabase'
-import { sendChatStream } from './lib/api'
+import { sendChatStream, sendChat } from './lib/api'
 import Auth from './components/Auth'
 import Sidebar from './components/Sidebar'
 import Chat from './components/Chat'
@@ -389,8 +389,21 @@ export default function App() {
           setMessages(prev => prev.filter(m => m.id !== tempId))
         },
         onDone: async (finalContent, toolCalls) => {
+          // 先处理工具调用
+          if (toolCalls.length > 0) {
+            for (const tc of toolCalls) {
+              if (tc?.function?.name) {
+                try {
+                  const args = JSON.parse(tc.function.arguments)
+                  await handleToolCall(tc.function.name, args, convId)
+                } catch (e) {
+                  console.error('工具调用处理失败:', e)
+                }
+              }
+            }
+          }
+
           if (finalContent) {
-            // 保存助手消息到数据库
             const { data: savedMsg } = await supabase
               .from('messages')
               .insert({
@@ -402,13 +415,77 @@ export default function App() {
               .single()
 
             if (savedMsg) {
-              // 替换临时消息
               setMessages(prev =>
                 prev.map(m => m.id === tempId ? savedMsg : m)
               )
             }
-          } else if (toolCalls.length > 0 && !finalContent) {
-            // 如果只有工具调用没有文本，移除空的临时消息
+          } else if (toolCalls.length > 0) {
+            // AI 只调用了工具没有文字，把工具结果发回让 AI 继续说话
+            const assistantToolMsg = {
+              role: 'assistant',
+              content: null,
+              tool_calls: toolCalls.map(tc => ({
+                id: tc.id,
+                type: 'function',
+                function: {
+                  name: tc.function.name,
+                  arguments: tc.function.arguments
+                }
+              }))
+            }
+
+            const toolResultMsgs = toolCalls
+              .filter(tc => tc?.function?.name)
+              .map(tc => ({
+                role: 'tool',
+                tool_call_id: tc.id,
+                content: JSON.stringify({ success: true })
+              }))
+
+            const followUpMessages = []
+            if (systemPrompt) {
+              followUpMessages.push({ role: 'system', content: systemPrompt })
+            }
+            followUpMessages.push(...recentMessages)
+            followUpMessages.push(assistantToolMsg)
+            followUpMessages.push(...toolResultMsgs)
+
+            try {
+              const { content: followUpContent } = await sendChat({
+                apiKey,
+                model,
+                messages: followUpMessages,
+                maxTokens: 2000
+              })
+
+              if (followUpContent) {
+                setMessages(prev =>
+                  prev.map(m => m.id === tempId ? { ...m, content: followUpContent } : m)
+                )
+                const { data: savedMsg } = await supabase
+                  .from('messages')
+                  .insert({
+                    conversation_id: convId,
+                    role: 'assistant',
+                    content: followUpContent
+                  })
+                  .select()
+                  .single()
+
+                if (savedMsg) {
+                  setMessages(prev =>
+                    prev.map(m => m.id === tempId ? savedMsg : m)
+                  )
+                }
+              } else {
+                setMessages(prev => prev.filter(m => m.id !== tempId))
+              }
+            } catch (e) {
+              console.error('获取后续回复失败:', e)
+              setMessages(prev => prev.filter(m => m.id !== tempId))
+              showToast('获取回复失败: ' + e.message)
+            }
+          } else {
             setMessages(prev => prev.filter(m => m.id !== tempId))
           }
 
