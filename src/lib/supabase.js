@@ -1,9 +1,15 @@
 import { createClient } from '@supabase/supabase-js'
 
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
-const supabaseUrl = window.location.origin + '/api/sb'
+const realSupabaseUrl = 'https://ltcouifrhmsmsicvsgz.supabase.co'
+
+function proxyFetch(url, options) {
+  var proxyUrl = '/api/proxy?url=' + encodeURIComponent(url.toString())
+  return fetch(proxyUrl, options)
+}
 
 export const supabase = createClient(
-  supabaseUrl,
-  supabaseAnonKey || 'placeholder'
+  realSupabaseUrl,
+  supabaseAnonKey || 'placeholder',
+  { global: { fetch: proxyFetch } }
 )
