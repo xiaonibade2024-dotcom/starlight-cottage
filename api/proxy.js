@@ -1,8 +1,14 @@
-// Vercel Serverless Function: Supabase Proxy (CommonJS)
+// Vercel Serverless Function: Supabase Proxy (ES Module)
 
 /**
- * 从 IncomingMessage 中读取原始 body
+ * 关闭 Vercel 自动 body 解析，拿到原始 body
  */
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};
+
 function getRawBody(req) {
   return new Promise((resolve, reject) => {
     const chunks = [];
@@ -12,7 +18,7 @@ function getRawBody(req) {
   });
 }
 
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   // CORS 预检
   if (req.method === 'OPTIONS') {
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -22,26 +28,25 @@ module.exports = async function handler(req, res) {
     return res.status(204).end();
   }
 
-  // 从查询参数中取出目标 URL
   const targetUrl = req.query.url;
   if (!targetUrl) {
     return res.status(400).json({ error: 'Missing "url" query parameter' });
   }
 
-  // 安全检查：只允许代理到你自己的 Supabase 项目
+  // 安全检查
   const ALLOWED_HOST = 'ltcouifrhmsmsicvsgz.supabase.co';
   try {
     const parsed = new URL(targetUrl);
     if (parsed.hostname !== ALLOWED_HOST) {
-      return res.status(403).json({ error: 'Proxy only allowed for ' + ALLOWED_HOST });
+      return res.status(403).json({ error: `Proxy only allowed for ${ALLOWED_HOST}` });
     }
-  } catch (e) {
+  } catch {
     return res.status(400).json({ error: 'Invalid URL' });
   }
 
   // 转发关键 headers
-  var forwardHeaders = {};
-  var headerKeys = [
+  const forwardHeaders = {};
+  const headerKeys = [
     'content-type',
     'apikey',
     'authorization',
@@ -52,23 +57,20 @@ module.exports = async function handler(req, res) {
     'content-profile',
     'x-supabase-api-version',
   ];
-  for (var i = 0; i < headerKeys.length; i++) {
-    var key = headerKeys[i];
+  for (const key of headerKeys) {
     if (req.headers[key]) {
       forwardHeaders[key] = req.headers[key];
     }
   }
 
-  // 构建 fetch 选项
-  var fetchOptions = {
+  const fetchOptions = {
     method: req.method,
     headers: forwardHeaders,
   };
 
-  // 有 body 的请求
   if (req.method !== 'GET' && req.method !== 'HEAD') {
     try {
-      var rawBody = await getRawBody(req);
+      const rawBody = await getRawBody(req);
       if (rawBody.length > 0) {
         fetchOptions.body = rawBody;
       }
@@ -77,17 +79,16 @@ module.exports = async function handler(req, res) {
     }
   }
 
-  // 发起代理请求
   try {
-    var upstream = await fetch(targetUrl, fetchOptions);
+    const upstream = await fetch(targetUrl, fetchOptions);
 
     res.status(upstream.status);
 
-    var ct = upstream.headers.get('content-type');
+    const ct = upstream.headers.get('content-type');
     if (ct) res.setHeader('Content-Type', ct);
     res.setHeader('Access-Control-Allow-Origin', '*');
 
-    var responseBody = await upstream.text();
+    const responseBody = await upstream.text();
     res.send(responseBody);
   } catch (err) {
     console.error('[proxy] Upstream fetch failed:', err);
@@ -97,11 +98,4 @@ module.exports = async function handler(req, res) {
       target: targetUrl,
     });
   }
-};
-
-// 关闭 Vercel 自动 body 解析（CommonJS 写法）
-module.exports.config = {
-  api: {
-    bodyParser: false,
-  },
-};
+}
