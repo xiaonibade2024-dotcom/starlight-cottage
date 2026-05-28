@@ -159,7 +159,7 @@ export async function sendChatStream({
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${apiKey}`,
         'HTTP-Referer': window.location.origin,
-        'X-Title': '星月小屋'
+        'X-Title': 'Starlight Cottage'
       },
       body: JSON.stringify(body)
     })
@@ -264,7 +264,7 @@ export async function sendChat({
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${apiKey}`,
       'HTTP-Referer': window.location.origin,
-      'X-Title': '星月小屋'
+      'X-Title': 'Starlight Cottage'
     },
     body: JSON.stringify({
       model,
