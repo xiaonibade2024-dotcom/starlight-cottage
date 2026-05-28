@@ -5,8 +5,6 @@ const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 /**
  * 自定义 fetch：将所有 Supabase 请求通过 /api/proxy 转发
- *
- * 只转发 Supabase 需要的 headers，避免非 ASCII 字符导致 fetch 报错
  */
 function proxyFetch(url, options = {}) {
   const targetUrl = typeof url === 'string' ? url : url.url;
@@ -24,7 +22,7 @@ function proxyFetch(url, options = {}) {
     }
   }
 
-  // 只转发 Supabase 实际需要的 headers（这些都是 ASCII 安全的）
+  // 只转发 Supabase 需要的 headers
   const allowedKeys = [
     'content-type',
     'apikey',
@@ -41,6 +39,14 @@ function proxyFetch(url, options = {}) {
     if (source[key]) {
       safeHeaders[key] = source[key];
     }
+  }
+
+  // 确保必要的默认 headers 存在
+  if (!safeHeaders['accept']) {
+    safeHeaders['accept'] = 'application/json';
+  }
+  if (!safeHeaders['content-type'] && options.body) {
+    safeHeaders['content-type'] = 'application/json';
   }
 
   return fetch(proxyUrl, {
