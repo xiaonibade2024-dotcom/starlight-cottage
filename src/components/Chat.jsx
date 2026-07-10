@@ -5,18 +5,25 @@ export default function Chat({
   messages,
   isStreaming,
   cacheStats,
+  variantIndexes,
   onSend,
   onToggleFavorite,
+  onRegenerate,
+  onEditMessage,
+  onSwitchVariant,
   onMenuClick,
   onSettingsClick,
   onMemoryClick
 }) {
   const [input, setInput] = useState('')
   const [showScrollBtn, setShowScrollBtn] = useState(false)
+  const [editingId, setEditingId] = useState(null)
+  const [editContent, setEditContent] = useState('')
   const messagesEndRef = useRef(null)
   const messagesTopRef = useRef(null)
   const messagesAreaRef = useRef(null)
   const textareaRef = useRef(null)
+  const editTextareaRef = useRef(null)
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -28,6 +35,15 @@ export default function Chat({
       textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 160) + 'px'
     }
   }, [input])
+
+  // 编辑时自动聚焦和调整高度
+  useEffect(() => {
+    if (editTextareaRef.current) {
+      editTextareaRef.current.focus()
+      editTextareaRef.current.style.height = 'auto'
+      editTextareaRef.current.style.height = editTextareaRef.current.scrollHeight + 'px'
+    }
+  }, [editingId])
 
   const handleScroll = () => {
     if (!messagesAreaRef.current) return
@@ -53,7 +69,39 @@ export default function Chat({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }
 
-  // 完整日期时间格式
+  // 开始编辑
+  const startEdit = (msg) => {
+    setEditingId(msg.id)
+    setEditContent(msg.content)
+  }
+
+  // 保存编辑
+  const saveEdit = () => {
+    if (editContent.trim() && editingId) {
+      onEditMessage(editingId, editContent)
+      setEditingId(null)
+      setEditContent('')
+    }
+  }
+
+  // 取消编辑
+  const cancelEdit = () => {
+    setEditingId(null)
+    setEditContent('')
+  }
+
+  // 判断是否是最后一条 AI 消息
+  const isLastAssistantMsg = (msgId) => {
+    const assistantMsgs = messages.filter(m => m.role === 'assistant' && !m.id?.startsWith('streaming-'))
+    return assistantMsgs.length > 0 && assistantMsgs[assistantMsgs.length - 1].id === msgId
+  }
+
+  // 判断是否是最后一条用户消息
+  const isLastUserMsg = (msgId) => {
+    const userMsgs = messages.filter(m => m.role === 'user')
+    return userMsgs.length > 0 && userMsgs[userMsgs.length - 1].id === msgId
+  }
+
   const formatTime = (dateStr) => {
     if (!dateStr) return ''
     const d = new Date(dateStr)
@@ -102,6 +150,28 @@ export default function Chat({
     })
   }
 
+  // 版本切换按钮样式
+  const variantBtnStyle = {
+    background: 'none',
+    border: 'none',
+    color: 'var(--text-muted)',
+    cursor: 'pointer',
+    fontSize: '14px',
+    padding: '2px 6px',
+    borderRadius: '4px'
+  }
+
+  const actionBtnStyle = {
+    background: 'none',
+    border: 'none',
+    color: 'var(--text-muted)',
+    cursor: 'pointer',
+    fontSize: '13px',
+    padding: '2px 8px',
+    borderRadius: '4px',
+    opacity: 0.6
+  }
+
   return (
     <div className="main-area">
       {/* 头部 */}
@@ -147,23 +217,138 @@ export default function Chat({
         {messages.map(msg => (
           <div key={msg.id} className={`message ${msg.role}`}>
             <div className="message-bubble">
-              {renderContent(msg.content)}
-              {msg.role === 'assistant' && msg.id?.startsWith('streaming-') && isStreaming && !msg.content && (
-                <div className="typing-indicator">
-                  <span /><span /><span />
+              {/* 编辑模式 */}
+              {editingId === msg.id ? (
+                <div>
+                  <textarea
+                    ref={editTextareaRef}
+                    value={editContent}
+                    onChange={e => setEditContent(e.target.value)}
+                    style={{
+                      width: '100%',
+                      minHeight: '60px',
+                      padding: '8px',
+                      border: '1px solid var(--border)',
+                      borderRadius: '8px',
+                      background: 'var(--bg-primary)',
+                      color: 'var(--text-primary)',
+                      fontSize: '14px',
+                      lineHeight: '1.5',
+                      resize: 'vertical',
+                      fontFamily: 'inherit',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                  <div style={{ display: 'flex', gap: '8px', marginTop: '8px', justifyContent: 'flex-end' }}>
+                    <button
+                      onClick={cancelEdit}
+                      style={{
+                        padding: '4px 16px',
+                        fontSize: '13px',
+                        border: '1px solid var(--border)',
+                        borderRadius: '8px',
+                        background: 'var(--bg-secondary)',
+                        color: 'var(--text-secondary)',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      取消
+                    </button>
+                    <button
+                      onClick={saveEdit}
+                      style={{
+                        padding: '4px 16px',
+                        fontSize: '13px',
+                        border: 'none',
+                        borderRadius: '8px',
+                        background: 'var(--accent, #7c6ca8)',
+                        color: 'white',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      保存
+                    </button>
+                  </div>
                 </div>
+              ) : (
+                <>
+                  {renderContent(msg.content)}
+                  {msg.role === 'assistant' && msg.id?.startsWith('streaming-') && isStreaming && !msg.content && (
+                    <div className="typing-indicator">
+                      <span /><span /><span />
+                    </div>
+                  )}
+                </>
               )}
             </div>
+
             <div className="message-meta">
               <span className="message-time">{formatTime(msg.created_at)}</span>
-              {msg.role === 'assistant' && !msg.id?.startsWith('streaming-') && (
-                <button
-                  className={`message-favorite ${msg.is_favorited ? 'active' : ''}`}
-                  onClick={() => onToggleFavorite(msg.id)}
-                  title={msg.is_favorited ? '取消收藏' : '收藏到回忆匣子'}
-                >
-                  {msg.is_favorited ? '♥' : '♡'}
-                </button>
+
+              {/* 版本切换 */}
+              {msg.variants && msg.variants.length > 1 && editingId !== msg.id && (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '2px', marginLeft: '4px' }}>
+                  <button
+                    style={variantBtnStyle}
+                    onClick={() => {
+                      const current = variantIndexes[msg.id] ?? 0
+                      if (current > 0) onSwitchVariant(msg.id, current - 1)
+                    }}
+                    disabled={(variantIndexes[msg.id] ?? 0) <= 0}
+                  >
+                    ◀
+                  </button>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', minWidth: '28px', textAlign: 'center' }}>
+                    {(variantIndexes[msg.id] ?? 0) + 1}/{msg.variants.length}
+                  </span>
+                  <button
+                    style={variantBtnStyle}
+                    onClick={() => {
+                      const current = variantIndexes[msg.id] ?? 0
+                      if (current < msg.variants.length - 1) onSwitchVariant(msg.id, current + 1)
+                    }}
+                    disabled={(variantIndexes[msg.id] ?? 0) >= msg.variants.length - 1}
+                  >
+                    ▶
+                  </button>
+                </span>
+              )}
+
+              {/* 操作按钮 */}
+              {!msg.id?.startsWith('streaming-') && editingId !== msg.id && !isStreaming && (
+                <>
+                  {/* 用户消息：编辑按钮 */}
+                  {msg.role === 'user' && (
+                    <button
+                      style={actionBtnStyle}
+                      onClick={() => startEdit(msg)}
+                      title="编辑"
+                    >
+                      ✏️
+                    </button>
+                  )}
+
+                  {/* AI 消息：重新生成 + 收藏 */}
+                  {msg.role === 'assistant' && isLastAssistantMsg(msg.id) && (
+                    <button
+                      style={actionBtnStyle}
+                      onClick={() => onRegenerate(msg.id)}
+                      title="重新生成"
+                    >
+                      🔄
+                    </button>
+                  )}
+
+                  {msg.role === 'assistant' && (
+                    <button
+                      className={`message-favorite ${msg.is_favorited ? 'active' : ''}`}
+                      onClick={() => onToggleFavorite(msg.id)}
+                      title={msg.is_favorited ? '取消收藏' : '收藏到回忆匣子'}
+                    >
+                      {msg.is_favorited ? '♥' : '♡'}
+                    </button>
+                  )}
+                </>
               )}
             </div>
           </div>
