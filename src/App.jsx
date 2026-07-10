@@ -29,6 +29,7 @@ export default function App() {
   const [stats, setStats] = useState({ totalMessages: 0, totalConversations: 0, firstChatDate: null })
   const [variantIndexes, setVariantIndexes] = useState({})
   const toastTimeoutRef = useRef(null)
+  const recentSavesRef = useRef(new Set())
 
   const showToast = useCallback((msg) => {
     setToast(msg)
@@ -359,7 +360,15 @@ export default function App() {
   // ==========================================
   const handleToolCall = async (name, args, convId) => {
     switch (name) {
-      case 'save_memory': {
+     case 'save_memory': {
+        const key = args.content.trim().toLowerCase()
+        const isDuplicate = memories.some(m => m.content.trim().toLowerCase() === key) || recentSavesRef.current.has(key)
+        if (isDuplicate) {
+          showToast('💭 这件事已经记住了')
+          break
+        }
+        recentSavesRef.current.add(key)
+        setTimeout(() => recentSavesRef.current.delete(key), 10000)
         const { data } = await supabase.from('memories').insert({ user_id: user.id, category: 'auto', content: args.content, tags: args.tags || [] }).select().single()
         if (data) { setMemories(prev => [...prev, data]); showToast('💭 记住了一件事') }
         break
