@@ -258,7 +258,8 @@ export default function App() {
             const toolResultMsgs = toolCalls.filter(tc => tc?.function?.name).map(tc => ({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify({ success: true }) }))
             const followUpMessages = []
             if (systemPrompt) followUpMessages.push({ role: 'system', content: systemPrompt })
-            followUpMessages.push(...recentMessages, assistantToolMsg, ...toolResultMsgs)
+            const cleanMessages = recentMessages.map(m => { try { const p = JSON.parse(m.content); if (p.images) return { role: m.role, content: p.text || '(发送了图片)' } } catch(e) {} return m })
+            followUpMessages.push(...cleanMessages, assistantToolMsg, ...toolResultMsgs)
             try {
               const { content: followUpContent } = await sendChat({ apiKey, model, messages: followUpMessages, maxTokens: 2000 })
               if (followUpContent) {
