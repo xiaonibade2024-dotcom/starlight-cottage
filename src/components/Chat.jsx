@@ -12,7 +12,10 @@ export default function Chat({
   onMemoryClick
 }) {
   const [input, setInput] = useState('')
+  const [showScrollBtn, setShowScrollBtn] = useState(false)
   const messagesEndRef = useRef(null)
+  const messagesTopRef = useRef(null)
+  const messagesAreaRef = useRef(null)
   const textareaRef = useRef(null)
 
   // 自动滚动到底部
@@ -28,6 +31,14 @@ export default function Chat({
     }
   }, [input])
 
+  // 监听滚动，判断是否显示"回到底部"按钮
+  const handleScroll = () => {
+    if (!messagesAreaRef.current) return
+    const el = messagesAreaRef.current
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+    setShowScrollBtn(distanceFromBottom > 200)
+  }
+
   const handleSend = () => {
     if (!input.trim() || isStreaming) return
     onSend(input.trim())
@@ -37,8 +48,13 @@ export default function Chat({
     }
   }
 
-  // Enter 只换行，不发送。发送统一用发送按钮。
-  // 不需要 handleKeyDown 拦截 Enter 了。
+  const scrollToTop = () => {
+    messagesAreaRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }
 
   const formatTime = (dateStr) => {
     if (!dateStr) return ''
@@ -48,14 +64,11 @@ export default function Chat({
     })
   }
 
-  // 简单的 Markdown 渲染
   const renderContent = (content) => {
     if (!content) return null
     
-    // 分段落
     const paragraphs = content.split('\n\n')
     return paragraphs.map((para, i) => {
-      // 处理单个换行
       const lines = para.split('\n').map((line, j) => (
         <React.Fragment key={j}>
           {j > 0 && <br />}
@@ -66,15 +79,12 @@ export default function Chat({
     })
   }
 
-  // 行内格式化（加粗、斜体）
   const renderInline = (text) => {
-    // 加粗 **text**
     const parts = text.split(/(\*\*[^*]+\*\*)/g)
     return parts.map((part, i) => {
       if (part.startsWith('**') && part.endsWith('**')) {
         return <strong key={i}>{part.slice(2, -2)}</strong>
       }
-      // 斜体 *text*
       const italicParts = part.split(/(\*[^*]+\*)/g)
       return italicParts.map((ip, j) => {
         if (ip.startsWith('*') && ip.endsWith('*') && !ip.startsWith('**')) {
@@ -108,7 +118,13 @@ export default function Chat({
       </div>
 
       {/* 消息区域 */}
-      <div className="messages-area">
+      <div
+        className="messages-area"
+        ref={messagesAreaRef}
+        onScroll={handleScroll}
+      >
+        <div ref={messagesTopRef} />
+
         {messages.length === 0 && !conversation && (
           <div className="empty-state">
             <div className="empty-state-icon">🌙</div>
@@ -154,6 +170,65 @@ export default function Chat({
 
         <div ref={messagesEndRef} />
       </div>
+
+      {/* 浮动滚动按钮 */}
+      {messages.length > 5 && (
+        <button
+          onClick={scrollToTop}
+          title="回到顶部"
+          style={{
+            position: 'absolute',
+            right: '16px',
+            bottom: showScrollBtn ? '130px' : '80px',
+            width: '36px',
+            height: '36px',
+            borderRadius: '50%',
+            border: '1px solid var(--border)',
+            background: 'var(--bg-secondary)',
+            color: 'var(--text-secondary)',
+            fontSize: '16px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+            opacity: 0.8,
+            transition: 'opacity 0.2s, bottom 0.2s',
+            zIndex: 10
+          }}
+          onMouseEnter={e => e.currentTarget.style.opacity = '1'}
+          onMouseLeave={e => e.currentTarget.style.opacity = '0.8'}
+        >
+          ↑
+        </button>
+      )}
+
+      {showScrollBtn && (
+        <button
+          onClick={scrollToBottom}
+          title="回到最新"
+          style={{
+            position: 'absolute',
+            right: '16px',
+            bottom: '80px',
+            width: '36px',
+            height: '36px',
+            borderRadius: '50%',
+            border: '1px solid var(--border)',
+            background: 'var(--accent, #7c6ca8)',
+            color: 'white',
+            fontSize: '16px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+            zIndex: 10
+          }}
+        >
+          ↓
+        </button>
+      )}
 
       {/* 输入区域 */}
       <div className="input-area">
