@@ -8,81 +8,49 @@ import Settings from './components/Settings'
 import NotePopup from './components/NotePopup'
 
 export default function App() {
-  // ===== 认证状态 =====
   const [user, setUser] = useState(null)
   const [authLoading, setAuthLoading] = useState(true)
-
-  // ===== 对话状态 =====
   const [conversations, setConversations] = useState([])
   const [activeConvId, setActiveConvId] = useState(null)
   const [messages, setMessages] = useState([])
-
-  // ===== UI 状态 =====
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settingsTab, setSettingsTab] = useState('general')
   const [isStreaming, setIsStreaming] = useState(false)
   const [mood, setMood] = useState('warm')
   const [toast, setToast] = useState(null)
-
-  // ===== 设置 =====
   const [apiKey, setApiKey] = useState('')
   const [systemPrompt, setSystemPrompt] = useState('')
   const [model, setModel] = useState('anthropic/claude-sonnet-4.5')
   const [maxContextMessages, setMaxContextMessages] = useState(50)
-
-  // ===== 记忆 =====
   const [memories, setMemories] = useState([])
-
-  // ===== 留言条 =====
   const [unreadNote, setUnreadNote] = useState(null)
-
-  // ===== 缓存统计 =====
   const [cacheStats, setCacheStats] = useState({ hits: 0, tokens_saved: 0, last_cached: 0, last_prompt: 0, last_completion: 0 })
-
-  // ===== 统计 =====
   const [stats, setStats] = useState({ totalMessages: 0, totalConversations: 0, firstChatDate: null })
-
-  // ===== 版本切换索引 =====
   const [variantIndexes, setVariantIndexes] = useState({})
-
-  // ===== Refs =====
   const toastTimeoutRef = useRef(null)
 
-  // ==========================================
-  // Toast 提示
-  // ==========================================
   const showToast = useCallback((msg) => {
     setToast(msg)
     if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current)
     toastTimeoutRef.current = setTimeout(() => setToast(null), 3000)
   }, [])
 
-  // ==========================================
-  // 认证相关
-  // ==========================================
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null)
       setAuthLoading(false)
     })
-
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null)
     })
-
     return () => subscription.unsubscribe()
   }, [])
 
-  // ==========================================
-  // 初始化数据
-  // ==========================================
   useEffect(() => {
     if (!user) return
-
     const savedKey = localStorage.getItem('starlight_api_key')
     if (savedKey) setApiKey(savedKey)
-
     loadConversations()
     loadMemories()
     loadSettings()
@@ -90,33 +58,15 @@ export default function App() {
     loadStats()
   }, [user])
 
-  // ==========================================
-  // 加载对话列表
-  // ==========================================
   const loadConversations = async () => {
-    const { data, error } = await supabase
-      .from('conversations')
-      .select('*')
-      .order('updated_at', { ascending: false })
-
-    if (!error && data) {
-      setConversations(data)
-    }
+    const { data, error } = await supabase.from('conversations').select('*').order('updated_at', { ascending: false })
+    if (!error && data) setConversations(data)
   }
 
-  // ==========================================
-  // 加载消息
-  // ==========================================
   const loadMessages = async (convId) => {
-    const { data, error } = await supabase
-      .from('messages')
-      .select('*')
-      .eq('conversation_id', convId)
-      .order('created_at', { ascending: true })
-
+    const { data, error } = await supabase.from('messages').select('*').eq('conversation_id', convId).order('created_at', { ascending: true })
     if (!error && data) {
       setMessages(data)
-      // 恢复版本索引
       const indexes = {}
       data.forEach(m => {
         if (m.variants && m.variants.length > 0) {
@@ -128,29 +78,13 @@ export default function App() {
     }
   }
 
-  // ==========================================
-  // 加载记忆
-  // ==========================================
   const loadMemories = async () => {
-    const { data, error } = await supabase
-      .from('memories')
-      .select('*')
-      .order('created_at', { ascending: true })
-
-    if (!error && data) {
-      setMemories(data)
-    }
+    const { data, error } = await supabase.from('memories').select('*').order('created_at', { ascending: true })
+    if (!error && data) setMemories(data)
   }
 
-  // ==========================================
-  // 加载设置
-  // ==========================================
   const loadSettings = async () => {
-    const { data } = await supabase
-      .from('user_settings')
-      .select('*')
-      .single()
-
+    const { data } = await supabase.from('user_settings').select('*').single()
     if (data) {
       setSystemPrompt(data.system_prompt || '')
       setModel(data.model || 'anthropic/claude-sonnet-4.5')
@@ -158,9 +92,6 @@ export default function App() {
     }
   }
 
-  // ==========================================
-  // 保存设置
-  // ==========================================
   const saveSettings = async (newSettings) => {
     const settings = {
       user_id: user.id,
@@ -168,107 +99,51 @@ export default function App() {
       model: newSettings.model ?? model,
       max_context_messages: newSettings.maxContextMessages ?? maxContextMessages
     }
-
-    const { data: existing } = await supabase
-      .from('user_settings')
-      .select('id')
-      .single()
-
+    const { data: existing } = await supabase.from('user_settings').select('id').single()
     if (existing) {
       await supabase.from('user_settings').update(settings).eq('id', existing.id)
     } else {
       await supabase.from('user_settings').insert(settings)
     }
-
     if (newSettings.systemPrompt !== undefined) setSystemPrompt(newSettings.systemPrompt)
     if (newSettings.model !== undefined) setModel(newSettings.model)
     if (newSettings.maxContextMessages !== undefined) setMaxContextMessages(newSettings.maxContextMessages)
-
     showToast('设置已保存')
   }
 
-  // ==========================================
-  // 保存 API Key（仅本地）
-  // ==========================================
   const saveApiKey = (key) => {
     setApiKey(key)
     localStorage.setItem('starlight_api_key', key)
     showToast('API Key 已保存到本地')
   }
 
-  // ==========================================
-  // 加载未读留言
-  // ==========================================
   const loadUnreadNote = async () => {
-    const { data } = await supabase
-      .from('notes')
-      .select('*')
-      .eq('is_read', false)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single()
-
-    if (data) {
-      setUnreadNote(data)
-    }
+    const { data } = await supabase.from('notes').select('*').eq('is_read', false).order('created_at', { ascending: false }).limit(1).single()
+    if (data) setUnreadNote(data)
   }
 
-  // ==========================================
-  // 标记留言已读
-  // ==========================================
   const dismissNote = async (noteId) => {
     await supabase.from('notes').update({ is_read: true }).eq('id', noteId)
     setUnreadNote(null)
   }
 
-  // ==========================================
-  // 加载统计
-  // ==========================================
   const loadStats = async () => {
-    const { count: msgCount } = await supabase
-      .from('messages')
-      .select('*', { count: 'exact', head: true })
-
-    const { count: convCount } = await supabase
-      .from('conversations')
-      .select('*', { count: 'exact', head: true })
-
-    const { data: firstConv } = await supabase
-      .from('conversations')
-      .select('created_at')
-      .order('created_at', { ascending: true })
-      .limit(1)
-      .single()
-
-    setStats({
-      totalMessages: msgCount || 0,
-      totalConversations: convCount || 0,
-      firstChatDate: firstConv?.created_at || null
-    })
+    const { count: msgCount } = await supabase.from('messages').select('*', { count: 'exact', head: true })
+    const { count: convCount } = await supabase.from('conversations').select('*', { count: 'exact', head: true })
+    const { data: firstConv } = await supabase.from('conversations').select('created_at').order('created_at', { ascending: true }).limit(1).single()
+    setStats({ totalMessages: msgCount || 0, totalConversations: convCount || 0, firstChatDate: firstConv?.created_at || null })
   }
 
-  // ==========================================
-  // 切换对话
-  // ==========================================
   const selectConversation = async (convId) => {
     setActiveConvId(convId)
     await loadMessages(convId)
     setSidebarOpen(false)
-
     const conv = conversations.find(c => c.id === convId)
     if (conv?.mood) setMood(conv.mood)
   }
 
-  // ==========================================
-  // 新建对话
-  // ==========================================
   const createConversation = async (name = '新对话') => {
-    const { data, error } = await supabase
-      .from('conversations')
-      .insert({ user_id: user.id, name })
-      .select()
-      .single()
-
+    const { data, error } = await supabase.from('conversations').insert({ user_id: user.id, name }).select().single()
     if (!error && data) {
       setConversations(prev => [data, ...prev])
       setActiveConvId(data.id)
@@ -280,26 +155,15 @@ export default function App() {
     return null
   }
 
-  // ==========================================
-  // 重命名对话
-  // ==========================================
   const renameConversation = async (convId, newName) => {
     await supabase.from('conversations').update({ name: newName }).eq('id', convId)
-    setConversations(prev =>
-      prev.map(c => c.id === convId ? { ...c, name: newName } : c)
-    )
+    setConversations(prev => prev.map(c => c.id === convId ? { ...c, name: newName } : c))
   }
 
-  // ==========================================
-  // 删除对话
-  // ==========================================
   const deleteConversation = async (convId) => {
     await supabase.from('conversations').delete().eq('id', convId)
     setConversations(prev => prev.filter(c => c.id !== convId))
-    if (activeConvId === convId) {
-      setActiveConvId(null)
-      setMessages([])
-    }
+    if (activeConvId === convId) { setActiveConvId(null); setMessages([]) }
     showToast('对话已删除')
     loadStats()
   }
@@ -309,11 +173,7 @@ export default function App() {
   // ==========================================
   const sendMessage = async (content) => {
     if (!content.trim() || isStreaming) return
-    if (!apiKey) {
-      showToast('请先在设置中填写 API Key')
-      setSettingsOpen(true)
-      return
-    }
+    if (!apiKey) { showToast('请先在设置中填写 API Key'); setSettingsOpen(true); return }
 
     let convId = activeConvId
     if (!convId) {
@@ -322,28 +182,15 @@ export default function App() {
       convId = conv.id
     }
 
-    const userMsg = {
-      conversation_id: convId,
-      role: 'user',
-      content: content.trim()
-    }
-    const { data: savedUserMsg } = await supabase
-      .from('messages')
-      .insert(userMsg)
-      .select()
-      .single()
-
+    const { data: savedUserMsg } = await supabase.from('messages').insert({ conversation_id: convId, role: 'user', content: content.trim() }).select().single()
     if (!savedUserMsg) return
-
     setMessages(prev => [...prev, savedUserMsg])
-
     await supabase.from('conversations').update({ updated_at: new Date().toISOString() }).eq('id', convId)
-
     await streamAIResponse(convId, [...messages, savedUserMsg])
   }
 
   // ==========================================
-  // 流式 AI 回复（sendMessage 和 regenerate 共用）
+  // 流式 AI 回复
   // ==========================================
   const streamAIResponse = async (convId, allMessages, existingMsgId = null) => {
     setIsStreaming(true)
@@ -351,39 +198,21 @@ export default function App() {
     const tempId = existingMsgId || ('streaming-' + Date.now())
 
     if (!existingMsgId) {
-      setMessages(prev => [...prev, {
-        id: tempId,
-        conversation_id: convId,
-        role: 'assistant',
-        content: '',
-        created_at: new Date().toISOString()
-      }])
+      setMessages(prev => [...prev, { id: tempId, conversation_id: convId, role: 'assistant', content: '', created_at: new Date().toISOString() }])
     } else {
-      setMessages(prev => prev.map(m =>
-        m.id === existingMsgId ? { ...m, content: '' } : m
-      ))
+      setMessages(prev => prev.map(m => m.id === existingMsgId ? { ...m, content: '' } : m))
     }
 
-    const recentMessages = allMessages
-      .slice(-maxContextMessages)
-      .map(m => ({ role: m.role, content: m.content }))
+    const recentMessages = allMessages.slice(-maxContextMessages).map(m => ({ role: m.role, content: m.content }))
 
     try {
       await sendChatStream({
-        apiKey,
-        model,
-        systemPrompt,
-        memories,
-        conversationHistory: recentMessages,
-        enableTools: true,
+        apiKey, model, systemPrompt, memories, conversationHistory: recentMessages, enableTools: true,
         onToken: (token) => {
           streamContent += token
-          setMessages(prev =>
-            prev.map(m => m.id === tempId ? { ...m, content: streamContent } : m)
-          )
+          setMessages(prev => prev.map(m => m.id === tempId ? { ...m, content: streamContent } : m))
         },
-        onToolCall: async (name, args, toolId) => {
-        },
+        onToolCall: async () => {},
         onUsage: (usage) => {
           const cachedTokens = usage.cached_tokens || usage.cache_read_input_tokens || 0
           setCacheStats(prev => ({
@@ -396,155 +225,55 @@ export default function App() {
         },
         onError: (error) => {
           showToast('发送失败: ' + error.message)
-          if (!existingMsgId) {
-            setMessages(prev => prev.filter(m => m.id !== tempId))
-          }
+          if (!existingMsgId) setMessages(prev => prev.filter(m => m.id !== tempId))
         },
         onDone: async (finalContent, toolCalls) => {
-          // 先处理工具调用
           if (toolCalls.length > 0) {
             for (const tc of toolCalls) {
               if (tc?.function?.name) {
-                try {
-                  const args = JSON.parse(tc.function.arguments)
-                  await handleToolCall(tc.function.name, args, convId)
-                } catch (e) {
-                  console.error('工具调用处理失败:', e)
-                }
+                try { const args = JSON.parse(tc.function.arguments); await handleToolCall(tc.function.name, args, convId) } catch (e) { console.error('工具调用处理失败:', e) }
               }
             }
           }
 
           if (finalContent) {
             if (existingMsgId) {
-              // 重新生成的情况：更新已有消息
-              const msg = messages.find(m => m.id === existingMsgId)
+              const msg = allMessages.find(m => m.id === existingMsgId) || messages.find(m => m.id === existingMsgId)
               let variants = msg?.variants || []
-              if (variants.length === 0 && msg) {
-                variants = [{ content: msg.content, created_at: msg.created_at }]
-              }
+              if (variants.length === 0 && msg) variants = [{ content: msg.content, created_at: msg.created_at }]
               variants.push({ content: finalContent, created_at: new Date().toISOString() })
-
-              await supabase
-                .from('messages')
-                .update({ content: finalContent, variants })
-                .eq('id', existingMsgId)
-
-              setMessages(prev => prev.map(m =>
-                m.id === existingMsgId ? { ...m, content: finalContent, variants } : m
-              ))
+              await supabase.from('messages').update({ content: finalContent, variants }).eq('id', existingMsgId)
+              setMessages(prev => prev.map(m => m.id === existingMsgId ? { ...m, content: finalContent, variants } : m))
               setVariantIndexes(prev => ({ ...prev, [existingMsgId]: variants.length - 1 }))
             } else {
-              // 新消息
-              const { data: savedMsg } = await supabase
-                .from('messages')
-                .insert({
-                  conversation_id: convId,
-                  role: 'assistant',
-                  content: finalContent
-                })
-                .select()
-                .single()
-
-              if (savedMsg) {
-                setMessages(prev =>
-                  prev.map(m => m.id === tempId ? savedMsg : m)
-                )
-              }
+              const { data: savedMsg } = await supabase.from('messages').insert({ conversation_id: convId, role: 'assistant', content: finalContent }).select().single()
+              if (savedMsg) setMessages(prev => prev.map(m => m.id === tempId ? savedMsg : m))
             }
           } else if (toolCalls.length > 0) {
-            const assistantToolMsg = {
-              role: 'assistant',
-              content: null,
-              tool_calls: toolCalls.map(tc => ({
-                id: tc.id,
-                type: 'function',
-                function: {
-                  name: tc.function.name,
-                  arguments: tc.function.arguments
-                }
-              }))
-            }
-
-            const toolResultMsgs = toolCalls
-              .filter(tc => tc?.function?.name)
-              .map(tc => ({
-                role: 'tool',
-                tool_call_id: tc.id,
-                content: JSON.stringify({ success: true })
-              }))
-
+            const assistantToolMsg = { role: 'assistant', content: null, tool_calls: toolCalls.map(tc => ({ id: tc.id, type: 'function', function: { name: tc.function.name, arguments: tc.function.arguments } })) }
+            const toolResultMsgs = toolCalls.filter(tc => tc?.function?.name).map(tc => ({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify({ success: true }) }))
             const followUpMessages = []
-            if (systemPrompt) {
-              followUpMessages.push({ role: 'system', content: systemPrompt })
-            }
-            followUpMessages.push(...recentMessages)
-            followUpMessages.push(assistantToolMsg)
-            followUpMessages.push(...toolResultMsgs)
-
+            if (systemPrompt) followUpMessages.push({ role: 'system', content: systemPrompt })
+            followUpMessages.push(...recentMessages, assistantToolMsg, ...toolResultMsgs)
             try {
-              const { content: followUpContent } = await sendChat({
-                apiKey,
-                model,
-                messages: followUpMessages,
-                maxTokens: 2000
-              })
-
+              const { content: followUpContent } = await sendChat({ apiKey, model, messages: followUpMessages, maxTokens: 2000 })
               if (followUpContent) {
                 if (existingMsgId) {
-                  const msg = messages.find(m => m.id === existingMsgId)
+                  const msg = allMessages.find(m => m.id === existingMsgId) || messages.find(m => m.id === existingMsgId)
                   let variants = msg?.variants || []
-                  if (variants.length === 0 && msg) {
-                    variants = [{ content: msg.content, created_at: msg.created_at }]
-                  }
+                  if (variants.length === 0 && msg) variants = [{ content: msg.content, created_at: msg.created_at }]
                   variants.push({ content: followUpContent, created_at: new Date().toISOString() })
-
-                  await supabase
-                    .from('messages')
-                    .update({ content: followUpContent, variants })
-                    .eq('id', existingMsgId)
-
-                  setMessages(prev => prev.map(m =>
-                    m.id === existingMsgId ? { ...m, content: followUpContent, variants } : m
-                  ))
+                  await supabase.from('messages').update({ content: followUpContent, variants }).eq('id', existingMsgId)
+                  setMessages(prev => prev.map(m => m.id === existingMsgId ? { ...m, content: followUpContent, variants } : m))
                   setVariantIndexes(prev => ({ ...prev, [existingMsgId]: variants.length - 1 }))
                 } else {
-                  setMessages(prev =>
-                    prev.map(m => m.id === tempId ? { ...m, content: followUpContent } : m)
-                  )
-                  const { data: savedMsg } = await supabase
-                    .from('messages')
-                    .insert({
-                      conversation_id: convId,
-                      role: 'assistant',
-                      content: followUpContent
-                    })
-                    .select()
-                    .single()
-
-                  if (savedMsg) {
-                    setMessages(prev =>
-                      prev.map(m => m.id === tempId ? savedMsg : m)
-                    )
-                  }
+                  setMessages(prev => prev.map(m => m.id === tempId ? { ...m, content: followUpContent } : m))
+                  const { data: savedMsg } = await supabase.from('messages').insert({ conversation_id: convId, role: 'assistant', content: followUpContent }).select().single()
+                  if (savedMsg) setMessages(prev => prev.map(m => m.id === tempId ? savedMsg : m))
                 }
-              } else {
-                if (!existingMsgId) {
-                  setMessages(prev => prev.filter(m => m.id !== tempId))
-                }
-              }
-            } catch (e) {
-              console.error('获取后续回复失败:', e)
-              if (!existingMsgId) {
-                setMessages(prev => prev.filter(m => m.id !== tempId))
-              }
-              showToast('获取回复失败: ' + e.message)
-            }
-          } else {
-            if (!existingMsgId) {
-              setMessages(prev => prev.filter(m => m.id !== tempId))
-            }
-          }
+              } else { if (!existingMsgId) setMessages(prev => prev.filter(m => m.id !== tempId)) }
+            } catch (e) { console.error('获取后续回复失败:', e); if (!existingMsgId) setMessages(prev => prev.filter(m => m.id !== tempId)); showToast('获取回复失败: ' + e.message) }
+          } else { if (!existingMsgId) setMessages(prev => prev.filter(m => m.id !== tempId)) }
 
           setIsStreaming(false)
           loadStats()
@@ -553,9 +282,7 @@ export default function App() {
       })
     } catch (error) {
       setIsStreaming(false)
-      if (!existingMsgId) {
-        setMessages(prev => prev.filter(m => m.id !== tempId))
-      }
+      if (!existingMsgId) setMessages(prev => prev.filter(m => m.id !== tempId))
       showToast('发送失败: ' + error.message)
     }
   }
@@ -565,14 +292,10 @@ export default function App() {
   // ==========================================
   const regenerateResponse = async (msgId) => {
     if (isStreaming || !apiKey) return
-
     const msgIndex = messages.findIndex(m => m.id === msgId)
     if (msgIndex < 0) return
-
-    // 获取该消息之前的所有消息（作为上下文）
     const historyMessages = messages.slice(0, msgIndex)
     const convId = messages[msgIndex].conversation_id
-
     await streamAIResponse(convId, historyMessages, msgId)
   }
 
@@ -582,36 +305,50 @@ export default function App() {
   const switchVariant = async (msgId, newIndex) => {
     const msg = messages.find(m => m.id === msgId)
     if (!msg || !msg.variants || msg.variants.length === 0) return
-
     const variant = msg.variants[newIndex]
     if (!variant) return
-
-    await supabase
-      .from('messages')
-      .update({ content: variant.content })
-      .eq('id', msgId)
-
-    setMessages(prev => prev.map(m =>
-      m.id === msgId ? { ...m, content: variant.content } : m
-    ))
+    await supabase.from('messages').update({ content: variant.content }).eq('id', msgId)
+    setMessages(prev => prev.map(m => m.id === msgId ? { ...m, content: variant.content } : m))
     setVariantIndexes(prev => ({ ...prev, [msgId]: newIndex }))
   }
 
   // ==========================================
-  // 编辑消息
+  // 编辑消息（仅保存）
   // ==========================================
   const editMessage = async (msgId, newContent) => {
     if (!newContent.trim()) return
-
-    await supabase
-      .from('messages')
-      .update({ content: newContent.trim() })
-      .eq('id', msgId)
-
-    setMessages(prev => prev.map(m =>
-      m.id === msgId ? { ...m, content: newContent.trim() } : m
-    ))
+    await supabase.from('messages').update({ content: newContent.trim() }).eq('id', msgId)
+    setMessages(prev => prev.map(m => m.id === msgId ? { ...m, content: newContent.trim() } : m))
     showToast('消息已保存')
+  }
+
+  // ==========================================
+  // 编辑并重新发送
+  // ==========================================
+  const editAndResend = async (msgId, newContent) => {
+    if (!newContent.trim() || isStreaming || !apiKey) return
+
+    // 保存编辑
+    await supabase.from('messages').update({ content: newContent.trim() }).eq('id', msgId)
+    const updatedMessages = messages.map(m => m.id === msgId ? { ...m, content: newContent.trim() } : m)
+    setMessages(updatedMessages)
+
+    const msgIndex = updatedMessages.findIndex(m => m.id === msgId)
+    if (msgIndex < 0) return
+    const convId = updatedMessages[msgIndex].conversation_id
+
+    // 找到这条消息之后的 AI 回复
+    const nextAssistantIndex = updatedMessages.findIndex((m, i) => i > msgIndex && m.role === 'assistant')
+
+    if (nextAssistantIndex >= 0) {
+      // 重新生成已有的 AI 回复
+      const historyUpToUser = updatedMessages.slice(0, msgIndex + 1)
+      await streamAIResponse(convId, historyUpToUser, updatedMessages[nextAssistantIndex].id)
+    } else {
+      // 没有 AI 回复，创建新的
+      const historyUpToUser = updatedMessages.slice(0, msgIndex + 1)
+      await streamAIResponse(convId, historyUpToUser)
+    }
   }
 
   // ==========================================
@@ -620,220 +357,86 @@ export default function App() {
   const handleToolCall = async (name, args, convId) => {
     switch (name) {
       case 'save_memory': {
-        const { data } = await supabase
-          .from('memories')
-          .insert({
-            user_id: user.id,
-            category: 'auto',
-            content: args.content,
-            tags: args.tags || []
-          })
-          .select()
-          .single()
-
-        if (data) {
-          setMemories(prev => [...prev, data])
-          showToast('💭 记住了一件事')
-        }
+        const { data } = await supabase.from('memories').insert({ user_id: user.id, category: 'auto', content: args.content, tags: args.tags || [] }).select().single()
+        if (data) { setMemories(prev => [...prev, data]); showToast('💭 记住了一件事') }
         break
       }
       case 'leave_note': {
-        await supabase.from('notes').insert({
-          user_id: user.id,
-          conversation_id: convId,
-          content: args.content
-        })
+        await supabase.from('notes').insert({ user_id: user.id, conversation_id: convId, content: args.content })
         showToast('📝 留了一张小纸条')
         break
       }
       case 'set_mood': {
         setMood(args.mood)
-        if (convId) {
-          await supabase.from('conversations').update({ mood: args.mood }).eq('id', convId)
-        }
+        if (convId) await supabase.from('conversations').update({ mood: args.mood }).eq('id', convId)
         break
       }
     }
   }
 
-  // ==========================================
-  // 收藏消息
-  // ==========================================
   const toggleFavorite = async (msgId) => {
     const msg = messages.find(m => m.id === msgId)
     if (!msg) return
-
     const newFav = !msg.is_favorited
     await supabase.from('messages').update({ is_favorited: newFav }).eq('id', msgId)
-    setMessages(prev =>
-      prev.map(m => m.id === msgId ? { ...m, is_favorited: newFav } : m)
-    )
+    setMessages(prev => prev.map(m => m.id === msgId ? { ...m, is_favorited: newFav } : m))
     showToast(newFav ? '已收藏到回忆匣子 ✨' : '已取消收藏')
   }
 
-  // ==========================================
-  // 删除记忆
-  // ==========================================
   const deleteMemory = async (memId) => {
     await supabase.from('memories').delete().eq('id', memId)
     setMemories(prev => prev.filter(m => m.id !== memId))
     showToast('记忆已删除')
   }
 
-  // ==========================================
-  // 添加核心记忆
-  // ==========================================
   const addCoreMemory = async (content) => {
-    const { data } = await supabase
-      .from('memories')
-      .insert({
-        user_id: user.id,
-        category: 'core',
-        content,
-        tags: ['核心']
-      })
-      .select()
-      .single()
-
-    if (data) {
-      setMemories(prev => [...prev, data])
-      showToast('核心记忆已添加')
-    }
+    const { data } = await supabase.from('memories').insert({ user_id: user.id, category: 'core', content, tags: ['核心'] }).select().single()
+    if (data) { setMemories(prev => [...prev, data]); showToast('核心记忆已添加') }
   }
 
-  // ==========================================
-  // 导出对话
-  // ==========================================
   const exportConversation = async (convId) => {
     const conv = conversations.find(c => c.id === convId)
     if (!conv) return
-
-    const { data: msgs } = await supabase
-      .from('messages')
-      .select('*')
-      .eq('conversation_id', convId)
-      .order('created_at', { ascending: true })
-
-    const exportData = {
-      conversation: conv,
-      messages: msgs || [],
-      exportedAt: new Date().toISOString()
-    }
-
+    const { data: msgs } = await supabase.from('messages').select('*').eq('conversation_id', convId).order('created_at', { ascending: true })
+    const exportData = { conversation: conv, messages: msgs || [], exportedAt: new Date().toISOString() }
     const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
-    a.href = url
-    a.download = `${conv.name}_${new Date().toLocaleDateString()}.json`
-    a.click()
+    a.href = url; a.download = `${conv.name}_${new Date().toLocaleDateString()}.json`; a.click()
     URL.revokeObjectURL(url)
     showToast('对话已导出')
   }
 
-  // ==========================================
-  // 导出全部数据
-  // ==========================================
   const exportAllData = async () => {
     const { data: allConvs } = await supabase.from('conversations').select('*')
     const { data: allMsgs } = await supabase.from('messages').select('*')
     const { data: allMems } = await supabase.from('memories').select('*')
     const { data: allNotes } = await supabase.from('notes').select('*')
-
-    const exportData = {
-      conversations: allConvs || [],
-      messages: allMsgs || [],
-      memories: allMems || [],
-      notes: allNotes || [],
-      exportedAt: new Date().toISOString()
-    }
-
+    const exportData = { conversations: allConvs || [], messages: allMsgs || [], memories: allMems || [], notes: allNotes || [], exportedAt: new Date().toISOString() }
     const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
-    a.href = url
-    a.download = `星月小屋_全部数据_${new Date().toLocaleDateString()}.json`
-    a.click()
+    a.href = url; a.download = `星月小屋_全部数据_${new Date().toLocaleDateString()}.json`; a.click()
     URL.revokeObjectURL(url)
     showToast('全部数据已导出')
   }
 
-  // ==========================================
-  // 渲染
-  // ==========================================
-  if (authLoading) {
-    return (
-      <div className="auth-container">
-        <div style={{ color: 'var(--text-muted)', fontSize: '14px' }}>加载中...</div>
-      </div>
-    )
-  }
-
-  if (!user) {
-    return <Auth onAuth={() => {}} />
-  }
+  if (authLoading) return <div className="auth-container"><div style={{ color: 'var(--text-muted)', fontSize: '14px' }}>加载中...</div></div>
+  if (!user) return <Auth onAuth={() => {}} />
 
   const activeConv = conversations.find(c => c.id === activeConvId)
 
   return (
     <div className="app-container" data-mood={mood}>
-      {sidebarOpen && (
-        <div className="sidebar-backdrop" onClick={() => setSidebarOpen(false)} />
-      )}
-
-      <Sidebar
-        conversations={conversations}
-        activeConvId={activeConvId}
-        isOpen={sidebarOpen}
-        onSelect={selectConversation}
-        onCreate={createConversation}
-        onRename={renameConversation}
-        onDelete={deleteConversation}
-        onExport={exportConversation}
-        onExportAll={exportAllData}
-        onOpenSettings={() => { setSettingsOpen(true); setSettingsTab('general') }}
-      />
-
+      {sidebarOpen && <div className="sidebar-backdrop" onClick={() => setSidebarOpen(false)} />}
+      <Sidebar conversations={conversations} activeConvId={activeConvId} isOpen={sidebarOpen} onSelect={selectConversation} onCreate={createConversation} onRename={renameConversation} onDelete={deleteConversation} onExport={exportConversation} onExportAll={exportAllData} onOpenSettings={() => { setSettingsOpen(true); setSettingsTab('general') }} />
       <Chat
-        conversation={activeConv}
-        messages={messages}
-        isStreaming={isStreaming}
-        cacheStats={cacheStats}
-        variantIndexes={variantIndexes}
-        onSend={sendMessage}
-        onToggleFavorite={toggleFavorite}
-        onRegenerate={regenerateResponse}
-        onEditMessage={editMessage}
-        onSwitchVariant={switchVariant}
-        onMenuClick={() => setSidebarOpen(true)}
-        onSettingsClick={() => { setSettingsOpen(true); setSettingsTab('general') }}
-        onMemoryClick={() => { setSettingsOpen(true); setSettingsTab('memory') }}
+        conversation={activeConv} messages={messages} isStreaming={isStreaming} cacheStats={cacheStats} variantIndexes={variantIndexes}
+        onSend={sendMessage} onToggleFavorite={toggleFavorite} onRegenerate={regenerateResponse} onEditMessage={editMessage} onEditAndResend={editAndResend} onSwitchVariant={switchVariant}
+        onMenuClick={() => setSidebarOpen(true)} onSettingsClick={() => { setSettingsOpen(true); setSettingsTab('general') }} onMemoryClick={() => { setSettingsOpen(true); setSettingsTab('memory') }}
       />
-
-      {settingsOpen && (
-        <Settings
-          tab={settingsTab}
-          onTabChange={setSettingsTab}
-          apiKey={apiKey}
-          systemPrompt={systemPrompt}
-          model={model}
-          maxContextMessages={maxContextMessages}
-          memories={memories}
-          stats={stats}
-          onSaveApiKey={saveApiKey}
-          onSaveSettings={saveSettings}
-          onAddCoreMemory={addCoreMemory}
-          onDeleteMemory={deleteMemory}
-          onClose={() => setSettingsOpen(false)}
-        />
-      )}
-
-      {unreadNote && (
-        <NotePopup
-          note={unreadNote}
-          onDismiss={() => dismissNote(unreadNote.id)}
-        />
-      )}
-
+      {settingsOpen && <Settings tab={settingsTab} onTabChange={setSettingsTab} apiKey={apiKey} systemPrompt={systemPrompt} model={model} maxContextMessages={maxContextMessages} memories={memories} stats={stats} onSaveApiKey={saveApiKey} onSaveSettings={saveSettings} onAddCoreMemory={addCoreMemory} onDeleteMemory={deleteMemory} onClose={() => setSettingsOpen(false)} />}
+      {unreadNote && <NotePopup note={unreadNote} onDismiss={() => dismissNote(unreadNote.id)} />}
       {toast && <div className="toast">{toast}</div>}
     </div>
   )
