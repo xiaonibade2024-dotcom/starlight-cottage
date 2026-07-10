@@ -217,7 +217,7 @@ export default function Chat({
           <div key={msg.id} className={`message ${msg.role}`}>
             <div className="message-bubble" onClick={(e) => handleMessageClick(msg.id, e)} style={{ cursor: editingId ? 'default' : 'pointer' }}>
               {editingId === msg.id ? (
-                <div>
+                <div style={{ minWidth: '280px' }}>
                   <textarea ref={editTextareaRef} value={editContent} onChange={e => setEditContent(e.target.value)}
                     style={{ width: '100%', minHeight: '60px', padding: '8px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-primary)', color: 'var(--text-primary)', fontSize: '14px', lineHeight: '1.5', resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box' }} />
                   <div style={{ display: 'flex', gap: '8px', marginTop: '8px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
@@ -307,7 +307,7 @@ export default function Chat({
             title="添加图片"
           >+</button>
           <textarea ref={textareaRef} className="input-box" placeholder="" value={input} onChange={e => setInput(e.target.value)} rows={1} disabled={isStreaming} />
-          <button className="send-btn" onClick={handleSend} disabled={(!input.trim() && pendingImages.length === 0) || isStreaming} title="发送">{isStreaming ? '…' : '↑'}</button>
+          <button className="send-btn" onClick={handleSend} disabled={(!input.trim() && pendingImages.length === 0) || isStreaming} title="发送">{isStreaming ? '…' : '♥'}</button>
         </div>
       </div>
     </div>
