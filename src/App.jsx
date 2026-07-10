@@ -128,12 +128,15 @@ export default function App() {
   }
 
   const loadStats = async () => {
-    const { count: msgCount } = await supabase.from('messages').select('*', { count: 'exact', head: true })
-    const { count: convCount } = await supabase.from('conversations').select('*', { count: 'exact', head: true })
+    const { data: msgData } = await supabase.from('messages').select('id')
+    const { data: convData } = await supabase.from('conversations').select('id')
     const { data: firstConv } = await supabase.from('conversations').select('created_at').order('created_at', { ascending: true }).limit(1).single()
-    setStats({ totalMessages: msgCount || 0, totalConversations: convCount || 0, firstChatDate: firstConv?.created_at || null })
+    setStats({
+      totalMessages: msgData?.length ?? 0,
+      totalConversations: convData?.length ?? 0,
+      firstChatDate: firstConv?.created_at || null
+    })
   }
-
   const selectConversation = async (convId) => {
     setActiveConvId(convId)
     await loadMessages(convId)
