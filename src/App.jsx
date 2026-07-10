@@ -374,14 +374,13 @@ export default function App() {
           await handleToolCall(name, args, convId)
         },
         onUsage: (usage) => {
-          // 更新缓存统计
-          if (usage.cached_tokens > 0) {
-            setCacheStats(prev => ({
-              hits: prev.hits + 1,
-              tokens_saved: prev.tokens_saved + usage.cached_tokens,
-              last_cached: usage.cached_tokens
-            }))
-          }
+          setCacheStats(prev => ({
+            hits: (usage.cached_tokens > 0) ? prev.hits + 1 : prev.hits,
+            tokens_saved: prev.tokens_saved + (usage.cached_tokens || 0),
+            last_cached: usage.cached_tokens || 0,
+            last_prompt: usage.prompt_tokens || 0,
+            last_completion: usage.completion_tokens || 0
+          }))
         },
         onError: (error) => {
           showToast('发送失败: ' + error.message)
