@@ -161,7 +161,7 @@ export default function Chat({
           <textarea
             ref={textareaRef}
             className="input-box"
-            placeholder="说点什么...（回车换行）"
+            placeholder=""
             value={input}
             onChange={e => setInput(e.target.value)}
             rows={1}
