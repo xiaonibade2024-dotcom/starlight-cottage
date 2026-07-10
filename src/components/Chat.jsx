@@ -18,12 +18,10 @@ export default function Chat({
   const messagesAreaRef = useRef(null)
   const textareaRef = useRef(null)
 
-  // 自动滚动到底部
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  // 自动调整输入框高度
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = '44px'
@@ -31,7 +29,6 @@ export default function Chat({
     }
   }, [input])
 
-  // 监听滚动，判断是否显示"回到底部"按钮
   const handleScroll = () => {
     if (!messagesAreaRef.current) return
     const el = messagesAreaRef.current
@@ -56,17 +53,27 @@ export default function Chat({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }
 
+  // 完整日期时间格式
   const formatTime = (dateStr) => {
     if (!dateStr) return ''
-    return new Date(dateStr).toLocaleTimeString('zh-CN', {
-      hour: '2-digit',
-      minute: '2-digit'
-    })
+    const d = new Date(dateStr)
+    const now = new Date()
+    const isToday = d.toDateString() === now.toDateString()
+    const isThisYear = d.getFullYear() === now.getFullYear()
+
+    const time = d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+
+    if (isToday) {
+      return '今天 ' + time
+    } else if (isThisYear) {
+      return d.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' }) + ' ' + time
+    } else {
+      return d.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }) + ' ' + time
+    }
   }
 
   const renderContent = (content) => {
     if (!content) return null
-    
     const paragraphs = content.split('\n\n')
     return paragraphs.map((para, i) => {
       const lines = para.split('\n').map((line, j) => (
@@ -106,12 +113,6 @@ export default function Chat({
           </span>
         </div>
         <div className="chat-header-right">
-          {cacheStats.last_cached > 0 && (
-            <div className="cache-indicator">
-              <div className="cache-dot" />
-              <span>缓存命中 {cacheStats.last_cached} tokens</span>
-            </div>
-          )}
           <button className="header-btn" title="记忆" onClick={onMemoryClick}>💭</button>
           <button className="header-btn" title="设置" onClick={onSettingsClick}>⚙</button>
         </div>
@@ -170,6 +171,36 @@ export default function Chat({
 
         <div ref={messagesEndRef} />
       </div>
+
+      {/* Token 信息栏 */}
+      {(cacheStats.last_prompt > 0 || cacheStats.last_cached > 0) && (
+        <div style={{
+          display: 'flex',
+          justifyContent: 'center',
+          gap: '12px',
+          padding: '4px 12px',
+          fontSize: '11px',
+          color: 'var(--text-muted)',
+          borderTop: '1px solid var(--border)',
+          background: 'var(--bg-primary)',
+          flexWrap: 'wrap'
+        }}>
+          {cacheStats.last_prompt > 0 && (
+            <span>提示 {cacheStats.last_prompt}</span>
+          )}
+          {cacheStats.last_completion > 0 && (
+            <span>回复 {cacheStats.last_completion}</span>
+          )}
+          {(cacheStats.last_prompt > 0 || cacheStats.last_completion > 0) && (
+            <span>共 {(cacheStats.last_prompt || 0) + (cacheStats.last_completion || 0)}</span>
+          )}
+          {cacheStats.last_cached > 0 && (
+            <span style={{ color: 'var(--accent, #7c6ca8)' }}>
+              ✦ 缓存命中 {cacheStats.last_cached}
+            </span>
+          )}
+        </div>
+      )}
 
       {/* 浮动滚动按钮 */}
       {messages.length > 5 && (
