@@ -293,11 +293,11 @@ export default function Settings({
                   <div className="stat-label">在一起的天数</div>
                 </div>
                 <div className="stat-card">
-                  <div className="stat-value">{stats.totalConversations || '—'}</div>
+                  <div className="stat-value">{stats.totalConversations ?? '—'}</div>
                   <div className="stat-label">对话数</div>
                 </div>
                 <div className="stat-card">
-                  <div className="stat-value">{stats.totalMessages || '—'}</div>
+                  <div className="stat-value">{stats.totalMessages ?? '—'}</div>
                   <div className="stat-label">消息数</div>
                 </div>
                 <div className="stat-card">
