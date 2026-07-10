@@ -21,6 +21,10 @@ export default function Settings({
   const [localMaxCtx, setLocalMaxCtx] = useState(maxContextMessages)
   const [newMemory, setNewMemory] = useState('')
 
+  // 99999 代表无上限
+  const isUnlimited = localMaxCtx >= 99999
+  const displayValue = isUnlimited ? '无上限' : localMaxCtx
+
   const handleSave = () => {
     onSaveApiKey(localApiKey)
     onSaveSettings({
@@ -104,17 +108,68 @@ export default function Settings({
               </div>
 
               <div className="settings-section">
-                <div className="settings-label">最大上下文轮次</div>
-                <input
-                  type="number"
-                  className="settings-input"
-                  min={4}
-                  max={200}
-                  value={localMaxCtx}
-                  onChange={e => setLocalMaxCtx(parseInt(e.target.value) || 50)}
-                />
+                <div className="settings-label">
+                  最大上下文轮次：<strong>{displayValue}</strong>
+                </div>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  marginTop: '8px'
+                }}>
+                  <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>0</span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={500}
+                    step={1}
+                    value={isUnlimited ? 500 : localMaxCtx}
+                    onChange={e => setLocalMaxCtx(parseInt(e.target.value))}
+                    style={{ flex: 1 }}
+                  />
+                  <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>500</span>
+                </div>
+                <div style={{
+                  display: 'flex',
+                  gap: '6px',
+                  marginTop: '8px',
+                  flexWrap: 'wrap'
+                }}>
+                  {[10, 30, 50, 80, 100, 200, 500].map(v => (
+                    <button
+                      key={v}
+                      onClick={() => setLocalMaxCtx(v)}
+                      style={{
+                        padding: '4px 12px',
+                        fontSize: '12px',
+                        border: localMaxCtx === v ? '1px solid var(--accent)' : '1px solid var(--border)',
+                        borderRadius: '12px',
+                        background: localMaxCtx === v ? 'var(--accent)' : 'var(--bg-primary)',
+                        color: localMaxCtx === v ? 'white' : 'var(--text-secondary)',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {v}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => setLocalMaxCtx(99999)}
+                    style={{
+                      padding: '4px 12px',
+                      fontSize: '12px',
+                      border: isUnlimited ? '1px solid var(--accent)' : '1px solid var(--border)',
+                      borderRadius: '12px',
+                      background: isUnlimited ? 'var(--accent)' : 'var(--bg-primary)',
+                      color: isUnlimited ? 'white' : 'var(--text-secondary)',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    无上限
+                  </button>
+                </div>
                 <div className="settings-hint">
-                  每次发送时携带的最近消息数量。越多上下文越完整，但消耗也越大。建议 30-60
+                  每次发送时携带的最近消息数量。越多上下文越完整，但消耗也越大。建议 30-60。
+                  选择"无上限"会发送当前对话的全部历史消息。
                 </div>
               </div>
 
@@ -260,7 +315,6 @@ export default function Settings({
                 <div className="settings-hint">
                   在对话中长按他说的话，点击 ♡ 可以收藏到这里
                 </div>
-                {/* 回忆匣子功能会在后续阶段完善 */}
                 <div style={{
                   padding: '20px',
                   textAlign: 'center',
