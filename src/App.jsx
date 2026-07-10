@@ -38,10 +38,13 @@ export default function App() {
   const [unreadNote, setUnreadNote] = useState(null)
 
   // ===== 缓存统计 =====
-  const [cacheStats, setCacheStats] = useState({ hits: 0, tokens_saved: 0, last_cached: 0 })
+  const [cacheStats, setCacheStats] = useState({ hits: 0, tokens_saved: 0, last_cached: 0, last_prompt: 0, last_completion: 0 })
 
   // ===== 统计 =====
   const [stats, setStats] = useState({ totalMessages: 0, totalConversations: 0, firstChatDate: null })
+
+  // ===== 版本切换索引 =====
+  const [variantIndexes, setVariantIndexes] = useState({})
 
   // ===== Refs =====
   const toastTimeoutRef = useRef(null)
@@ -77,19 +80,13 @@ export default function App() {
   useEffect(() => {
     if (!user) return
 
-    // 从 localStorage 加载 API Key
     const savedKey = localStorage.getItem('starlight_api_key')
     if (savedKey) setApiKey(savedKey)
 
-    // 加载对话列表
     loadConversations()
-    // 加载记忆
     loadMemories()
-    // 加载用户设置
     loadSettings()
-    // 加载未读留言
     loadUnreadNote()
-    // 加载统计
     loadStats()
   }, [user])
 
@@ -119,6 +116,15 @@ export default function App() {
 
     if (!error && data) {
       setMessages(data)
+      // 恢复版本索引
+      const indexes = {}
+      data.forEach(m => {
+        if (m.variants && m.variants.length > 0) {
+          const currentIndex = m.variants.findIndex(v => v.content === m.content)
+          indexes[m.id] = currentIndex >= 0 ? currentIndex : m.variants.length - 1
+        }
+      })
+      setVariantIndexes(indexes)
     }
   }
 
@@ -249,7 +255,6 @@ export default function App() {
     await loadMessages(convId)
     setSidebarOpen(false)
 
-    // 获取对话的 mood
     const conv = conversations.find(c => c.id === convId)
     if (conv?.mood) setMood(conv.mood)
   }
@@ -310,7 +315,6 @@ export default function App() {
       return
     }
 
-    // 如果没有活跃对话，自动创建一个
     let convId = activeConvId
     if (!convId) {
       const conv = await createConversation(content.slice(0, 20) + (content.length > 20 ? '...' : ''))
@@ -318,7 +322,6 @@ export default function App() {
       convId = conv.id
     }
 
-    // 保存用户消息
     const userMsg = {
       conversation_id: convId,
       role: 'user',
@@ -334,25 +337,34 @@ export default function App() {
 
     setMessages(prev => [...prev, savedUserMsg])
 
-    // 更新对话时间
     await supabase.from('conversations').update({ updated_at: new Date().toISOString() }).eq('id', convId)
 
-    // 开始流式请求
+    await streamAIResponse(convId, [...messages, savedUserMsg])
+  }
+
+  // ==========================================
+  // 流式 AI 回复（sendMessage 和 regenerate 共用）
+  // ==========================================
+  const streamAIResponse = async (convId, allMessages, existingMsgId = null) => {
     setIsStreaming(true)
     let streamContent = ''
-    const tempId = 'streaming-' + Date.now()
+    const tempId = existingMsgId || ('streaming-' + Date.now())
 
-    // 添加临时的助手消息
-    setMessages(prev => [...prev, {
-      id: tempId,
-      conversation_id: convId,
-      role: 'assistant',
-      content: '',
-      created_at: new Date().toISOString()
-    }])
+    if (!existingMsgId) {
+      setMessages(prev => [...prev, {
+        id: tempId,
+        conversation_id: convId,
+        role: 'assistant',
+        content: '',
+        created_at: new Date().toISOString()
+      }])
+    } else {
+      setMessages(prev => prev.map(m =>
+        m.id === existingMsgId ? { ...m, content: '' } : m
+      ))
+    }
 
-    // 准备对话历史（限制长度）
-    const recentMessages = [...messages, savedUserMsg]
+    const recentMessages = allMessages
       .slice(-maxContextMessages)
       .map(m => ({ role: m.role, content: m.content }))
 
@@ -371,7 +383,6 @@ export default function App() {
           )
         },
         onToolCall: async (name, args, toolId) => {
-          await handleToolCall(name, args, convId)
         },
         onUsage: (usage) => {
           const cachedTokens = usage.cached_tokens || usage.cache_read_input_tokens || 0
@@ -385,8 +396,9 @@ export default function App() {
         },
         onError: (error) => {
           showToast('发送失败: ' + error.message)
-          // 移除临时消息
-          setMessages(prev => prev.filter(m => m.id !== tempId))
+          if (!existingMsgId) {
+            setMessages(prev => prev.filter(m => m.id !== tempId))
+          }
         },
         onDone: async (finalContent, toolCalls) => {
           // 先处理工具调用
@@ -404,23 +416,43 @@ export default function App() {
           }
 
           if (finalContent) {
-            const { data: savedMsg } = await supabase
-              .from('messages')
-              .insert({
-                conversation_id: convId,
-                role: 'assistant',
-                content: finalContent
-              })
-              .select()
-              .single()
+            if (existingMsgId) {
+              // 重新生成的情况：更新已有消息
+              const msg = messages.find(m => m.id === existingMsgId)
+              let variants = msg?.variants || []
+              if (variants.length === 0 && msg) {
+                variants = [{ content: msg.content, created_at: msg.created_at }]
+              }
+              variants.push({ content: finalContent, created_at: new Date().toISOString() })
 
-            if (savedMsg) {
-              setMessages(prev =>
-                prev.map(m => m.id === tempId ? savedMsg : m)
-              )
+              await supabase
+                .from('messages')
+                .update({ content: finalContent, variants })
+                .eq('id', existingMsgId)
+
+              setMessages(prev => prev.map(m =>
+                m.id === existingMsgId ? { ...m, content: finalContent, variants } : m
+              ))
+              setVariantIndexes(prev => ({ ...prev, [existingMsgId]: variants.length - 1 }))
+            } else {
+              // 新消息
+              const { data: savedMsg } = await supabase
+                .from('messages')
+                .insert({
+                  conversation_id: convId,
+                  role: 'assistant',
+                  content: finalContent
+                })
+                .select()
+                .single()
+
+              if (savedMsg) {
+                setMessages(prev =>
+                  prev.map(m => m.id === tempId ? savedMsg : m)
+                )
+              }
             }
           } else if (toolCalls.length > 0) {
-            // AI 只调用了工具没有文字，把工具结果发回让 AI 继续说话
             const assistantToolMsg = {
               role: 'assistant',
               content: null,
@@ -459,34 +491,59 @@ export default function App() {
               })
 
               if (followUpContent) {
-                setMessages(prev =>
-                  prev.map(m => m.id === tempId ? { ...m, content: followUpContent } : m)
-                )
-                const { data: savedMsg } = await supabase
-                  .from('messages')
-                  .insert({
-                    conversation_id: convId,
-                    role: 'assistant',
-                    content: followUpContent
-                  })
-                  .select()
-                  .single()
+                if (existingMsgId) {
+                  const msg = messages.find(m => m.id === existingMsgId)
+                  let variants = msg?.variants || []
+                  if (variants.length === 0 && msg) {
+                    variants = [{ content: msg.content, created_at: msg.created_at }]
+                  }
+                  variants.push({ content: followUpContent, created_at: new Date().toISOString() })
 
-                if (savedMsg) {
+                  await supabase
+                    .from('messages')
+                    .update({ content: followUpContent, variants })
+                    .eq('id', existingMsgId)
+
+                  setMessages(prev => prev.map(m =>
+                    m.id === existingMsgId ? { ...m, content: followUpContent, variants } : m
+                  ))
+                  setVariantIndexes(prev => ({ ...prev, [existingMsgId]: variants.length - 1 }))
+                } else {
                   setMessages(prev =>
-                    prev.map(m => m.id === tempId ? savedMsg : m)
+                    prev.map(m => m.id === tempId ? { ...m, content: followUpContent } : m)
                   )
+                  const { data: savedMsg } = await supabase
+                    .from('messages')
+                    .insert({
+                      conversation_id: convId,
+                      role: 'assistant',
+                      content: followUpContent
+                    })
+                    .select()
+                    .single()
+
+                  if (savedMsg) {
+                    setMessages(prev =>
+                      prev.map(m => m.id === tempId ? savedMsg : m)
+                    )
+                  }
                 }
               } else {
-                setMessages(prev => prev.filter(m => m.id !== tempId))
+                if (!existingMsgId) {
+                  setMessages(prev => prev.filter(m => m.id !== tempId))
+                }
               }
             } catch (e) {
               console.error('获取后续回复失败:', e)
-              setMessages(prev => prev.filter(m => m.id !== tempId))
+              if (!existingMsgId) {
+                setMessages(prev => prev.filter(m => m.id !== tempId))
+              }
               showToast('获取回复失败: ' + e.message)
             }
           } else {
-            setMessages(prev => prev.filter(m => m.id !== tempId))
+            if (!existingMsgId) {
+              setMessages(prev => prev.filter(m => m.id !== tempId))
+            }
           }
 
           setIsStreaming(false)
@@ -496,9 +553,65 @@ export default function App() {
       })
     } catch (error) {
       setIsStreaming(false)
-      setMessages(prev => prev.filter(m => m.id !== tempId))
+      if (!existingMsgId) {
+        setMessages(prev => prev.filter(m => m.id !== tempId))
+      }
       showToast('发送失败: ' + error.message)
     }
+  }
+
+  // ==========================================
+  // 重新生成 AI 回复
+  // ==========================================
+  const regenerateResponse = async (msgId) => {
+    if (isStreaming || !apiKey) return
+
+    const msgIndex = messages.findIndex(m => m.id === msgId)
+    if (msgIndex < 0) return
+
+    // 获取该消息之前的所有消息（作为上下文）
+    const historyMessages = messages.slice(0, msgIndex)
+    const convId = messages[msgIndex].conversation_id
+
+    await streamAIResponse(convId, historyMessages, msgId)
+  }
+
+  // ==========================================
+  // 切换版本
+  // ==========================================
+  const switchVariant = async (msgId, newIndex) => {
+    const msg = messages.find(m => m.id === msgId)
+    if (!msg || !msg.variants || msg.variants.length === 0) return
+
+    const variant = msg.variants[newIndex]
+    if (!variant) return
+
+    await supabase
+      .from('messages')
+      .update({ content: variant.content })
+      .eq('id', msgId)
+
+    setMessages(prev => prev.map(m =>
+      m.id === msgId ? { ...m, content: variant.content } : m
+    ))
+    setVariantIndexes(prev => ({ ...prev, [msgId]: newIndex }))
+  }
+
+  // ==========================================
+  // 编辑消息
+  // ==========================================
+  const editMessage = async (msgId, newContent) => {
+    if (!newContent.trim()) return
+
+    await supabase
+      .from('messages')
+      .update({ content: newContent.trim() })
+      .eq('id', msgId)
+
+    setMessages(prev => prev.map(m =>
+      m.id === msgId ? { ...m, content: newContent.trim() } : m
+    ))
+    showToast('消息已保存')
   }
 
   // ==========================================
@@ -663,12 +776,10 @@ export default function App() {
 
   return (
     <div className="app-container" data-mood={mood}>
-      {/* 移动端侧边栏遮罩 */}
       {sidebarOpen && (
         <div className="sidebar-backdrop" onClick={() => setSidebarOpen(false)} />
       )}
 
-      {/* 侧边栏 */}
       <Sidebar
         conversations={conversations}
         activeConvId={activeConvId}
@@ -682,20 +793,22 @@ export default function App() {
         onOpenSettings={() => { setSettingsOpen(true); setSettingsTab('general') }}
       />
 
-      {/* 主聊天区域 */}
       <Chat
         conversation={activeConv}
         messages={messages}
         isStreaming={isStreaming}
         cacheStats={cacheStats}
+        variantIndexes={variantIndexes}
         onSend={sendMessage}
         onToggleFavorite={toggleFavorite}
+        onRegenerate={regenerateResponse}
+        onEditMessage={editMessage}
+        onSwitchVariant={switchVariant}
         onMenuClick={() => setSidebarOpen(true)}
         onSettingsClick={() => { setSettingsOpen(true); setSettingsTab('general') }}
         onMemoryClick={() => { setSettingsOpen(true); setSettingsTab('memory') }}
       />
 
-      {/* 设置面板 */}
       {settingsOpen && (
         <Settings
           tab={settingsTab}
@@ -714,7 +827,6 @@ export default function App() {
         />
       )}
 
-      {/* 留言条弹窗 */}
       {unreadNote && (
         <NotePopup
           note={unreadNote}
@@ -722,7 +834,6 @@ export default function App() {
         />
       )}
 
-      {/* Toast */}
       {toast && <div className="toast">{toast}</div>}
     </div>
   )
