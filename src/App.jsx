@@ -374,10 +374,11 @@ export default function App() {
           await handleToolCall(name, args, convId)
         },
         onUsage: (usage) => {
+          const cachedTokens = usage.cached_tokens || usage.cache_read_input_tokens || 0
           setCacheStats(prev => ({
-            hits: (usage.cached_tokens > 0) ? prev.hits + 1 : prev.hits,
-            tokens_saved: prev.tokens_saved + (usage.cached_tokens || 0),
-            last_cached: usage.cached_tokens || 0,
+            hits: (cachedTokens > 0) ? prev.hits + 1 : prev.hits,
+            tokens_saved: prev.tokens_saved + cachedTokens,
+            last_cached: cachedTokens,
             last_prompt: usage.prompt_tokens || 0,
             last_completion: usage.completion_tokens || 0
           }))
