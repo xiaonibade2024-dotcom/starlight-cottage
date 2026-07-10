@@ -37,12 +37,8 @@ export default function Chat({
     }
   }
 
-  const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      handleSend()
-    }
-  }
+  // Enter 只换行，不发送。发送统一用发送按钮。
+  // 不需要 handleKeyDown 拦截 Enter 了。
 
   const formatTime = (dateStr) => {
     if (!dateStr) return ''
@@ -165,10 +161,9 @@ export default function Chat({
           <textarea
             ref={textareaRef}
             className="input-box"
-            placeholder="说点什么..."
+            placeholder="说点什么...（回车换行）"
             value={input}
             onChange={e => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
             rows={1}
             disabled={isStreaming}
           />
