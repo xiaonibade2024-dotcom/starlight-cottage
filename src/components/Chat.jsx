@@ -51,8 +51,21 @@ export default function Chat({
   const textareaRef = useRef(null)
   const editTextareaRef = useRef(null)
   const fileInputRef = useRef(null)
+  const isNearBottomRef = useRef(true)
 
-  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
+  // 智能滚动：只有当你本来就在底部附近时，新内容才会带着页面往下滚
+  // 如果你翻上去看历史记录，就不打扰你
+  useEffect(() => {
+    if (isNearBottomRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [messages])
+
+  // 切换对话时，回到跟随模式并落到底部
+  useEffect(() => {
+    isNearBottomRef.current = true
+    messagesEndRef.current?.scrollIntoView()
+  }, [conversation?.id])
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -71,7 +84,9 @@ export default function Chat({
 
   const handleScroll = () => {
     if (!messagesAreaRef.current) return
-    setShowScrollBtn(messagesAreaRef.current.scrollHeight - messagesAreaRef.current.scrollTop - messagesAreaRef.current.clientHeight > 200)
+    const distance = messagesAreaRef.current.scrollHeight - messagesAreaRef.current.scrollTop - messagesAreaRef.current.clientHeight
+    setShowScrollBtn(distance > 200)
+    isNearBottomRef.current = distance < 100
   }
 
   const handleSend = () => {
@@ -86,6 +101,8 @@ export default function Chat({
       onSend(input.trim())
     }
     setInput('')
+    isNearBottomRef.current = true
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
     if (textareaRef.current) textareaRef.current.style.height = '44px'
   }
 
