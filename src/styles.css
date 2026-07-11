@@ -573,7 +573,7 @@ body {
 }
 
 .input-box:focus {
-  border-color: #C8A4A4;
+  border-color: var(--border);
   box-shadow: none;
 }
 
