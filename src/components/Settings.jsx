@@ -1,4 +1,11 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+
+const FALLBACK_MODELS = [
+  'anthropic/claude-sonnet-4.5',
+  'anthropic/claude-opus-4.1',
+  'anthropic/claude-3.7-sonnet',
+  'anthropic/claude-3.5-haiku'
+]
 
 export default function Settings({
   tab,
@@ -20,6 +27,22 @@ export default function Settings({
   const [localModel, setLocalModel] = useState(model)
   const [localMaxCtx, setLocalMaxCtx] = useState(maxContextMessages)
   const [newMemory, setNewMemory] = useState('')
+  const [modelList, setModelList] = useState(FALLBACK_MODELS)
+
+  // 从 OpenRouter 拉取实时模型列表（公开接口，无需 Key）
+  useEffect(() => {
+    fetch('https://openrouter.ai/api/v1/models')
+      .then(r => r.json())
+      .then(data => {
+        const ids = (data?.data || []).map(m => m.id).filter(Boolean)
+        if (ids.length > 0) {
+          const anthropic = ids.filter(id => id.startsWith('anthropic/')).sort()
+          const others = ids.filter(id => !id.startsWith('anthropic/')).sort()
+          setModelList([...anthropic, ...others])
+        }
+      })
+      .catch(() => {})
+  }, [])
 
   // 99999 代表无上限
   const isUnlimited = localMaxCtx >= 99999
@@ -99,11 +122,15 @@ export default function Settings({
                 <div className="settings-label">模型</div>
                 <input
                   className="settings-input"
+                  list="model-options"
                   value={localModel}
                   onChange={e => setLocalModel(e.target.value)}
                 />
+                <datalist id="model-options">
+                  {modelList.map(id => <option key={id} value={id} />)}
+                </datalist>
                 <div className="settings-hint">
-                  默认 anthropic/claude-sonnet-4.5
+                  点击可展开选择，也可以直接输入模型名过滤 · 默认 anthropic/claude-sonnet-4.5
                 </div>
               </div>
 
