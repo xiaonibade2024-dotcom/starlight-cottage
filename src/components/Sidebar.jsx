@@ -14,6 +14,19 @@ export default function Sidebar({
 }) {
   const [editingId, setEditingId] = useState(null)
   const [editName, setEditName] = useState('')
+  const [exportMenu, setExportMenu] = useState(null) // { id, x, y }
+
+  const openExportMenu = (e, convId) => {
+    e.stopPropagation()
+    const r = e.currentTarget.getBoundingClientRect()
+    setExportMenu(exportMenu?.id === convId ? null : { id: convId, x: r.right, y: r.bottom + 4 })
+  }
+
+  const pickExport = (e, format) => {
+    e.stopPropagation()
+    onExport(exportMenu.id, format)
+    setExportMenu(null)
+  }
 
   const startRename = (e, conv) => {
     e.stopPropagation()
@@ -86,7 +99,7 @@ export default function Sidebar({
             </div>
             <div className="chat-item-actions">
               <button title="重命名" onClick={e => startRename(e, conv)}>✎</button>
-              <button title="导出" onClick={e => { e.stopPropagation(); onExport(conv.id) }}>↓</button>
+              <button title="导出" onClick={e => openExportMenu(e, conv.id)}>↓</button>
               <button className="delete" title="删除" onClick={e => {
                 e.stopPropagation()
                 if (confirm('确定要删除这个对话吗？')) onDelete(conv.id)
@@ -112,6 +125,22 @@ export default function Sidebar({
         <button onClick={onOpenSettings}>⚙ 设置</button>
         <button onClick={onExportAll}>↓ 导出全部</button>
       </div>
+
+      {exportMenu && (
+        <>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 120 }} onClick={e => { e.stopPropagation(); setExportMenu(null) }} />
+          <div style={{ position: 'fixed', left: Math.max(8, exportMenu.x - 160), top: exportMenu.y, zIndex: 121, width: '160px', background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: '10px', boxShadow: '0 6px 20px rgba(0,0,0,0.12)', padding: '4px', overflow: 'hidden' }}>
+            <div onClick={e => pickExport(e, 'md')}
+              onMouseEnter={e => e.currentTarget.style.background = 'var(--accent-glow)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+              style={{ padding: '9px 12px', borderRadius: '7px', cursor: 'pointer', fontSize: '13px', color: 'var(--text-primary)' }}>📝 Markdown（阅读）</div>
+            <div onClick={e => pickExport(e, 'json')}
+              onMouseEnter={e => e.currentTarget.style.background = 'var(--accent-glow)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+              style={{ padding: '9px 12px', borderRadius: '7px', cursor: 'pointer', fontSize: '13px', color: 'var(--text-primary)' }}>💾 JSON（备份）</div>
+          </div>
+        </>
+      )}
     </div>
   )
 }
