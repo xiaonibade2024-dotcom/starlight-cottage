@@ -30,6 +30,7 @@ export default function App() {
   const [cacheStats, setCacheStats] = useState({ hits: 0, tokens_saved: 0, last_cached: 0, last_prompt: 0, last_completion: 0 })
   const [stats, setStats] = useState({ totalMessages: 0, totalConversations: 0, firstChatDate: null })
   const [variantIndexes, setVariantIndexes] = useState({})
+  const [scrollToMsgId, setScrollToMsgId] = useState(null)
   const toastTimeoutRef = useRef(null)
   const recentSavesRef = useRef(new Set())
   const abortControllerRef = useRef(null)
@@ -327,7 +328,7 @@ export default function App() {
     if (convId !== activeConvId) {
       await selectConversation(convId)
     }
-    // msgId 的滚动定位在第二步实现
+    if (msgId) setScrollToMsgId(msgId)
   }
 
   // ==========================================
@@ -478,6 +479,7 @@ export default function App() {
       <Sidebar conversations={conversations} activeConvId={activeConvId} isOpen={sidebarOpen} onSelect={selectConversation} onCreate={createConversation} onRename={renameConversation} onDelete={deleteConversation} onExport={exportConversation} onExportAll={exportAllData} onOpenSettings={() => { setSettingsOpen(true); setSettingsTab('general') }} />
       <Chat
         conversation={activeConv} messages={messages} isStreaming={isStreaming} cacheStats={cacheStats} variantIndexes={variantIndexes}
+        scrollToMsgId={scrollToMsgId} onScrollDone={() => setScrollToMsgId(null)}
         onSend={sendMessage} onStop={stopStreaming} onToggleFavorite={toggleFavorite} onRegenerate={regenerateResponse} onEditMessage={editMessage} onEditAndResend={editAndResend} onSwitchVariant={switchVariant}
         onMenuClick={() => setSidebarOpen(true)} onSettingsClick={() => { setSettingsOpen(true); setSettingsTab('general') }} onMemoryClick={() => { setSettingsOpen(true); setSettingsTab('memory') }} onSearchClick={() => setSearchOpen(true)}
       />
