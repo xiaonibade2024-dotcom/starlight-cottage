@@ -242,9 +242,9 @@ export async function sendChatStream({
 }
 
 /**
- * 工具调用后的追加请求
- * 关键：和主请求用完全一样的"前缀"（系统提示+记忆+工具定义+原始对话历史）
- * 这样才能命中主请求写入的缓存，省下大部分费用
+ * 工具调用后的追加请求（流式版）
+ * 关键1：和主请求用完全一样的"前缀"（系统提示+记忆+工具定义+原始对话历史），命中缓存
+ * 关键2：流式输出，打字机效果，且随时可以中断
  */
 export async function sendChatFollowUp({
   apiKey,
@@ -254,37 +254,76 @@ export async function sendChatFollowUp({
   conversationHistory,
   assistantToolMsg,
   toolResultMsgs,
-  signal
+  signal,
+  onToken
 }) {
   const messages = buildMessages(systemPrompt, memories, conversationHistory)
   messages.push(assistantToolMsg, ...toolResultMsgs)
 
-  const response = await fetch(OPENROUTER_API_URL, {
-    method: 'POST',
-    signal,
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
-      'HTTP-Referer': window.location.origin,
-      'X-Title': 'Starlight Cottage'
-    },
-    body: JSON.stringify({
-      model,
-      messages,
-      max_tokens: 16384,
-      cache_control: { type: 'ephemeral', ttl: '1h' },
-      tools: buildTools(),
-      tool_choice: 'auto'
+  let fullContent = ''
+  let usage = null
+
+  try {
+    const response = await fetch(OPENROUTER_API_URL, {
+      method: 'POST',
+      signal,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+        'HTTP-Referer': window.location.origin,
+        'X-Title': 'Starlight Cottage'
+      },
+      body: JSON.stringify({
+        model,
+        messages,
+        stream: true,
+        max_tokens: 16384,
+        cache_control: { type: 'ephemeral', ttl: '1h' },
+        stream_options: { include_usage: true },
+        tools: buildTools(),
+        tool_choice: 'auto'
+      })
     })
-  })
 
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}))
-    throw new Error(errorData.error?.message || `请求失败: ${response.status}`)
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error?.message || `请求失败: ${response.status}`)
+    }
+
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() || ''
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ') || line === 'data: [DONE]') continue
+        try {
+          const data = JSON.parse(line.slice(6))
+          const delta = data.choices?.[0]?.delta
+          if (delta?.content) {
+            fullContent += delta.content
+            onToken?.(delta.content)
+          }
+          if (data.usage) usage = data.usage
+        } catch (e) {}
+      }
+    }
+
+    return { content: fullContent, usage }
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      // 用户主动停止：保留已生成的部分内容
+      return { content: fullContent, usage, aborted: true }
+    }
+    throw error
   }
-
-  const data = await response.json()
-  return { content: data.choices?.[0]?.message?.content || '', usage: data.usage }
 }
 
 /**
