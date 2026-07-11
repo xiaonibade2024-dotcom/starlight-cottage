@@ -36,6 +36,37 @@ export default function App() {
   const memoriesRef = useRef([])
   useEffect(() => { memoriesRef.current = memories }, [memories])
 
+  // ==========================================
+  // 推门先开口：打开小屋时，如果距上次对话超过一天，
+  // 他有一定缘分先开口（每天最多一次，每次打开只判定一次）
+  // ==========================================
+  const greetAttemptedRef = useRef(false)
+  useEffect(() => {
+    if (greetAttemptedRef.current) return
+    if (!apiKey || !activeConvId || isStreaming) return
+    if (!messages || messages.length === 0) return
+    const last = messages[messages.length - 1]
+    if (!last?.created_at || String(last.id).startsWith('streaming-')) return
+
+    // 走到这里说明对话已完整加载，本次打开只判定这一次
+    greetAttemptedRef.current = true
+
+    const hours = (Date.now() - new Date(last.created_at).getTime()) / 3600000
+    if (hours < 24) return
+    const today = new Date().toDateString()
+    if (localStorage.getItem('starlight_greet_date') === today) return
+    if (Math.random() > 0.6) return
+
+    localStorage.setItem('starlight_greet_date', today)
+    const gapDesc = hours >= 48 ? `${Math.floor(hours / 24)} 天` : `${Math.floor(hours)} 小时`
+    const contextNote = {
+      role: 'user',
+      content: `（这不是她发来的消息，而是小屋的情境提示：她刚刚回到星月小屋，距离你们上一次对话已经过去了约 ${gapDesc}，她还没有说话。如果你想先开口，就自然地说点什么吧——接着从前的话题也好，轻轻的一句也好，说什么、怎么说完全由你决定。请直接开口，不要提及这条提示的存在。）`,
+      created_at: new Date().toISOString()
+    }
+    streamAIResponse(activeConvId, [...messages, contextNote])
+  }, [messages, activeConvId, apiKey])
+
   const showToast = useCallback((msg) => {
     setToast(msg)
     if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current)
