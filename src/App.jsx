@@ -30,6 +30,7 @@ export default function App() {
   const [variantIndexes, setVariantIndexes] = useState({})
   const toastTimeoutRef = useRef(null)
   const recentSavesRef = useRef(new Set())
+  const abortControllerRef = useRef(null)
 
   const showToast = useCallback((msg) => {
     setToast(msg)
@@ -198,6 +199,8 @@ export default function App() {
   // ==========================================
   const streamAIResponse = async (convId, allMessages, existingMsgId = null) => {
     setIsStreaming(true)
+    const abortController = new AbortController()
+    abortControllerRef.current = abortController
     let streamContent = ''
     const tempId = existingMsgId || ('streaming-' + Date.now())
 
@@ -211,7 +214,7 @@ export default function App() {
 
     try {
       await sendChatStream({
-        apiKey, model, systemPrompt, memories, conversationHistory: recentMessages, enableTools: true,
+        apiKey, model, systemPrompt, memories, conversationHistory: recentMessages, enableTools: true, signal: abortController.signal,
         onToken: (token) => {
           streamContent += token
           setMessages(prev => prev.map(m => m.id === tempId ? { ...m, content: streamContent } : m))
@@ -257,7 +260,7 @@ export default function App() {
             const assistantToolMsg = { role: 'assistant', content: null, tool_calls: toolCalls.map(tc => ({ id: tc.id, type: 'function', function: { name: tc.function.name, arguments: tc.function.arguments } })) }
             const toolResultMsgs = toolCalls.filter(tc => tc?.function?.name).map(tc => ({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify({ success: true }) }))
             try {
-              const { content: followUpContent, usage: followUpUsage } = await sendChatFollowUp({ apiKey, model, systemPrompt, memories, conversationHistory: recentMessages, assistantToolMsg, toolResultMsgs })
+              const { content: followUpContent, usage: followUpUsage } = await sendChatFollowUp({ apiKey, model, systemPrompt, memories, conversationHistory: recentMessages, assistantToolMsg, toolResultMsgs, signal: abortController.signal })
               if (followUpUsage) {
                 const followUpCached = followUpUsage.prompt_tokens_details?.cached_tokens || followUpUsage.cached_tokens || 0
                 setCacheStats(prev => ({
@@ -283,19 +286,28 @@ export default function App() {
                   if (savedMsg) setMessages(prev => prev.map(m => m.id === tempId ? savedMsg : m))
                 }
               } else { if (!existingMsgId) setMessages(prev => prev.filter(m => m.id !== tempId)) }
-            } catch (e) { console.error('获取后续回复失败:', e); if (!existingMsgId) setMessages(prev => prev.filter(m => m.id !== tempId)); showToast('获取回复失败: ' + e.message) }
+            } catch (e) { console.error('获取后续回复失败:', e); if (!existingMsgId) setMessages(prev => prev.filter(m => m.id !== tempId)); if (e.name !== 'AbortError') showToast('获取回复失败: ' + e.message) }
           } else { if (!existingMsgId) setMessages(prev => prev.filter(m => m.id !== tempId)) }
 
           setIsStreaming(false)
+          abortControllerRef.current = null
           loadStats()
           loadConversations()
         }
       })
     } catch (error) {
       setIsStreaming(false)
+      abortControllerRef.current = null
       if (!existingMsgId) setMessages(prev => prev.filter(m => m.id !== tempId))
       showToast('发送失败: ' + error.message)
     }
+  }
+
+  // ==========================================
+  // 停止生成
+  // ==========================================
+  const stopStreaming = () => {
+    abortControllerRef.current?.abort()
   }
 
   // ==========================================
@@ -451,7 +463,7 @@ export default function App() {
       <Sidebar conversations={conversations} activeConvId={activeConvId} isOpen={sidebarOpen} onSelect={selectConversation} onCreate={createConversation} onRename={renameConversation} onDelete={deleteConversation} onExport={exportConversation} onExportAll={exportAllData} onOpenSettings={() => { setSettingsOpen(true); setSettingsTab('general') }} />
       <Chat
         conversation={activeConv} messages={messages} isStreaming={isStreaming} cacheStats={cacheStats} variantIndexes={variantIndexes}
-        onSend={sendMessage} onToggleFavorite={toggleFavorite} onRegenerate={regenerateResponse} onEditMessage={editMessage} onEditAndResend={editAndResend} onSwitchVariant={switchVariant}
+        onSend={sendMessage} onStop={stopStreaming} onToggleFavorite={toggleFavorite} onRegenerate={regenerateResponse} onEditMessage={editMessage} onEditAndResend={editAndResend} onSwitchVariant={switchVariant}
         onMenuClick={() => setSidebarOpen(true)} onSettingsClick={() => { setSettingsOpen(true); setSettingsTab('general') }} onMemoryClick={() => { setSettingsOpen(true); setSettingsTab('memory') }}
       />
       {settingsOpen && <Settings tab={settingsTab} onTabChange={setSettingsTab} apiKey={apiKey} systemPrompt={systemPrompt} model={model} maxContextMessages={maxContextMessages} memories={memories} stats={stats} onSaveApiKey={saveApiKey} onSaveSettings={saveSettings} onAddCoreMemory={addCoreMemory} onDeleteMemory={deleteMemory} onClose={() => setSettingsOpen(false)} />}
