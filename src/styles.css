@@ -1208,3 +1208,8 @@ body {
 .hljs-title, .hljs-function .hljs-title, .hljs-title.function_ { color: #9AC0E0; }
 .hljs-variable, .hljs-name, .hljs-attribute { color: #E0A6A6; }
 .hljs-built_in, .hljs-type, .hljs-title.class_ { color: #C0B0E8; }
+
+/* 触屏设备：对话操作按钮常驻显示（修复手机需要点两下的问题） */
+@media (hover: none) {
+  .chat-item-actions { opacity: 1; }
+}
