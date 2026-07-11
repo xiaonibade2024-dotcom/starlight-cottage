@@ -26,7 +26,7 @@ export default function App() {
   const [maxContextMessages, setMaxContextMessages] = useState(50)
   const [memories, setMemories] = useState([])
   const [unreadNote, setUnreadNote] = useState(null)
-  const [cacheStats, setCacheStats] = useState({ hits: 0, tokens_saved: 0, last_cached: 0, last_prompt: 0, last_completion: 0 })
+  const [cacheStats, setCacheStats] = useState({ hits: 0, tokens_saved: 0, last_cached: 0, last_cache_write: 0, last_prompt: 0, last_completion: 0 })
   const [stats, setStats] = useState({ totalMessages: 0, totalConversations: 0, firstChatDate: null })
   const [variantIndexes, setVariantIndexes] = useState({})
   const [scrollToMsgId, setScrollToMsgId] = useState(null)
@@ -256,11 +256,13 @@ export default function App() {
         },
         onToolCall: async () => {},
         onUsage: (usage) => {
-          const cachedTokens = usage.cached_tokens || usage.cache_read_input_tokens || 0
+          const cachedTokens = usage.prompt_tokens_details?.cached_tokens || usage.cached_tokens || 0
+          const cacheWrite = usage.prompt_tokens_details?.cache_write_tokens || 0
           setCacheStats(prev => ({
             hits: (cachedTokens > 0) ? prev.hits + 1 : prev.hits,
             tokens_saved: prev.tokens_saved + cachedTokens,
             last_cached: cachedTokens,
+            last_cache_write: cacheWrite,
             last_prompt: usage.prompt_tokens || 0,
             last_completion: usage.completion_tokens || 0
           }))
@@ -292,23 +294,53 @@ export default function App() {
               if (savedMsg) setMessages(prev => prev.map(m => m.id === tempId ? savedMsg : m))
             }
           } else if (toolCalls.length > 0) {
-            const assistantToolMsg = { role: 'assistant', content: null, tool_calls: toolCalls.map(tc => ({ id: tc.id, type: 'function', function: { name: tc.function.name, arguments: tc.function.arguments } })) }
-            const toolResultMsgs = toolCalls.filter(tc => tc?.function?.name).map(tc => ({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify({ success: true }) }))
             try {
+              // 多轮循环：他每次调用工具后都追问一次，直到他开口说话（最多3轮，防止无限循环）
+              let pendingToolCalls = toolCalls  // 主请求的工具调用已在上面执行过
+              const extraMessages = []
+              let followUpContent = ''
+              let followUpUsage = null
               let followUpStream = ''
-              const { content: followUpContent, usage: followUpUsage } = await sendChatFollowUp({
-                apiKey, model: useModel, systemPrompt, memories, conversationHistory: recentMessages, assistantToolMsg, toolResultMsgs, signal: abortController.signal,
-                onToken: (token) => {
-                  followUpStream += token
-                  setMessages(prev => prev.map(m => m.id === tempId ? { ...m, content: followUpStream } : m))
+              let rounds = 0
+
+              while (pendingToolCalls.length > 0 && rounds < 3) {
+                rounds++
+                extraMessages.push(
+                  { role: 'assistant', content: null, tool_calls: pendingToolCalls.map(tc => ({ id: tc.id, type: 'function', function: { name: tc.function.name, arguments: tc.function.arguments } })) },
+                  ...pendingToolCalls.filter(tc => tc?.function?.name).map(tc => ({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify({ success: true }) }))
+                )
+
+                const res = await sendChatFollowUp({
+                  apiKey, model: useModel, systemPrompt, memories, conversationHistory: recentMessages, extraMessages, signal: abortController.signal,
+                  onToken: (token) => {
+                    followUpStream += token
+                    setMessages(prev => prev.map(m => m.id === tempId ? { ...m, content: followUpStream } : m))
+                  }
+                })
+
+                if (res.usage) followUpUsage = res.usage
+                followUpContent = res.content || ''
+
+                // 这一轮他又调用了工具？照样全部执行，绝不无视
+                if (res.toolCalls && res.toolCalls.length > 0) {
+                  for (const tc of res.toolCalls) {
+                    if (tc?.function?.name) {
+                      try { const args = JSON.parse(tc.function.arguments); await handleToolCall(tc.function.name, args, convId) } catch (e) { console.error('追加轮工具调用处理失败:', e) }
+                    }
+                  }
+                  if (!followUpContent) { pendingToolCalls = res.toolCalls; continue }
                 }
-              })
+                pendingToolCalls = []
+              }
+
               if (followUpUsage) {
                 const followUpCached = followUpUsage.prompt_tokens_details?.cached_tokens || followUpUsage.cached_tokens || 0
+                const followUpWrite = followUpUsage.prompt_tokens_details?.cache_write_tokens || 0
                 setCacheStats(prev => ({
                   hits: followUpCached > 0 ? prev.hits + 1 : prev.hits,
                   tokens_saved: prev.tokens_saved + followUpCached,
                   last_cached: followUpCached,
+                  last_cache_write: followUpWrite,
                   last_prompt: followUpUsage.prompt_tokens || 0,
                   last_completion: followUpUsage.completion_tokens || 0
                 }))
@@ -451,8 +483,14 @@ export default function App() {
         }
         recentSavesRef.current.add(key)
         setTimeout(() => recentSavesRef.current.delete(key), 10000)
-        const { data } = await supabase.from('memories').insert({ user_id: user.id, category: 'auto', content: args.content, tags: args.tags || [] }).select().single()
-        if (data) { setMemories(prev => [...prev, data]); showToast('💭 记住了一件事') }
+        const { data, error } = await supabase.from('memories').insert({ user_id: user.id, category: 'auto', content: args.content, tags: args.tags || [] }).select().single()
+        if (data) {
+          setMemories(prev => [...prev, data])
+          showToast('💭 记住了一件事')
+        } else {
+          recentSavesRef.current.delete(key)
+          showToast('⚠️ 记忆保存失败' + (error?.message ? '：' + error.message : '，请重试'))
+        }
         break
       }
       case 'leave_note': {
