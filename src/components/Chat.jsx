@@ -36,7 +36,7 @@ function parseContent(content) {
 }
 
 export default function Chat({
-  conversation, messages, isStreaming, cacheStats, variantIndexes,
+  conversation, messages, isStreaming, cacheStats, variantIndexes, scrollToMsgId, onScrollDone,
   onSend, onStop, onToggleFavorite, onRegenerate, onEditMessage, onEditAndResend, onSwitchVariant,
   onMenuClick, onSettingsClick, onMemoryClick, onSearchClick
 }) {
@@ -56,6 +56,7 @@ export default function Chat({
   // 智能滚动：只有当你本来就在底部附近时，新内容才会带着页面往下滚
   // 如果你翻上去看历史记录，就不打扰你
   useEffect(() => {
+    if (scrollToMsgId) return
     if (isNearBottomRef.current) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
     }
@@ -63,9 +64,26 @@ export default function Chat({
 
   // 切换对话时，回到跟随模式并落到底部
   useEffect(() => {
+    if (scrollToMsgId) return
     isNearBottomRef.current = true
     messagesEndRef.current?.scrollIntoView()
   }, [conversation?.id])
+
+  // 搜索定位：滚动到目标消息并闪一下淡紫光
+  useEffect(() => {
+    if (!scrollToMsgId) return
+    const el = document.getElementById('msg-' + scrollToMsgId)
+    if (el) {
+      isNearBottomRef.current = false
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      const bubble = el.querySelector('.message-bubble')
+      if (bubble) {
+        bubble.classList.add('flash')
+        setTimeout(() => bubble.classList.remove('flash'), 1700)
+      }
+    }
+    onScrollDone?.()
+  }, [scrollToMsgId, messages])
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -232,7 +250,7 @@ export default function Chat({
         )}
 
         {messages.map(msg => (
-          <div key={msg.id} className={`message ${msg.role}`}>
+          <div key={msg.id} id={'msg-' + msg.id} className={`message ${msg.role}`}>
             <div className="message-bubble" onClick={(e) => handleMessageClick(msg.id, e)} style={{ cursor: editingId ? 'default' : 'pointer' }}>
               {editingId === msg.id ? (
                 <div style={{ minWidth: '280px' }}>
