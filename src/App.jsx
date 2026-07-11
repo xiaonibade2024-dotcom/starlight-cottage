@@ -453,17 +453,42 @@ export default function App() {
     if (data) { setMemories(prev => [...prev, data]); showToast('核心记忆已添加') }
   }
 
-  const exportConversation = async (convId) => {
+  const exportConversation = async (convId, format = 'json') => {
     const conv = conversations.find(c => c.id === convId)
     if (!conv) return
     const { data: msgs } = await supabase.from('messages').select('*').eq('conversation_id', convId).order('created_at', { ascending: true })
-    const exportData = { conversation: conv, messages: msgs || [], exportedAt: new Date().toISOString() }
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' })
+    const messages = msgs || []
+    let blob, filename
+
+    if (format === 'md') {
+      const lines = [`# ${conv.name}`, '', `> 导出自星月小屋 · ${new Date().toLocaleString('zh-CN')}`, '']
+      for (const m of messages) {
+        let text = m.content || ''
+        let imageNote = ''
+        try {
+          const parsed = JSON.parse(m.content)
+          if (parsed.images) {
+            text = parsed.text || ''
+            imageNote = `（附 ${parsed.images.length} 张图片）`
+          }
+        } catch (e) {}
+        const who = m.role === 'user' ? '我' : 'TA'
+        const time = new Date(m.created_at).toLocaleString('zh-CN')
+        lines.push('---', '', `**${who}** · ${time}`, '', text + (imageNote ? `\n\n${imageNote}` : ''), '')
+      }
+      blob = new Blob([lines.join('\n')], { type: 'text/markdown' })
+      filename = `${conv.name}_${new Date().toLocaleDateString()}.md`
+    } else {
+      const exportData = { conversation: conv, messages, exportedAt: new Date().toISOString() }
+      blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' })
+      filename = `${conv.name}_${new Date().toLocaleDateString()}.json`
+    }
+
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
-    a.href = url; a.download = `${conv.name}_${new Date().toLocaleDateString()}.json`; a.click()
+    a.href = url; a.download = filename; a.click()
     URL.revokeObjectURL(url)
-    showToast('对话已导出')
+    showToast(format === 'md' ? '已导出 Markdown' : '对话已导出')
   }
 
   const exportAllData = async () => {
