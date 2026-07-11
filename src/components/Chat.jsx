@@ -38,7 +38,7 @@ function parseContent(content) {
 export default function Chat({
   conversation, messages, isStreaming, cacheStats, variantIndexes,
   onSend, onStop, onToggleFavorite, onRegenerate, onEditMessage, onEditAndResend, onSwitchVariant,
-  onMenuClick, onSettingsClick, onMemoryClick
+  onMenuClick, onSettingsClick, onMemoryClick, onSearchClick
 }) {
   const [input, setInput] = useState('')
   const [showScrollBtn, setShowScrollBtn] = useState(false)
@@ -214,6 +214,7 @@ export default function Chat({
           <span className="chat-header-title">{conversation?.name || '星月小屋'}</span>
         </div>
         <div className="chat-header-right">
+          <button className="header-btn" title="搜索" onClick={onSearchClick}>🔍</button>
           <button className="header-btn" title="记忆" onClick={onMemoryClick}>💭</button>
           <button className="header-btn" title="设置" onClick={onSettingsClick}>⚙</button>
         </div>
