@@ -18,6 +18,27 @@ function parseMessageContent(content) {
 }
 
 /**
+ * 时间格式化（输出必须是确定性的，同一条消息永远得到同一串字，保证缓存稳定）
+ */
+const WEEKDAYS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+
+function formatMsgTime(dateStr) {
+  if (!dateStr) return ''
+  const d = new Date(dateStr)
+  if (isNaN(d.getTime())) return ''
+  const hh = String(d.getHours()).padStart(2, '0')
+  const mm = String(d.getMinutes()).padStart(2, '0')
+  return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日 ${WEEKDAYS[d.getDay()]} ${hh}:${mm}`
+}
+
+function formatMemDate(dateStr) {
+  if (!dateStr) return ''
+  const d = new Date(dateStr)
+  if (isNaN(d.getTime())) return ''
+  return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`
+}
+
+/**
  * 构建带缓存的消息结构
  */
 function buildMessages(systemPrompt, memories, conversationHistory) {
@@ -34,20 +55,30 @@ function buildMessages(systemPrompt, memories, conversationHistory) {
       systemContent += '\n\n【核心记忆】\n' + coreMemories.map(m => m.content).join('\n')
     }
     if (autoMemories.length > 0) {
-      systemContent += '\n\n【你主动记住的事情】\n' + autoMemories.map(m => m.content).join('\n')
+      systemContent += '\n\n【你主动记住的事情】\n' + autoMemories.map(m => {
+        const d = formatMemDate(m.created_at)
+        return d ? `（记于${d}）${m.content}` : m.content
+      }).join('\n')
     }
     if (summaryMemories.length > 0) {
-      systemContent += '\n\n【过往对话摘要】\n' + summaryMemories.map(m => m.content).join('\n')
+      systemContent += '\n\n【过往对话摘要】\n' + summaryMemories.map(m => {
+        const d = formatMemDate(m.created_at)
+        return d ? `（记于${d}）${m.content}` : m.content
+      }).join('\n')
     }
   }
 
   if (systemContent) {
+    systemContent += '\n\n【时间感知】\n用户每条消息前方括号内是这条消息的真实发送时间。它让你能像人一样自然地感知时间的流逝与间隔——深夜、清晨、久别重逢，都可以被你体会，但不必刻意提及或每次回应。'
     messages.push({ role: 'system', content: systemContent })
   }
 
   if (conversationHistory && conversationHistory.length > 0) {
     for (const msg of conversationHistory) {
       const { text, images } = parseMessageContent(msg.content)
+      // 只给用户消息盖时间章（时间戳来自消息自身的 created_at，永远不变，缓存安全）
+      const ts = msg.role === 'user' ? formatMsgTime(msg.created_at) : ''
+      const stampedText = ts ? (text ? `[${ts}] ${text}` : `[${ts}]`) : text
 
       if (images.length > 0) {
         // 多模态消息：图片 + 文字
@@ -55,12 +86,12 @@ function buildMessages(systemPrompt, memories, conversationHistory) {
         for (const img of images) {
           contentParts.push({ type: 'image_url', image_url: { url: img } })
         }
-        if (text) {
-          contentParts.push({ type: 'text', text })
+        if (stampedText) {
+          contentParts.push({ type: 'text', text: stampedText })
         }
         messages.push({ role: msg.role, content: contentParts })
       } else {
-        messages.push({ role: msg.role, content: text })
+        messages.push({ role: msg.role, content: stampedText })
       }
     }
   }
