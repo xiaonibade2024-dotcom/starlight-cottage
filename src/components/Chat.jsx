@@ -1,4 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import remarkBreaks from 'remark-breaks'
+import rehypeHighlight from 'rehype-highlight'
 
 // 压缩图片
 function resizeImage(file, maxWidth = 1600) {
@@ -209,22 +213,13 @@ export default function Chat({
 
   const renderTextContent = (text) => {
     if (!text) return null
-    return text.split('\n\n').map((para, i) => {
-      const lines = para.split('\n').map((line, j) => (
-        <React.Fragment key={j}>{j > 0 && <br />}{renderInline(line)}</React.Fragment>
-      ))
-      return <p key={i}>{lines}</p>
-    })
-  }
-
-  const renderInline = (text) => {
-    return text.split(/(\*\*[^*]+\*\*)/g).map((part, i) => {
-      if (part.startsWith('**') && part.endsWith('**')) return <strong key={i}>{part.slice(2, -2)}</strong>
-      return part.split(/(\*[^*]+\*)/g).map((ip, j) => {
-        if (ip.startsWith('*') && ip.endsWith('*') && !ip.startsWith('**')) return <em key={`${i}-${j}`}>{ip.slice(1, -1)}</em>
-        return <React.Fragment key={`${i}-${j}`}>{ip}</React.Fragment>
-      })
-    })
+    return (
+      <div className="md-content">
+        <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]} rehypePlugins={[rehypeHighlight]}>
+          {text}
+        </ReactMarkdown>
+      </div>
+    )
   }
 
   // 渲染消息内容（支持图片）
