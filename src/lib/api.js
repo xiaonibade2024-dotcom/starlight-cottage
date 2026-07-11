@@ -101,20 +101,6 @@ function buildTools() {
           required: ['content']
         }
       }
-    },
-    {
-      type: 'function',
-      function: {
-        name: 'set_mood',
-        description: '表达你当下的心境。可选：warm（温暖）、serene（宁静）、playful（愉悦）、tender（温柔）、nostalgic（怀念）、cozy（安心）',
-        parameters: {
-          type: 'object',
-          properties: {
-            mood: { type: 'string', enum: ['warm', 'serene', 'playful', 'tender', 'nostalgic', 'cozy'], description: '心境' }
-          },
-          required: ['mood']
-        }
-      }
     }
   ]
 }
