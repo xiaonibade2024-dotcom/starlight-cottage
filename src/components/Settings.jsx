@@ -74,8 +74,10 @@ export default function Settings({
     setNewMemory('')
   }
 
-  const coreMemories = memories.filter(m => m.category === 'core')
-  const autoMemories = memories.filter(m => m.category === 'auto')
+  // 展示时最新的排最前（只影响这里的显示，不影响发给 AI 的顺序，缓存安全）
+  const byNewest = (a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)
+  const coreMemories = memories.filter(m => m.category === 'core').slice().sort(byNewest)
+  const autoMemories = memories.filter(m => m.category === 'auto').slice().sort(byNewest)
 
   const daysSinceFirst = stats.firstChatDate
     ? Math.floor((Date.now() - new Date(stats.firstChatDate).getTime()) / 86400000) + 1
