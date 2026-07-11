@@ -129,6 +129,7 @@ export async function sendChatStream({
   memories,
   conversationHistory,
   enableTools = true,
+  signal,
   onToken,
   onToolCall,
   onUsage,
@@ -151,9 +152,13 @@ export async function sendChatStream({
     body.tool_choice = 'auto'
   }
 
+  let fullContent = ''
+  let toolCalls = []
+
   try {
     const response = await fetch(OPENROUTER_API_URL, {
       method: 'POST',
+      signal,
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${apiKey}`,
@@ -171,8 +176,6 @@ export async function sendChatStream({
     const reader = response.body.getReader()
     const decoder = new TextDecoder()
     let buffer = ''
-    let fullContent = ''
-    let toolCalls = []
 
     while (true) {
       const { done, value } = await reader.read()
@@ -228,6 +231,11 @@ export async function sendChatStream({
 
     return { content: fullContent, toolCalls }
   } catch (error) {
+    if (error.name === 'AbortError') {
+      // 用户主动停止：保留已生成的部分内容，不算错误
+      onDone?.(fullContent, [])
+      return { content: fullContent, toolCalls: [], aborted: true }
+    }
     onError?.(error)
     throw error
   }
@@ -245,13 +253,15 @@ export async function sendChatFollowUp({
   memories,
   conversationHistory,
   assistantToolMsg,
-  toolResultMsgs
+  toolResultMsgs,
+  signal
 }) {
   const messages = buildMessages(systemPrompt, memories, conversationHistory)
   messages.push(assistantToolMsg, ...toolResultMsgs)
 
   const response = await fetch(OPENROUTER_API_URL, {
     method: 'POST',
+    signal,
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${apiKey}`,
