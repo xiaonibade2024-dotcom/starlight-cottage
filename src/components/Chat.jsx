@@ -357,16 +357,8 @@ export default function Chat({
 
       {/* 输入区域 */}
       <div className="input-area">
-        {/* 工具条：图片在左，模型徽章在右 */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-          <input type="file" ref={fileInputRef} accept="image/*" multiple style={{ display: 'none' }} onChange={handleImageSelect} />
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isStreaming}
-            style={{ width: '32px', height: '32px', borderRadius: '50%', border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-secondary)', fontSize: '17px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
-            title="添加图片"
-          >+</button>
-
+        {/* 工具条：模型徽章独自靠右，悬在发送键上方 */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', marginBottom: '8px' }}>
           <div style={{ position: 'relative' }}>
             <button
               onClick={openModelPanel}
@@ -414,6 +406,13 @@ export default function Chat({
         </div>
 
         <div className="input-wrapper" style={{ display: 'flex', alignItems: 'flex-end', gap: '8px' }}>
+          <input type="file" ref={fileInputRef} accept="image/*" multiple style={{ display: 'none' }} onChange={handleImageSelect} />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isStreaming}
+            style={{ width: '36px', height: '36px', borderRadius: '50%', border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-secondary)', fontSize: '18px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+            title="添加图片"
+          >+</button>
           <textarea ref={textareaRef} className="input-box" placeholder="" value={input} onChange={e => setInput(e.target.value)} rows={1} />
           <button className="send-btn" onClick={isStreaming ? onStop : handleSend} disabled={!isStreaming && !input.trim() && pendingImages.length === 0} title={isStreaming ? '停止生成' : '发送'}>{isStreaming ? '■' : '♥'}</button>
         </div>
