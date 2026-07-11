@@ -141,6 +141,7 @@ export async function sendChatStream({
     model,
     messages,
     stream: true,
+    max_tokens: 16384,
     cache_control: { type: 'ephemeral', ttl: '1h' },
     stream_options: { include_usage: true }
   }
