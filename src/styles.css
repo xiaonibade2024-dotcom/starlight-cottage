@@ -574,7 +574,7 @@ body {
 
 .input-box:focus {
   border-color: #C8A4A4;
-  box-shadow: 0 0 0 3px rgba(200, 164, 164, 0.2);
+  box-shadow: none;
 }
 
 .input-box::placeholder {
