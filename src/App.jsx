@@ -204,6 +204,8 @@ export default function App() {
     setIsStreaming(true)
     const abortController = new AbortController()
     abortControllerRef.current = abortController
+    // 对话有自己记住的模型就用它，否则用全局默认
+    const useModel = conversations.find(c => c.id === convId)?.model || model
     let streamContent = ''
     const tempId = existingMsgId || ('streaming-' + Date.now())
 
@@ -217,7 +219,7 @@ export default function App() {
 
     try {
       await sendChatStream({
-        apiKey, model, systemPrompt, memories, conversationHistory: recentMessages, enableTools: true, signal: abortController.signal,
+        apiKey, model: useModel, systemPrompt, memories, conversationHistory: recentMessages, enableTools: true, signal: abortController.signal,
         onToken: (token) => {
           streamContent += token
           setMessages(prev => prev.map(m => m.id === tempId ? { ...m, content: streamContent } : m))
@@ -265,7 +267,7 @@ export default function App() {
             try {
               let followUpStream = ''
               const { content: followUpContent, usage: followUpUsage } = await sendChatFollowUp({
-                apiKey, model, systemPrompt, memories, conversationHistory: recentMessages, assistantToolMsg, toolResultMsgs, signal: abortController.signal,
+                apiKey, model: useModel, systemPrompt, memories, conversationHistory: recentMessages, assistantToolMsg, toolResultMsgs, signal: abortController.signal,
                 onToken: (token) => {
                   followUpStream += token
                   setMessages(prev => prev.map(m => m.id === tempId ? { ...m, content: followUpStream } : m))
@@ -318,6 +320,16 @@ export default function App() {
   // ==========================================
   const stopStreaming = () => {
     abortControllerRef.current?.abort()
+  }
+
+  // ==========================================
+  // 给当前对话设置专属模型（null = 跟随全局默认）
+  // ==========================================
+  const setConversationModel = async (newModel) => {
+    if (!activeConvId) return
+    const value = newModel || null
+    setConversations(prev => prev.map(c => c.id === activeConvId ? { ...c, model: value } : c))
+    await supabase.from('conversations').update({ model: value }).eq('id', activeConvId)
   }
 
   // ==========================================
@@ -479,6 +491,7 @@ export default function App() {
       <Sidebar conversations={conversations} activeConvId={activeConvId} isOpen={sidebarOpen} onSelect={selectConversation} onCreate={createConversation} onRename={renameConversation} onDelete={deleteConversation} onExport={exportConversation} onExportAll={exportAllData} onOpenSettings={() => { setSettingsOpen(true); setSettingsTab('general') }} />
       <Chat
         conversation={activeConv} messages={messages} isStreaming={isStreaming} cacheStats={cacheStats} variantIndexes={variantIndexes}
+        currentModel={activeConv?.model || model} onChangeModel={setConversationModel}
         scrollToMsgId={scrollToMsgId} onScrollDone={() => setScrollToMsgId(null)}
         onSend={sendMessage} onStop={stopStreaming} onToggleFavorite={toggleFavorite} onRegenerate={regenerateResponse} onEditMessage={editMessage} onEditAndResend={editAndResend} onSwitchVariant={switchVariant}
         onMenuClick={() => setSidebarOpen(true)} onSettingsClick={() => { setSettingsOpen(true); setSettingsTab('general') }} onMemoryClick={() => { setSettingsOpen(true); setSettingsTab('memory') }} onSearchClick={() => setSearchOpen(true)}
