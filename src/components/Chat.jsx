@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 
 // 压缩图片
-function resizeImage(file, maxWidth = 800) {
+function resizeImage(file, maxWidth = 1600) {
   return new Promise((resolve) => {
     const reader = new FileReader()
     reader.onload = (e) => {
@@ -17,7 +17,7 @@ function resizeImage(file, maxWidth = 800) {
         canvas.width = width
         canvas.height = height
         canvas.getContext('2d').drawImage(img, 0, 0, width, height)
-        resolve(canvas.toDataURL('image/jpeg', 0.75))
+        resolve(canvas.toDataURL('image/jpeg', 0.85))
       }
       img.src = e.target.result
     }
