@@ -234,6 +234,50 @@ export async function sendChatStream({
 }
 
 /**
+ * 工具调用后的追加请求
+ * 关键：和主请求用完全一样的"前缀"（系统提示+记忆+工具定义+原始对话历史）
+ * 这样才能命中主请求写入的缓存，省下大部分费用
+ */
+export async function sendChatFollowUp({
+  apiKey,
+  model = 'anthropic/claude-sonnet-4.5',
+  systemPrompt,
+  memories,
+  conversationHistory,
+  assistantToolMsg,
+  toolResultMsgs
+}) {
+  const messages = buildMessages(systemPrompt, memories, conversationHistory)
+  messages.push(assistantToolMsg, ...toolResultMsgs)
+
+  const response = await fetch(OPENROUTER_API_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+      'HTTP-Referer': window.location.origin,
+      'X-Title': 'Starlight Cottage'
+    },
+    body: JSON.stringify({
+      model,
+      messages,
+      max_tokens: 16384,
+      cache_control: { type: 'ephemeral', ttl: '1h' },
+      tools: buildTools(),
+      tool_choice: 'auto'
+    })
+  })
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(errorData.error?.message || `请求失败: ${response.status}`)
+  }
+
+  const data = await response.json()
+  return { content: data.choices?.[0]?.message?.content || '', usage: data.usage }
+}
+
+/**
  * 非流式请求
  */
 export async function sendChat({
