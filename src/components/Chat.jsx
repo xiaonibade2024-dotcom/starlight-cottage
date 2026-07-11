@@ -328,6 +328,7 @@ export default function Chat({
           {cacheStats.last_completion > 0 && <span>回复 {cacheStats.last_completion}</span>}
           {(cacheStats.last_prompt > 0 || cacheStats.last_completion > 0) && <span>共 {(cacheStats.last_prompt || 0) + (cacheStats.last_completion || 0)}</span>}
           {cacheStats.last_cached > 0 && <span style={{ color: 'var(--accent, #7c6ca8)' }}>✦ 缓存命中 {cacheStats.last_cached}</span>}
+          {cacheStats.last_cache_write > 0 && <span style={{ color: 'var(--text-muted)' }}>✧ 缓存写入 {cacheStats.last_cache_write}</span>}
         </div>
       )}
 
