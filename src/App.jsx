@@ -5,6 +5,7 @@ import Auth from './components/Auth'
 import Sidebar from './components/Sidebar'
 import Chat from './components/Chat'
 import Settings from './components/Settings'
+import SearchPanel from './components/SearchPanel'
 import NotePopup from './components/NotePopup'
 
 export default function App() {
@@ -15,6 +16,7 @@ export default function App() {
   const [messages, setMessages] = useState([])
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [searchOpen, setSearchOpen] = useState(false)
   const [settingsTab, setSettingsTab] = useState('general')
   const [isStreaming, setIsStreaming] = useState(false)
   const [mood, setMood] = useState('warm')
@@ -318,6 +320,17 @@ export default function App() {
   }
 
   // ==========================================
+  // 打开搜索结果
+  // ==========================================
+  const openSearchResult = async (convId, msgId) => {
+    setSearchOpen(false)
+    if (convId !== activeConvId) {
+      await selectConversation(convId)
+    }
+    // msgId 的滚动定位在第二步实现
+  }
+
+  // ==========================================
   // 重新生成 AI 回复
   // ==========================================
   const regenerateResponse = async (msgId) => {
@@ -466,8 +479,9 @@ export default function App() {
       <Chat
         conversation={activeConv} messages={messages} isStreaming={isStreaming} cacheStats={cacheStats} variantIndexes={variantIndexes}
         onSend={sendMessage} onStop={stopStreaming} onToggleFavorite={toggleFavorite} onRegenerate={regenerateResponse} onEditMessage={editMessage} onEditAndResend={editAndResend} onSwitchVariant={switchVariant}
-        onMenuClick={() => setSidebarOpen(true)} onSettingsClick={() => { setSettingsOpen(true); setSettingsTab('general') }} onMemoryClick={() => { setSettingsOpen(true); setSettingsTab('memory') }}
+        onMenuClick={() => setSidebarOpen(true)} onSettingsClick={() => { setSettingsOpen(true); setSettingsTab('general') }} onMemoryClick={() => { setSettingsOpen(true); setSettingsTab('memory') }} onSearchClick={() => setSearchOpen(true)}
       />
+      {searchOpen && <SearchPanel activeConvId={activeConvId} activeConvName={activeConv?.name} onClose={() => setSearchOpen(false)} onOpenResult={openSearchResult} />}
       {settingsOpen && <Settings tab={settingsTab} onTabChange={setSettingsTab} apiKey={apiKey} systemPrompt={systemPrompt} model={model} maxContextMessages={maxContextMessages} memories={memories} stats={stats} onSaveApiKey={saveApiKey} onSaveSettings={saveSettings} onAddCoreMemory={addCoreMemory} onDeleteMemory={deleteMemory} onClose={() => setSettingsOpen(false)} />}
       {unreadNote && <NotePopup note={unreadNote} onDismiss={() => dismissNote(unreadNote.id)} />}
       {toast && <div className="toast">{toast}</div>}
