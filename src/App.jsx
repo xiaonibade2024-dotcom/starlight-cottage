@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from './lib/supabase'
-import { sendChatStream, sendChat } from './lib/api'
+import { sendChatStream, sendChatFollowUp } from './lib/api'
 import Auth from './components/Auth'
 import Sidebar from './components/Sidebar'
 import Chat from './components/Chat'
@@ -218,7 +218,7 @@ export default function App() {
         },
         onToolCall: async () => {},
         onUsage: (usage) => {
-          const cachedTokens = usage.prompt_tokens_details?.cached_tokens || usage.cached_tokens || 0
+          const cachedTokens = usage.cached_tokens || usage.cache_read_input_tokens || 0
           setCacheStats(prev => ({
             hits: (cachedTokens > 0) ? prev.hits + 1 : prev.hits,
             tokens_saved: prev.tokens_saved + cachedTokens,
@@ -256,12 +256,18 @@ export default function App() {
           } else if (toolCalls.length > 0) {
             const assistantToolMsg = { role: 'assistant', content: null, tool_calls: toolCalls.map(tc => ({ id: tc.id, type: 'function', function: { name: tc.function.name, arguments: tc.function.arguments } })) }
             const toolResultMsgs = toolCalls.filter(tc => tc?.function?.name).map(tc => ({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify({ success: true }) }))
-            const followUpMessages = []
-            if (systemPrompt) followUpMessages.push({ role: 'system', content: systemPrompt })
-            const cleanMessages = recentMessages.map(m => { try { const p = JSON.parse(m.content); if (p.images) return { role: m.role, content: p.text || '(发送了图片)' } } catch(e) {} return m })
-            followUpMessages.push(...cleanMessages, assistantToolMsg, ...toolResultMsgs)
             try {
-              const { content: followUpContent } = await sendChat({ apiKey, model, messages: followUpMessages, maxTokens: 2000 })
+              const { content: followUpContent, usage: followUpUsage } = await sendChatFollowUp({ apiKey, model, systemPrompt, memories, conversationHistory: recentMessages, assistantToolMsg, toolResultMsgs })
+              if (followUpUsage) {
+                const followUpCached = followUpUsage.prompt_tokens_details?.cached_tokens || followUpUsage.cached_tokens || 0
+                setCacheStats(prev => ({
+                  hits: followUpCached > 0 ? prev.hits + 1 : prev.hits,
+                  tokens_saved: prev.tokens_saved + followUpCached,
+                  last_cached: followUpCached,
+                  last_prompt: followUpUsage.prompt_tokens || 0,
+                  last_completion: followUpUsage.completion_tokens || 0
+                }))
+              }
               if (followUpContent) {
                 if (existingMsgId) {
                   const msg = allMessages.find(m => m.id === existingMsgId) || messages.find(m => m.id === existingMsgId)
