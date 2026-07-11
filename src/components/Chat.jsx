@@ -36,7 +36,7 @@ function parseContent(content) {
 }
 
 export default function Chat({
-  conversation, messages, isStreaming, cacheStats, variantIndexes, scrollToMsgId, onScrollDone,
+  conversation, messages, isStreaming, cacheStats, variantIndexes, scrollToMsgId, onScrollDone, currentModel, onChangeModel,
   onSend, onStop, onToggleFavorite, onRegenerate, onEditMessage, onEditAndResend, onSwitchVariant,
   onMenuClick, onSettingsClick, onMemoryClick, onSearchClick
 }) {
@@ -52,6 +52,29 @@ export default function Chat({
   const editTextareaRef = useRef(null)
   const fileInputRef = useRef(null)
   const isNearBottomRef = useRef(true)
+  const [modelPanelOpen, setModelPanelOpen] = useState(false)
+  const [modelList, setModelList] = useState(null)
+
+  const FALLBACK_MODELS = ['anthropic/claude-sonnet-4.5', 'anthropic/claude-opus-4.1', 'anthropic/claude-3.7-sonnet', 'anthropic/claude-3.5-haiku']
+
+  // 第一次打开面板时才去拉取 Claude 系模型列表
+  const openModelPanel = () => {
+    setModelPanelOpen(v => !v)
+    if (modelList === null) {
+      fetch('https://openrouter.ai/api/v1/models')
+        .then(r => r.json())
+        .then(data => {
+          const ids = (data?.data || []).map(m => m.id).filter(id => id && id.startsWith('anthropic/')).sort()
+          setModelList(ids.length > 0 ? ids : FALLBACK_MODELS)
+        })
+        .catch(() => setModelList(FALLBACK_MODELS))
+    }
+  }
+
+  const pickModel = (id) => {
+    onChangeModel?.(id)
+    setModelPanelOpen(false)
+  }
 
   // 智能滚动：只有当你本来就在底部附近时，新内容才会带着页面往下滚
   // 如果你翻上去看历史记录，就不打扰你
@@ -334,14 +357,63 @@ export default function Chat({
 
       {/* 输入区域 */}
       <div className="input-area">
-        <div className="input-wrapper" style={{ display: 'flex', alignItems: 'flex-end', gap: '8px' }}>
+        {/* 工具条：图片在左，模型徽章在右 */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
           <input type="file" ref={fileInputRef} accept="image/*" multiple style={{ display: 'none' }} onChange={handleImageSelect} />
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={isStreaming}
-            style={{ width: '36px', height: '36px', borderRadius: '50%', border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-secondary)', fontSize: '18px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+            style={{ width: '32px', height: '32px', borderRadius: '50%', border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-secondary)', fontSize: '17px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
             title="添加图片"
           >+</button>
+
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={openModelPanel}
+              title="切换当前对话的模型"
+              style={{ padding: '5px 12px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: '14px', background: 'var(--bg-secondary)', color: 'var(--text-secondary)', cursor: 'pointer', fontFamily: 'inherit' }}
+            >{(currentModel || '').replace(/^anthropic\//, '') || '选择模型'} ▾</button>
+
+            {modelPanelOpen && (
+              <>
+                <div style={{ position: 'fixed', inset: 0, zIndex: 90 }} onClick={() => setModelPanelOpen(false)} />
+                <div style={{ position: 'absolute', bottom: 'calc(100% + 8px)', right: 0, zIndex: 91, width: '270px', maxHeight: '320px', overflowY: 'auto', background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: '12px', boxShadow: '0 8px 24px rgba(0,0,0,0.12)', padding: '6px' }}>
+                  {modelList === null && (
+                    <div style={{ padding: '16px', textAlign: 'center', fontSize: '13px', color: 'var(--text-muted)' }}>加载中…</div>
+                  )}
+                  {(modelList || []).map(id => {
+                    const active = id === currentModel
+                    return (
+                      <div key={id}
+                        onClick={() => pickModel(id)}
+                        onMouseEnter={e => e.currentTarget.style.background = 'var(--accent-glow)'}
+                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                        style={{ padding: '9px 12px', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', color: 'var(--text-primary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ wordBreak: 'break-all' }}>{id.replace(/^anthropic\//, '')}</span>
+                        {active && <span style={{ color: 'var(--accent)', flexShrink: 0 }}>✓</span>}
+                      </div>
+                    )
+                  })}
+                  {modelList !== null && (
+                    <>
+                      <div style={{ height: '1px', background: 'var(--border)', margin: '6px 4px' }} />
+                      <div
+                        onClick={() => pickModel(null)}
+                        onMouseEnter={e => e.currentTarget.style.background = 'var(--accent-glow)'}
+                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                        style={{ padding: '9px 12px', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', color: 'var(--text-secondary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span>跟随全局默认（设置里的模型）</span>
+                        {!conversation?.model && <span style={{ color: 'var(--accent)', flexShrink: 0 }}>✓</span>}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
+        <div className="input-wrapper" style={{ display: 'flex', alignItems: 'flex-end', gap: '8px' }}>
           <textarea ref={textareaRef} className="input-box" placeholder="" value={input} onChange={e => setInput(e.target.value)} rows={1} />
           <button className="send-btn" onClick={isStreaming ? onStop : handleSend} disabled={!isStreaming && !input.trim() && pendingImages.length === 0} title={isStreaming ? '停止生成' : '发送'}>{isStreaming ? '■' : '♥'}</button>
         </div>
