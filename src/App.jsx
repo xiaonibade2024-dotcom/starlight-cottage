@@ -19,7 +19,6 @@ export default function App() {
   const [searchOpen, setSearchOpen] = useState(false)
   const [settingsTab, setSettingsTab] = useState('general')
   const [isStreaming, setIsStreaming] = useState(false)
-  const [mood, setMood] = useState('warm')
   const [toast, setToast] = useState(null)
   const [apiKey, setApiKey] = useState('')
   const [systemPrompt, setSystemPrompt] = useState('')
@@ -144,10 +143,9 @@ export default function App() {
   }
   const selectConversation = async (convId) => {
     setActiveConvId(convId)
-    await loadMessages(convId)
     setSidebarOpen(false)
-    const conv = conversations.find(c => c.id === convId)
-    if (conv?.mood) setMood(conv.mood)
+    setMessages([])
+    await loadMessages(convId)
   }
 
   const createConversation = async (name = '新对话') => {
@@ -156,7 +154,6 @@ export default function App() {
       setConversations(prev => [data, ...prev])
       setActiveConvId(data.id)
       setMessages([])
-      setMood('warm')
       setSidebarOpen(false)
       return data
     }
