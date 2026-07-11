@@ -218,7 +218,7 @@ export default function App() {
         },
         onToolCall: async () => {},
         onUsage: (usage) => {
-          const cachedTokens = usage.cached_tokens || usage.cache_read_input_tokens || 0
+          const cachedTokens = usage.prompt_tokens_details?.cached_tokens || usage.cached_tokens || 0
           setCacheStats(prev => ({
             hits: (cachedTokens > 0) ? prev.hits + 1 : prev.hits,
             tokens_saved: prev.tokens_saved + cachedTokens,
