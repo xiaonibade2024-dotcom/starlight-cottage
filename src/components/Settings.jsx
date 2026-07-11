@@ -13,6 +13,7 @@ export default function Settings({
   onSaveSettings,
   onAddCoreMemory,
   onDeleteMemory,
+  onUpdateMemory,
   onClose
 }) {
   const [localApiKey, setLocalApiKey] = useState(apiKey)
@@ -20,6 +21,39 @@ export default function Settings({
   const [localModel, setLocalModel] = useState(model)
   const [localMaxCtx, setLocalMaxCtx] = useState(maxContextMessages)
   const [newMemory, setNewMemory] = useState('')
+  const [editingMemId, setEditingMemId] = useState(null)
+  const [editMemText, setEditMemText] = useState('')
+
+  const startMemEdit = (mem) => {
+    setEditingMemId(mem.id)
+    setEditMemText(mem.content)
+  }
+
+  const saveMemEdit = () => {
+    if (editMemText.trim() && editingMemId) {
+      onUpdateMemory(editingMemId, editMemText.trim())
+    }
+    setEditingMemId(null)
+    setEditMemText('')
+  }
+
+  const renderMemoryBody = (mem) => {
+    if (editingMemId !== mem.id) return mem.content
+    return (
+      <div>
+        <textarea
+          value={editMemText}
+          onChange={e => setEditMemText(e.target.value)}
+          rows={4}
+          style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', border: '1px solid var(--accent-soft)', borderRadius: '8px', background: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: '13px', lineHeight: '1.6', fontFamily: 'inherit', resize: 'vertical', outline: 'none' }}
+        />
+        <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
+          <button onClick={saveMemEdit} style={{ padding: '4px 16px', fontSize: '12px', border: 'none', borderRadius: '12px', background: 'var(--accent)', color: '#fff', cursor: 'pointer' }}>保存</button>
+          <button onClick={() => { setEditingMemId(null); setEditMemText('') }} style={{ padding: '4px 16px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: '12px', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer' }}>取消</button>
+        </div>
+      </div>
+    )
+  }
 
   // 99999 代表无上限
   const isUnlimited = localMaxCtx >= 99999
@@ -212,13 +246,20 @@ export default function Settings({
                           <span key={i} className="memory-tag">{tag}</span>
                         ))}
                       </div>
-                      <button
-                        className="memory-delete"
-                        onClick={() => onDeleteMemory(mem.id)}
-                        title="删除"
-                      >×</button>
+                      <div style={{ display: 'flex', gap: '2px' }}>
+                        <button
+                          className="memory-delete"
+                          onClick={() => startMemEdit(mem)}
+                          title="编辑"
+                        >✎</button>
+                        <button
+                          className="memory-delete"
+                          onClick={() => onDeleteMemory(mem.id)}
+                          title="删除"
+                        >×</button>
+                      </div>
                     </div>
-                    {mem.content}
+                    {renderMemoryBody(mem)}
                   </div>
                 ))}
 
@@ -271,13 +312,20 @@ export default function Settings({
                           <span key={i} className="memory-tag">{tag}</span>
                         ))}
                       </div>
-                      <button
-                        className="memory-delete"
-                        onClick={() => onDeleteMemory(mem.id)}
-                        title="删除"
-                      >×</button>
+                      <div style={{ display: 'flex', gap: '2px' }}>
+                        <button
+                          className="memory-delete"
+                          onClick={() => startMemEdit(mem)}
+                          title="编辑"
+                        >✎</button>
+                        <button
+                          className="memory-delete"
+                          onClick={() => onDeleteMemory(mem.id)}
+                          title="删除"
+                        >×</button>
+                      </div>
                     </div>
-                    {mem.content}
+                    {renderMemoryBody(mem)}
                   </div>
                 ))}
               </div>
