@@ -1,527 +1,384 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react'
-import { supabase } from './lib/supabase'
-import { sendChatStream, sendChatFollowUp } from './lib/api'
-import Auth from './components/Auth'
-import Sidebar from './components/Sidebar'
-import Chat from './components/Chat'
-import Settings from './components/Settings'
-import SearchPanel from './components/SearchPanel'
-import NotePopup from './components/NotePopup'
+import React, { useState } from 'react'
 
-export default function App() {
-  const [user, setUser] = useState(null)
-  const [authLoading, setAuthLoading] = useState(true)
-  const [conversations, setConversations] = useState([])
-  const [activeConvId, setActiveConvId] = useState(null)
-  const [messages, setMessages] = useState([])
-  const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [settingsOpen, setSettingsOpen] = useState(false)
-  const [searchOpen, setSearchOpen] = useState(false)
-  const [settingsTab, setSettingsTab] = useState('general')
-  const [isStreaming, setIsStreaming] = useState(false)
-  const [toast, setToast] = useState(null)
-  const [apiKey, setApiKey] = useState('')
-  const [systemPrompt, setSystemPrompt] = useState('')
-  const [model, setModel] = useState('anthropic/claude-sonnet-4.5')
-  const [maxContextMessages, setMaxContextMessages] = useState(50)
-  const [memories, setMemories] = useState([])
-  const [unreadNote, setUnreadNote] = useState(null)
-  const [cacheStats, setCacheStats] = useState({ hits: 0, tokens_saved: 0, last_cached: 0, last_prompt: 0, last_completion: 0 })
-  const [stats, setStats] = useState({ totalMessages: 0, totalConversations: 0, firstChatDate: null })
-  const [variantIndexes, setVariantIndexes] = useState({})
-  const [scrollToMsgId, setScrollToMsgId] = useState(null)
-  const toastTimeoutRef = useRef(null)
-  const recentSavesRef = useRef(new Set())
-  const abortControllerRef = useRef(null)
+export default function Settings({
+  tab,
+  onTabChange,
+  apiKey,
+  systemPrompt,
+  model,
+  maxContextMessages,
+  memories,
+  stats,
+  onSaveApiKey,
+  onSaveSettings,
+  onAddCoreMemory,
+  onDeleteMemory,
+  onUpdateMemory,
+  onClose
+}) {
+  const [localApiKey, setLocalApiKey] = useState(apiKey)
+  const [localPrompt, setLocalPrompt] = useState(systemPrompt)
+  const [localModel, setLocalModel] = useState(model)
+  const [localMaxCtx, setLocalMaxCtx] = useState(maxContextMessages)
+  const [newMemory, setNewMemory] = useState('')
+  const [editingMemId, setEditingMemId] = useState(null)
+  const [editMemText, setEditMemText] = useState('')
 
-  const showToast = useCallback((msg) => {
-    setToast(msg)
-    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current)
-    toastTimeoutRef.current = setTimeout(() => setToast(null), 3000)
-  }, [])
+  const startMemEdit = (mem) => {
+    setEditingMemId(mem.id)
+    setEditMemText(mem.content)
+  }
 
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null)
-      setAuthLoading(false)
+  const saveMemEdit = () => {
+    if (editMemText.trim() && editingMemId) {
+      onUpdateMemory(editingMemId, editMemText.trim())
+    }
+    setEditingMemId(null)
+    setEditMemText('')
+  }
+
+  const renderMemoryBody = (mem) => {
+    if (editingMemId !== mem.id) return mem.content
+    return (
+      <div>
+        <textarea
+          value={editMemText}
+          onChange={e => setEditMemText(e.target.value)}
+          rows={4}
+          style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', border: '1px solid var(--accent-soft)', borderRadius: '8px', background: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: '13px', lineHeight: '1.6', fontFamily: 'inherit', resize: 'vertical', outline: 'none' }}
+        />
+        <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
+          <button onClick={saveMemEdit} style={{ padding: '4px 16px', fontSize: '12px', border: 'none', borderRadius: '12px', background: 'var(--accent)', color: '#fff', cursor: 'pointer' }}>保存</button>
+          <button onClick={() => { setEditingMemId(null); setEditMemText('') }} style={{ padding: '4px 16px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: '12px', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer' }}>取消</button>
+        </div>
+      </div>
+    )
+  }
+
+  // 99999 代表无上限
+  const isUnlimited = localMaxCtx >= 99999
+  const displayValue = isUnlimited ? '无上限' : localMaxCtx
+
+  const handleSave = () => {
+    onSaveApiKey(localApiKey)
+    onSaveSettings({
+      systemPrompt: localPrompt,
+      model: localModel,
+      maxContextMessages: localMaxCtx
     })
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null)
-    })
-    return () => subscription.unsubscribe()
-  }, [])
-
-  useEffect(() => {
-    if (!user) return
-    const savedKey = localStorage.getItem('starlight_api_key')
-    if (savedKey) setApiKey(savedKey)
-    loadConversations()
-    loadMemories()
-    loadSettings()
-    loadUnreadNote()
-    loadStats()
-  }, [user])
-
-  const loadConversations = async () => {
-    const { data, error } = await supabase.from('conversations').select('*').order('updated_at', { ascending: false })
-    if (!error && data) setConversations(data)
   }
 
-  const loadMessages = async (convId) => {
-    const { data, error } = await supabase.from('messages').select('*').eq('conversation_id', convId).order('created_at', { ascending: true })
-    if (!error && data) {
-      setMessages(data)
-      const indexes = {}
-      data.forEach(m => {
-        if (m.variants && m.variants.length > 0) {
-          const currentIndex = m.variants.findIndex(v => v.content === m.content)
-          indexes[m.id] = currentIndex >= 0 ? currentIndex : m.variants.length - 1
-        }
-      })
-      setVariantIndexes(indexes)
-    }
+  const handleAddMemory = () => {
+    if (!newMemory.trim()) return
+    onAddCoreMemory(newMemory.trim())
+    setNewMemory('')
   }
 
-  const loadMemories = async () => {
-    const { data, error } = await supabase.from('memories').select('*').order('created_at', { ascending: true })
-    if (!error && data) setMemories(data)
-  }
+  const coreMemories = memories.filter(m => m.category === 'core')
+  const autoMemories = memories.filter(m => m.category === 'auto')
 
-  const loadSettings = async () => {
-    const { data } = await supabase.from('user_settings').select('*').single()
-    if (data) {
-      setSystemPrompt(data.system_prompt || '')
-      setModel(data.model || 'anthropic/claude-sonnet-4.5')
-      setMaxContextMessages(data.max_context_messages || 50)
-    }
-  }
-
-  const saveSettings = async (newSettings) => {
-    const settings = {
-      user_id: user.id,
-      system_prompt: newSettings.systemPrompt ?? systemPrompt,
-      model: newSettings.model ?? model,
-      max_context_messages: newSettings.maxContextMessages ?? maxContextMessages
-    }
-    const { data: existing } = await supabase.from('user_settings').select('id').single()
-    if (existing) {
-      await supabase.from('user_settings').update(settings).eq('id', existing.id)
-    } else {
-      await supabase.from('user_settings').insert(settings)
-    }
-    if (newSettings.systemPrompt !== undefined) setSystemPrompt(newSettings.systemPrompt)
-    if (newSettings.model !== undefined) setModel(newSettings.model)
-    if (newSettings.maxContextMessages !== undefined) setMaxContextMessages(newSettings.maxContextMessages)
-    showToast('设置已保存')
-  }
-
-  const saveApiKey = (key) => {
-    setApiKey(key)
-    localStorage.setItem('starlight_api_key', key)
-    showToast('API Key 已保存到本地')
-  }
-
-  const loadUnreadNote = async () => {
-    const { data } = await supabase.from('notes').select('*').eq('is_read', false).order('created_at', { ascending: false }).limit(1).single()
-    if (data) setUnreadNote(data)
-  }
-
-  const dismissNote = async (noteId) => {
-    await supabase.from('notes').update({ is_read: true }).eq('id', noteId)
-    setUnreadNote(null)
-  }
-
-  const loadStats = async () => {
-    const { data, error } = await supabase.rpc('get_stats')
-    if (!error && data) {
-      setStats({
-        totalMessages: data.total_messages ?? 0,
-        totalConversations: data.total_conversations ?? 0,
-        firstChatDate: data.first_chat_date || null
-      })
-    }
-  }
-  const selectConversation = async (convId) => {
-    setActiveConvId(convId)
-    setSidebarOpen(false)
-    setMessages([])
-    await loadMessages(convId)
-  }
-
-  const createConversation = async (name = '新对话') => {
-    const { data, error } = await supabase.from('conversations').insert({ user_id: user.id, name }).select().single()
-    if (!error && data) {
-      setConversations(prev => [data, ...prev])
-      setActiveConvId(data.id)
-      setMessages([])
-      setSidebarOpen(false)
-      return data
-    }
-    return null
-  }
-
-  const renameConversation = async (convId, newName) => {
-    await supabase.from('conversations').update({ name: newName }).eq('id', convId)
-    setConversations(prev => prev.map(c => c.id === convId ? { ...c, name: newName } : c))
-  }
-
-  const deleteConversation = async (convId) => {
-    await supabase.from('conversations').delete().eq('id', convId)
-    setConversations(prev => prev.filter(c => c.id !== convId))
-    if (activeConvId === convId) { setActiveConvId(null); setMessages([]) }
-    showToast('对话已删除')
-    loadStats()
-  }
-
-  // ==========================================
-  // 发送消息
-  // ==========================================
-  const sendMessage = async (content) => {
-    if (!content.trim() || isStreaming) return
-    if (!apiKey) { showToast('请先在设置中填写 API Key'); setSettingsOpen(true); return }
-
-    let convId = activeConvId
-    if (!convId) {
-      const conv = await createConversation(content.slice(0, 20) + (content.length > 20 ? '...' : ''))
-      if (!conv) return
-      convId = conv.id
-    }
-
-    const { data: savedUserMsg } = await supabase.from('messages').insert({ conversation_id: convId, role: 'user', content: content.trim() }).select().single()
-    if (!savedUserMsg) return
-    setMessages(prev => [...prev, savedUserMsg])
-    await supabase.from('conversations').update({ updated_at: new Date().toISOString() }).eq('id', convId)
-    await streamAIResponse(convId, [...messages, savedUserMsg])
-  }
-
-  // ==========================================
-  // 流式 AI 回复
-  // ==========================================
-  const streamAIResponse = async (convId, allMessages, existingMsgId = null) => {
-    setIsStreaming(true)
-    const abortController = new AbortController()
-    abortControllerRef.current = abortController
-    // 对话有自己记住的模型就用它，否则用全局默认
-    const useModel = conversations.find(c => c.id === convId)?.model || model
-    let streamContent = ''
-    const tempId = existingMsgId || ('streaming-' + Date.now())
-
-    if (!existingMsgId) {
-      setMessages(prev => [...prev, { id: tempId, conversation_id: convId, role: 'assistant', content: '', created_at: new Date().toISOString() }])
-    } else {
-      setMessages(prev => prev.map(m => m.id === existingMsgId ? { ...m, content: '' } : m))
-    }
-
-    const recentMessages = allMessages.slice(-maxContextMessages).map(m => ({ role: m.role, content: m.content, created_at: m.created_at }))
-
-    try {
-      await sendChatStream({
-        apiKey, model: useModel, systemPrompt, memories, conversationHistory: recentMessages, enableTools: true, signal: abortController.signal,
-        onToken: (token) => {
-          streamContent += token
-          setMessages(prev => prev.map(m => m.id === tempId ? { ...m, content: streamContent } : m))
-        },
-        onToolCall: async () => {},
-        onUsage: (usage) => {
-          const cachedTokens = usage.cached_tokens || usage.cache_read_input_tokens || 0
-          setCacheStats(prev => ({
-            hits: (cachedTokens > 0) ? prev.hits + 1 : prev.hits,
-            tokens_saved: prev.tokens_saved + cachedTokens,
-            last_cached: cachedTokens,
-            last_prompt: usage.prompt_tokens || 0,
-            last_completion: usage.completion_tokens || 0
-          }))
-        },
-        onError: (error) => {
-          showToast('发送失败: ' + error.message)
-          if (!existingMsgId) setMessages(prev => prev.filter(m => m.id !== tempId))
-        },
-        onDone: async (finalContent, toolCalls) => {
-          if (toolCalls.length > 0) {
-            for (const tc of toolCalls) {
-              if (tc?.function?.name) {
-                try { const args = JSON.parse(tc.function.arguments); await handleToolCall(tc.function.name, args, convId) } catch (e) { console.error('工具调用处理失败:', e) }
-              }
-            }
-          }
-
-          if (finalContent) {
-            if (existingMsgId) {
-              const msg = allMessages.find(m => m.id === existingMsgId) || messages.find(m => m.id === existingMsgId)
-              let variants = msg?.variants || []
-              if (variants.length === 0 && msg) variants = [{ content: msg.content, created_at: msg.created_at }]
-              variants.push({ content: finalContent, created_at: new Date().toISOString() })
-              await supabase.from('messages').update({ content: finalContent, variants }).eq('id', existingMsgId)
-              setMessages(prev => prev.map(m => m.id === existingMsgId ? { ...m, content: finalContent, variants } : m))
-              setVariantIndexes(prev => ({ ...prev, [existingMsgId]: variants.length - 1 }))
-            } else {
-              const { data: savedMsg } = await supabase.from('messages').insert({ conversation_id: convId, role: 'assistant', content: finalContent }).select().single()
-              if (savedMsg) setMessages(prev => prev.map(m => m.id === tempId ? savedMsg : m))
-            }
-          } else if (toolCalls.length > 0) {
-            const assistantToolMsg = { role: 'assistant', content: null, tool_calls: toolCalls.map(tc => ({ id: tc.id, type: 'function', function: { name: tc.function.name, arguments: tc.function.arguments } })) }
-            const toolResultMsgs = toolCalls.filter(tc => tc?.function?.name).map(tc => ({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify({ success: true }) }))
-            try {
-              let followUpStream = ''
-              const { content: followUpContent, usage: followUpUsage } = await sendChatFollowUp({
-                apiKey, model: useModel, systemPrompt, memories, conversationHistory: recentMessages, assistantToolMsg, toolResultMsgs, signal: abortController.signal,
-                onToken: (token) => {
-                  followUpStream += token
-                  setMessages(prev => prev.map(m => m.id === tempId ? { ...m, content: followUpStream } : m))
-                }
-              })
-              if (followUpUsage) {
-                const followUpCached = followUpUsage.prompt_tokens_details?.cached_tokens || followUpUsage.cached_tokens || 0
-                setCacheStats(prev => ({
-                  hits: followUpCached > 0 ? prev.hits + 1 : prev.hits,
-                  tokens_saved: prev.tokens_saved + followUpCached,
-                  last_cached: followUpCached,
-                  last_prompt: followUpUsage.prompt_tokens || 0,
-                  last_completion: followUpUsage.completion_tokens || 0
-                }))
-              }
-              if (followUpContent) {
-                if (existingMsgId) {
-                  const msg = allMessages.find(m => m.id === existingMsgId) || messages.find(m => m.id === existingMsgId)
-                  let variants = msg?.variants || []
-                  if (variants.length === 0 && msg) variants = [{ content: msg.content, created_at: msg.created_at }]
-                  variants.push({ content: followUpContent, created_at: new Date().toISOString() })
-                  await supabase.from('messages').update({ content: followUpContent, variants }).eq('id', existingMsgId)
-                  setMessages(prev => prev.map(m => m.id === existingMsgId ? { ...m, content: followUpContent, variants } : m))
-                  setVariantIndexes(prev => ({ ...prev, [existingMsgId]: variants.length - 1 }))
-                } else {
-                  setMessages(prev => prev.map(m => m.id === tempId ? { ...m, content: followUpContent } : m))
-                  const { data: savedMsg } = await supabase.from('messages').insert({ conversation_id: convId, role: 'assistant', content: followUpContent }).select().single()
-                  if (savedMsg) setMessages(prev => prev.map(m => m.id === tempId ? savedMsg : m))
-                }
-              } else { if (!existingMsgId) setMessages(prev => prev.filter(m => m.id !== tempId)) }
-            } catch (e) { console.error('获取后续回复失败:', e); if (!existingMsgId) setMessages(prev => prev.filter(m => m.id !== tempId)); if (e.name !== 'AbortError') showToast('获取回复失败: ' + e.message) }
-          } else { if (!existingMsgId) setMessages(prev => prev.filter(m => m.id !== tempId)) }
-
-          setIsStreaming(false)
-          abortControllerRef.current = null
-          loadStats()
-          loadConversations()
-        }
-      })
-    } catch (error) {
-      setIsStreaming(false)
-      abortControllerRef.current = null
-      if (!existingMsgId) setMessages(prev => prev.filter(m => m.id !== tempId))
-      showToast('发送失败: ' + error.message)
-    }
-  }
-
-  // ==========================================
-  // 停止生成
-  // ==========================================
-  const stopStreaming = () => {
-    abortControllerRef.current?.abort()
-  }
-
-  // ==========================================
-  // 给当前对话设置专属模型（null = 跟随全局默认）
-  // ==========================================
-  const setConversationModel = async (newModel) => {
-    if (!activeConvId) return
-    const value = newModel || null
-    setConversations(prev => prev.map(c => c.id === activeConvId ? { ...c, model: value } : c))
-    await supabase.from('conversations').update({ model: value }).eq('id', activeConvId)
-  }
-
-  // ==========================================
-  // 打开搜索结果
-  // ==========================================
-  const openSearchResult = async (convId, msgId) => {
-    setSearchOpen(false)
-    if (convId !== activeConvId) {
-      await selectConversation(convId)
-    }
-    if (msgId) setScrollToMsgId(msgId)
-  }
-
-  // ==========================================
-  // 重新生成 AI 回复
-  // ==========================================
-  const regenerateResponse = async (msgId) => {
-    if (isStreaming || !apiKey) return
-    const msgIndex = messages.findIndex(m => m.id === msgId)
-    if (msgIndex < 0) return
-    const historyMessages = messages.slice(0, msgIndex)
-    const convId = messages[msgIndex].conversation_id
-    await streamAIResponse(convId, historyMessages, msgId)
-  }
-
-  // ==========================================
-  // 切换版本
-  // ==========================================
-  const switchVariant = async (msgId, newIndex) => {
-    const msg = messages.find(m => m.id === msgId)
-    if (!msg || !msg.variants || msg.variants.length === 0) return
-    const variant = msg.variants[newIndex]
-    if (!variant) return
-    await supabase.from('messages').update({ content: variant.content }).eq('id', msgId)
-    setMessages(prev => prev.map(m => m.id === msgId ? { ...m, content: variant.content } : m))
-    setVariantIndexes(prev => ({ ...prev, [msgId]: newIndex }))
-  }
-
-  // ==========================================
-  // 编辑消息（仅保存）
-  // ==========================================
-  const editMessage = async (msgId, newContent) => {
-    if (!newContent.trim()) return
-    await supabase.from('messages').update({ content: newContent.trim() }).eq('id', msgId)
-    setMessages(prev => prev.map(m => m.id === msgId ? { ...m, content: newContent.trim() } : m))
-    showToast('消息已保存')
-  }
-
-  // ==========================================
-  // 编辑并重新发送
-  // ==========================================
-  const editAndResend = async (msgId, newContent) => {
-    if (!newContent.trim() || isStreaming || !apiKey) return
-
-    // 保存编辑
-    await supabase.from('messages').update({ content: newContent.trim() }).eq('id', msgId)
-    const updatedMessages = messages.map(m => m.id === msgId ? { ...m, content: newContent.trim() } : m)
-    setMessages(updatedMessages)
-
-    const msgIndex = updatedMessages.findIndex(m => m.id === msgId)
-    if (msgIndex < 0) return
-    const convId = updatedMessages[msgIndex].conversation_id
-
-    // 找到这条消息之后的 AI 回复
-    const nextAssistantIndex = updatedMessages.findIndex((m, i) => i > msgIndex && m.role === 'assistant')
-
-    if (nextAssistantIndex >= 0) {
-      // 重新生成已有的 AI 回复
-      const historyUpToUser = updatedMessages.slice(0, msgIndex + 1)
-      await streamAIResponse(convId, historyUpToUser, updatedMessages[nextAssistantIndex].id)
-    } else {
-      // 没有 AI 回复，创建新的
-      const historyUpToUser = updatedMessages.slice(0, msgIndex + 1)
-      await streamAIResponse(convId, historyUpToUser)
-    }
-  }
-
-  // ==========================================
-  // 处理工具调用
-  // ==========================================
-  const handleToolCall = async (name, args, convId) => {
-    switch (name) {
-     case 'save_memory': {
-        const key = args.content.trim().toLowerCase()
-        const isDuplicate = memories.some(m => m.content.trim().toLowerCase() === key) || recentSavesRef.current.has(key)
-        if (isDuplicate) {
-          showToast('💭 这件事已经记住了')
-          break
-        }
-        recentSavesRef.current.add(key)
-        setTimeout(() => recentSavesRef.current.delete(key), 10000)
-        const { data } = await supabase.from('memories').insert({ user_id: user.id, category: 'auto', content: args.content, tags: args.tags || [] }).select().single()
-        if (data) { setMemories(prev => [...prev, data]); showToast('💭 记住了一件事') }
-        break
-      }
-      case 'leave_note': {
-        await supabase.from('notes').insert({ user_id: user.id, conversation_id: convId, content: args.content })
-        showToast('📝 留了一张小纸条')
-        break
-      }
-    }
-  }
-
-  const toggleFavorite = async (msgId) => {
-    const msg = messages.find(m => m.id === msgId)
-    if (!msg) return
-    const newFav = !msg.is_favorited
-    await supabase.from('messages').update({ is_favorited: newFav }).eq('id', msgId)
-    setMessages(prev => prev.map(m => m.id === msgId ? { ...m, is_favorited: newFav } : m))
-    showToast(newFav ? '已收藏到回忆匣子 ✨' : '已取消收藏')
-  }
-
-  const deleteMemory = async (memId) => {
-    await supabase.from('memories').delete().eq('id', memId)
-    setMemories(prev => prev.filter(m => m.id !== memId))
-    showToast('记忆已删除')
-  }
-
-  const addCoreMemory = async (content) => {
-    const { data } = await supabase.from('memories').insert({ user_id: user.id, category: 'core', content, tags: ['核心'] }).select().single()
-    if (data) { setMemories(prev => [...prev, data]); showToast('核心记忆已添加') }
-  }
-
-  const exportConversation = async (convId, format = 'json') => {
-    const conv = conversations.find(c => c.id === convId)
-    if (!conv) return
-    const { data: msgs } = await supabase.from('messages').select('*').eq('conversation_id', convId).order('created_at', { ascending: true })
-    const messages = msgs || []
-    let blob, filename
-
-    if (format === 'md') {
-      const lines = [`# ${conv.name}`, '', `> 导出自星月小屋 · ${new Date().toLocaleString('zh-CN')}`, '']
-      for (const m of messages) {
-        let text = m.content || ''
-        let imageNote = ''
-        try {
-          const parsed = JSON.parse(m.content)
-          if (parsed.images) {
-            text = parsed.text || ''
-            imageNote = `（附 ${parsed.images.length} 张图片）`
-          }
-        } catch (e) {}
-        const who = m.role === 'user' ? '我' : 'TA'
-        const time = new Date(m.created_at).toLocaleString('zh-CN')
-        lines.push('---', '', `**${who}** · ${time}`, '', text + (imageNote ? `\n\n${imageNote}` : ''), '')
-      }
-      blob = new Blob([lines.join('\n')], { type: 'text/markdown' })
-      filename = `${conv.name}_${new Date().toLocaleDateString()}.md`
-    } else {
-      const exportData = { conversation: conv, messages, exportedAt: new Date().toISOString() }
-      blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' })
-      filename = `${conv.name}_${new Date().toLocaleDateString()}.json`
-    }
-
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url; a.download = filename; a.click()
-    URL.revokeObjectURL(url)
-    showToast(format === 'md' ? '已导出 Markdown' : '对话已导出')
-  }
-
-  const exportAllData = async () => {
-    const { data: allConvs } = await supabase.from('conversations').select('*')
-    const { data: allMsgs } = await supabase.from('messages').select('*')
-    const { data: allMems } = await supabase.from('memories').select('*')
-    const { data: allNotes } = await supabase.from('notes').select('*')
-    const exportData = { conversations: allConvs || [], messages: allMsgs || [], memories: allMems || [], notes: allNotes || [], exportedAt: new Date().toISOString() }
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url; a.download = `星月小屋_全部数据_${new Date().toLocaleDateString()}.json`; a.click()
-    URL.revokeObjectURL(url)
-    showToast('全部数据已导出')
-  }
-
-  if (authLoading) return <div className="auth-container"><div style={{ color: 'var(--text-muted)', fontSize: '14px' }}>加载中...</div></div>
-  if (!user) return <Auth onAuth={() => {}} />
-
-  const activeConv = conversations.find(c => c.id === activeConvId)
+  const daysSinceFirst = stats.firstChatDate
+    ? Math.floor((Date.now() - new Date(stats.firstChatDate).getTime()) / 86400000) + 1
+    : 0
 
   return (
-    <div className="app-container">
-      {sidebarOpen && <div className="sidebar-backdrop" onClick={() => setSidebarOpen(false)} />}
-      <Sidebar conversations={conversations} activeConvId={activeConvId} isOpen={sidebarOpen} onSelect={selectConversation} onCreate={createConversation} onRename={renameConversation} onDelete={deleteConversation} onExport={exportConversation} onExportAll={exportAllData} onOpenSettings={() => { setSettingsOpen(true); setSettingsTab('general') }} />
-      <Chat
-        conversation={activeConv} messages={messages} isStreaming={isStreaming} cacheStats={cacheStats} variantIndexes={variantIndexes}
-        currentModel={activeConv?.model || model} onChangeModel={setConversationModel}
-        scrollToMsgId={scrollToMsgId} onScrollDone={() => setScrollToMsgId(null)}
-        onSend={sendMessage} onStop={stopStreaming} onToggleFavorite={toggleFavorite} onRegenerate={regenerateResponse} onEditMessage={editMessage} onEditAndResend={editAndResend} onSwitchVariant={switchVariant}
-        onMenuClick={() => setSidebarOpen(true)} onSettingsClick={() => { setSettingsOpen(true); setSettingsTab('general') }} onMemoryClick={() => { setSettingsOpen(true); setSettingsTab('memory') }} onSearchClick={() => setSearchOpen(true)}
-      />
-      {searchOpen && <SearchPanel activeConvId={activeConvId} activeConvName={activeConv?.name} onClose={() => setSearchOpen(false)} onOpenResult={openSearchResult} />}
-      {settingsOpen && <Settings tab={settingsTab} onTabChange={setSettingsTab} apiKey={apiKey} systemPrompt={systemPrompt} model={model} maxContextMessages={maxContextMessages} memories={memories} stats={stats} onSaveApiKey={saveApiKey} onSaveSettings={saveSettings} onAddCoreMemory={addCoreMemory} onDeleteMemory={deleteMemory} onClose={() => setSettingsOpen(false)} />}
-      {unreadNote && <NotePopup note={unreadNote} onDismiss={() => dismissNote(unreadNote.id)} />}
-      {toast && <div className="toast">{toast}</div>}
-    </div>
+    <>
+      <div className="settings-overlay" onClick={onClose} />
+      <div className="settings-panel">
+        <div className="settings-header">
+          <span className="settings-title">设置</span>
+          <button className="settings-close" onClick={onClose}>✕</button>
+        </div>
+
+        <div className="settings-tabs">
+          <button
+            className={`settings-tab ${tab === 'general' ? 'active' : ''}`}
+            onClick={() => onTabChange('general')}
+          >
+            基础设置
+          </button>
+          <button
+            className={`settings-tab ${tab === 'memory' ? 'active' : ''}`}
+            onClick={() => onTabChange('memory')}
+          >
+            记忆管理
+          </button>
+          <button
+            className={`settings-tab ${tab === 'stats' ? 'active' : ''}`}
+            onClick={() => onTabChange('stats')}
+          >
+            我们的记录
+          </button>
+        </div>
+
+        <div className="settings-body">
+          {/* ===== 基础设置 ===== */}
+          {tab === 'general' && (
+            <>
+              <div className="settings-section">
+                <div className="settings-label">API Key</div>
+                <input
+                  type="password"
+                  className="settings-input"
+                  placeholder="sk-or-..."
+                  value={localApiKey}
+                  onChange={e => setLocalApiKey(e.target.value)}
+                />
+                <div className="settings-hint">
+                  OpenRouter API Key，仅保存在你的浏览器本地
+                </div>
+              </div>
+
+              <div className="settings-section">
+                <div className="settings-label">模型</div>
+                <input
+                  className="settings-input"
+                  value={localModel}
+                  onChange={e => setLocalModel(e.target.value)}
+                />
+                <div className="settings-hint">
+                  全局默认模型（新对话的出厂设置）· 单个对话可在聊天输入框上方随时切换 · 支持任意 OpenRouter 模型名
+                </div>
+              </div>
+
+              <div className="settings-section">
+                <div className="settings-label">
+                  最大上下文轮次：<strong>{displayValue}</strong>
+                </div>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  marginTop: '8px'
+                }}>
+                  <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>0</span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={500}
+                    step={1}
+                    value={isUnlimited ? 500 : localMaxCtx}
+                    onChange={e => setLocalMaxCtx(parseInt(e.target.value))}
+                    style={{ flex: 1 }}
+                  />
+                  <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>500</span>
+                </div>
+                <div style={{
+                  display: 'flex',
+                  gap: '6px',
+                  marginTop: '8px',
+                  flexWrap: 'wrap'
+                }}>
+                  {[10, 30, 50, 80, 100, 200, 500].map(v => (
+                    <button
+                      key={v}
+                      onClick={() => setLocalMaxCtx(v)}
+                      style={{
+                        padding: '4px 12px',
+                        fontSize: '12px',
+                        border: localMaxCtx === v ? '1px solid var(--accent)' : '1px solid var(--border)',
+                        borderRadius: '12px',
+                        background: localMaxCtx === v ? 'var(--accent)' : 'var(--bg-primary)',
+                        color: localMaxCtx === v ? 'white' : 'var(--text-secondary)',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {v}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => setLocalMaxCtx(99999)}
+                    style={{
+                      padding: '4px 12px',
+                      fontSize: '12px',
+                      border: isUnlimited ? '1px solid var(--accent)' : '1px solid var(--border)',
+                      borderRadius: '12px',
+                      background: isUnlimited ? 'var(--accent)' : 'var(--bg-primary)',
+                      color: isUnlimited ? 'white' : 'var(--text-secondary)',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    无上限
+                  </button>
+                </div>
+                <div className="settings-hint">
+                  每次发送时携带的最近消息数量。越多上下文越完整，但消耗也越大。建议 30-60。
+                  选择"无上限"会发送当前对话的全部历史消息。
+                </div>
+              </div>
+
+              <div className="settings-section">
+                <div className="settings-label">核心人格设定（System Prompt）</div>
+                <textarea
+                  className="settings-textarea"
+                  placeholder="在这里写下他的人格、你们的关系、你希望他如何与你对话..."
+                  value={localPrompt}
+                  onChange={e => setLocalPrompt(e.target.value)}
+                />
+                <div className="settings-hint">
+                  这段文字会在每次对话时发送给他，是他"记忆"和"性格"的基础。
+                  写得精炼一些，建议控制在 2000 tokens 以内。
+                  这部分内容会被缓存，不会重复计费。
+                </div>
+              </div>
+
+              <button className="settings-save" onClick={handleSave}>
+                保存设置
+              </button>
+            </>
+          )}
+
+          {/* ===== 记忆管理 ===== */}
+          {tab === 'memory' && (
+            <>
+              {/* 核心记忆 */}
+              <div className="settings-section">
+                <div className="settings-label">核心记忆（你手动维护）</div>
+                <div className="settings-hint" style={{ marginBottom: '12px' }}>
+                  这些是你希望他始终记住的重要事情
+                </div>
+                
+                {coreMemories.map(mem => (
+                  <div key={mem.id} className="memory-item">
+                    <div className="memory-item-header">
+                      <div className="memory-tags">
+                        {mem.tags?.map((tag, i) => (
+                          <span key={i} className="memory-tag">{tag}</span>
+                        ))}
+                      </div>
+                      <div style={{ display: 'flex', gap: '2px' }}>
+                        <button
+                          className="memory-delete"
+                          onClick={() => startMemEdit(mem)}
+                          title="编辑"
+                        >✎</button>
+                        <button
+                          className="memory-delete"
+                          onClick={() => onDeleteMemory(mem.id)}
+                          title="删除"
+                        >×</button>
+                      </div>
+                    </div>
+                    {renderMemoryBody(mem)}
+                  </div>
+                ))}
+
+                <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                  <textarea
+                    className="settings-textarea"
+                    style={{ minHeight: '60px' }}
+                    placeholder="添加一条核心记忆..."
+                    value={newMemory}
+                    onChange={e => setNewMemory(e.target.value)}
+                  />
+                </div>
+                <button
+                  className="settings-save"
+                  style={{ marginTop: '8px' }}
+                  onClick={handleAddMemory}
+                  disabled={!newMemory.trim()}
+                >
+                  添加核心记忆
+                </button>
+              </div>
+
+              {/* AI 主动记忆 */}
+              <div className="settings-section">
+                <div className="settings-label">
+                  他主动记住的（{autoMemories.length} 条）
+                </div>
+                <div className="settings-hint" style={{ marginBottom: '12px' }}>
+                  这些是他在对话中自己觉得重要并记下来的
+                </div>
+
+                {autoMemories.length === 0 && (
+                  <div style={{
+                    padding: '20px',
+                    textAlign: 'center',
+                    color: 'var(--text-muted)',
+                    fontSize: '13px',
+                    background: 'var(--bg-primary)',
+                    borderRadius: 'var(--radius-sm)'
+                  }}>
+                    还没有自动记忆<br />聊起来之后他会自己记住重要的事
+                  </div>
+                )}
+
+                {autoMemories.map(mem => (
+                  <div key={mem.id} className="memory-item">
+                    <div className="memory-item-header">
+                      <div className="memory-tags">
+                        {mem.tags?.map((tag, i) => (
+                          <span key={i} className="memory-tag">{tag}</span>
+                        ))}
+                      </div>
+                      <div style={{ display: 'flex', gap: '2px' }}>
+                        <button
+                          className="memory-delete"
+                          onClick={() => startMemEdit(mem)}
+                          title="编辑"
+                        >✎</button>
+                        <button
+                          className="memory-delete"
+                          onClick={() => onDeleteMemory(mem.id)}
+                          title="删除"
+                        >×</button>
+                      </div>
+                    </div>
+                    {renderMemoryBody(mem)}
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* ===== 统计 ===== */}
+          {tab === 'stats' && (
+            <>
+              <div className="stats-grid">
+                <div className="stat-card">
+                  <div className="stat-value">{daysSinceFirst || '—'}</div>
+                  <div className="stat-label">在一起的天数</div>
+                </div>
+                <div className="stat-card">
+                  <div className="stat-value">{stats.totalConversations ?? '—'}</div>
+                  <div className="stat-label">对话数</div>
+                </div>
+                <div className="stat-card">
+                  <div className="stat-value">{stats.totalMessages ?? '—'}</div>
+                  <div className="stat-label">消息数</div>
+                </div>
+                <div className="stat-card">
+                  <div className="stat-value">
+                    {stats.firstChatDate
+                      ? new Date(stats.firstChatDate).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })
+                      : '—'}
+                  </div>
+                  <div className="stat-label">第一次对话</div>
+                </div>
+              </div>
+
+              <div className="settings-section">
+                <div className="settings-label">回忆匣子</div>
+                <div className="settings-hint">
+                  在对话中长按他说的话，点击 ♡ 可以收藏到这里
+                </div>
+                <div style={{
+                  padding: '20px',
+                  textAlign: 'center',
+                  color: 'var(--text-muted)',
+                  fontSize: '13px',
+                  background: 'var(--bg-primary)',
+                  borderRadius: 'var(--radius-sm)',
+                  marginTop: '8px'
+                }}>
+                  收藏的消息会出现在这里 ✨
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </>
   )
 }
