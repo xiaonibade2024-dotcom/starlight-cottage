@@ -212,7 +212,7 @@ export default function App() {
       setMessages(prev => prev.map(m => m.id === existingMsgId ? { ...m, content: '' } : m))
     }
 
-    const recentMessages = allMessages.slice(-maxContextMessages).map(m => ({ role: m.role, content: m.content }))
+    const recentMessages = allMessages.slice(-maxContextMessages).map(m => ({ role: m.role, content: m.content, created_at: m.created_at }))
 
     try {
       await sendChatStream({
