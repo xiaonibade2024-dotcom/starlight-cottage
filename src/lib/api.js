@@ -108,7 +108,7 @@ function buildTools() {
       type: 'function',
       function: {
         name: 'save_memory',
-        description: '当你觉得对话中有值得记住的事情时，主动调用这个工具保存记忆。注意：不要重复保存已经在记忆中存在的内容，保存前请检查已有的核心记忆和自动记忆。',
+        description: '当你觉得对话中有值得记住的事情时，主动调用这个工具保存记忆。注意：不要重复保存已经在记忆中存在的内容，保存前请检查已有的核心记忆和自动记忆。即使措辞不同，只要内容实质相同或已被已有记忆涵盖，也不要再次保存。',
         parameters: {
           type: 'object',
           properties: {
