@@ -336,11 +336,11 @@ export default function Chat({
       )}
 
       {messages.length > 5 && (
-        <button onClick={scrollToTop} title="回到顶部" style={{ position: 'absolute', right: '16px', bottom: showScrollBtn ? '130px' : '80px', width: '36px', height: '36px', borderRadius: '50%', border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-secondary)', fontSize: '16px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.1)', opacity: 0.8, transition: 'opacity 0.2s, bottom 0.2s', zIndex: 10 }}
+        <button onClick={scrollToTop} title="回到顶部" style={{ position: 'absolute', right: '16px', bottom: showScrollBtn ? '174px' : '124px', width: '36px', height: '36px', borderRadius: '50%', border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-secondary)', fontSize: '16px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.1)', opacity: 0.8, transition: 'opacity 0.2s, bottom 0.2s', zIndex: 10 }}
           onMouseEnter={e => e.currentTarget.style.opacity = '1'} onMouseLeave={e => e.currentTarget.style.opacity = '0.8'}>↑</button>
       )}
       {showScrollBtn && (
-        <button onClick={scrollToBottom} title="回到最新" style={{ position: 'absolute', right: '16px', bottom: '80px', width: '36px', height: '36px', borderRadius: '50%', border: '1px solid var(--border)', background: 'var(--accent, #7c6ca8)', color: 'white', fontSize: '16px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.15)', zIndex: 10 }}>↓</button>
+        <button onClick={scrollToBottom} title="回到最新" style={{ position: 'absolute', right: '16px', bottom: '124px', width: '36px', height: '36px', borderRadius: '50%', border: '1px solid var(--border)', background: 'var(--accent, #7c6ca8)', color: 'white', fontSize: '16px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.15)', zIndex: 10 }}>↓</button>
       )}
 
       {/* 图片预览 */}
