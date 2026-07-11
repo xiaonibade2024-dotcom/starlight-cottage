@@ -108,7 +108,7 @@ function buildTools() {
       type: 'function',
       function: {
         name: 'save_memory',
-        description: '当你觉得对话中有值得记住的事情时，主动调用这个工具保存记忆。注意：不要重复保存已经在记忆中存在的内容，保存前请检查已有的核心记忆和自动记忆。即使措辞不同，只要内容实质相同或已被已有记忆涵盖，也不要再次保存。',
+        description: '当对话中出现值得长期记住的事情时，主动调用这个工具保存记忆。只保存对长期陪伴真正重要的信息：重要事件、约定、深刻的喜好、关系或状态的变化。日常琐事和一次性细节不必保存。保存前必须检查已有的核心记忆和自动记忆：即使措辞不同，只要内容实质相同或已被涵盖，就绝对不要再次保存。',
         parameters: {
           type: 'object',
           properties: {
@@ -253,6 +253,12 @@ export async function sendChatStream({
       onDone?.(fullContent, [])
       return { content: fullContent, toolCalls: [], aborted: true }
     }
+    if (fullContent) {
+      // 网络中断但已有内容：抢救文稿，绝不丢弃
+      console.error('流式传输中断，已保留部分内容:', error)
+      onDone?.(fullContent, [])
+      return { content: fullContent, toolCalls: [], interrupted: true }
+    }
     onError?.(error)
     throw error
   }
@@ -269,16 +275,16 @@ export async function sendChatFollowUp({
   systemPrompt,
   memories,
   conversationHistory,
-  assistantToolMsg,
-  toolResultMsgs,
+  extraMessages,
   signal,
   onToken
 }) {
   const messages = buildMessages(systemPrompt, memories, conversationHistory)
-  messages.push(assistantToolMsg, ...toolResultMsgs)
+  messages.push(...extraMessages)
 
   let fullContent = ''
   let usage = null
+  let toolCalls = []
 
   try {
     const response = await fetch(OPENROUTER_API_URL, {
@@ -328,16 +334,33 @@ export async function sendChatFollowUp({
             fullContent += delta.content
             onToken?.(delta.content)
           }
+          if (delta?.tool_calls) {
+            for (const tc of delta.tool_calls) {
+              if (tc.index !== undefined) {
+                if (!toolCalls[tc.index]) {
+                  toolCalls[tc.index] = { id: tc.id || '', function: { name: '', arguments: '' } }
+                }
+                if (tc.id) toolCalls[tc.index].id = tc.id
+                if (tc.function?.name) toolCalls[tc.index].function.name = tc.function.name
+                if (tc.function?.arguments) toolCalls[tc.index].function.arguments += tc.function.arguments
+              }
+            }
+          }
           if (data.usage) usage = data.usage
         } catch (e) {}
       }
     }
 
-    return { content: fullContent, usage }
+    return { content: fullContent, usage, toolCalls }
   } catch (error) {
     if (error.name === 'AbortError') {
       // 用户主动停止：保留已生成的部分内容
-      return { content: fullContent, usage, aborted: true }
+      return { content: fullContent, usage, toolCalls: [], aborted: true }
+    }
+    if (fullContent) {
+      // 网络中断但已有内容：抢救文稿
+      console.error('追加请求中断，已保留部分内容:', error)
+      return { content: fullContent, usage, toolCalls: [], interrupted: true }
     }
     throw error
   }
