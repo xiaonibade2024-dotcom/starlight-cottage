@@ -260,7 +260,14 @@ export default function App() {
             const assistantToolMsg = { role: 'assistant', content: null, tool_calls: toolCalls.map(tc => ({ id: tc.id, type: 'function', function: { name: tc.function.name, arguments: tc.function.arguments } })) }
             const toolResultMsgs = toolCalls.filter(tc => tc?.function?.name).map(tc => ({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify({ success: true }) }))
             try {
-              const { content: followUpContent, usage: followUpUsage } = await sendChatFollowUp({ apiKey, model, systemPrompt, memories, conversationHistory: recentMessages, assistantToolMsg, toolResultMsgs, signal: abortController.signal })
+              let followUpStream = ''
+              const { content: followUpContent, usage: followUpUsage } = await sendChatFollowUp({
+                apiKey, model, systemPrompt, memories, conversationHistory: recentMessages, assistantToolMsg, toolResultMsgs, signal: abortController.signal,
+                onToken: (token) => {
+                  followUpStream += token
+                  setMessages(prev => prev.map(m => m.id === tempId ? { ...m, content: followUpStream } : m))
+                }
+              })
               if (followUpUsage) {
                 const followUpCached = followUpUsage.prompt_tokens_details?.cached_tokens || followUpUsage.cached_tokens || 0
                 setCacheStats(prev => ({
