@@ -130,14 +130,14 @@ export default function App() {
   }
 
   const loadStats = async () => {
-    const { data: msgData } = await supabase.from('messages').select('id')
-    const { data: convData } = await supabase.from('conversations').select('id')
-    const { data: firstConv } = await supabase.from('conversations').select('created_at').order('created_at', { ascending: true }).limit(1).single()
-    setStats({
-      totalMessages: msgData?.length ?? 0,
-      totalConversations: convData?.length ?? 0,
-      firstChatDate: firstConv?.created_at || null
-    })
+    const { data, error } = await supabase.rpc('get_stats')
+    if (!error && data) {
+      setStats({
+        totalMessages: data.total_messages ?? 0,
+        totalConversations: data.total_conversations ?? 0,
+        firstChatDate: data.first_chat_date || null
+      })
+    }
   }
   const selectConversation = async (convId) => {
     setActiveConvId(convId)
