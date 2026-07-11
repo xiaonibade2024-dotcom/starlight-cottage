@@ -404,11 +404,6 @@ export default function App() {
         showToast('📝 留了一张小纸条')
         break
       }
-      case 'set_mood': {
-        setMood(args.mood)
-        if (convId) await supabase.from('conversations').update({ mood: args.mood }).eq('id', convId)
-        break
-      }
     }
   }
 
@@ -465,7 +460,7 @@ export default function App() {
   const activeConv = conversations.find(c => c.id === activeConvId)
 
   return (
-    <div className="app-container" data-mood={mood}>
+    <div className="app-container">
       {sidebarOpen && <div className="sidebar-backdrop" onClick={() => setSidebarOpen(false)} />}
       <Sidebar conversations={conversations} activeConvId={activeConvId} isOpen={sidebarOpen} onSelect={selectConversation} onCreate={createConversation} onRename={renameConversation} onDelete={deleteConversation} onExport={exportConversation} onExportAll={exportAllData} onOpenSettings={() => { setSettingsOpen(true); setSettingsTab('general') }} />
       <Chat
