@@ -15,14 +15,15 @@
   --text-muted: #B5A898;
   --text-inverse: #FFF9F2;
 
-  /* 强调色 */
-  --accent: #C8A4A4;
-  --accent-hover: #B08A8A;
-  --accent-soft: #E8D4D4;
-  --accent-glow: rgba(200, 164, 164, 0.2);
+  /* 强调色（固定淡紫） */
+  --accent: #B8A0C8;
+  --accent-hover: #9E84B4;
+  --accent-soft: #E0D4EC;
+  --accent-glow: rgba(184, 160, 200, 0.2);
 
   /* 消息气泡 */
-  --bubble-user: #F0E0D2;
+  --bubble-user: #F2ECF8;
+  --bubble-user-border: #E0D5EC;
   --bubble-ai: #FFFBF5;
   --bubble-ai-border: #EDE4D8;
 
@@ -54,47 +55,6 @@
   /* 过渡 */
   --transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   --transition-slow: 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-/* 心境主题 */
-[data-mood="serene"] {
-  --accent: #9BB5C4;
-  --accent-hover: #7FA0B2;
-  --accent-soft: #D4E4EC;
-  --accent-glow: rgba(155, 181, 196, 0.2);
-  --bubble-user: #D8E8F0;
-}
-
-[data-mood="playful"] {
-  --accent: #D4A07A;
-  --accent-hover: #C08A64;
-  --accent-soft: #F0DCC8;
-  --accent-glow: rgba(212, 160, 122, 0.2);
-  --bubble-user: #F5E0CC;
-}
-
-[data-mood="tender"] {
-  --accent: #B8A0C8;
-  --accent-hover: #9E84B4;
-  --accent-soft: #E0D4EC;
-  --accent-glow: rgba(184, 160, 200, 0.2);
-  --bubble-user: #E8DDF0;
-}
-
-[data-mood="nostalgic"] {
-  --accent: #C4AA78;
-  --accent-hover: #B09460;
-  --accent-soft: #E8DCC4;
-  --accent-glow: rgba(196, 170, 120, 0.2);
-  --bubble-user: #F0E4CC;
-}
-
-[data-mood="cozy"] {
-  --accent: #C49A7A;
-  --accent-hover: #B08464;
-  --accent-soft: #E8D0BC;
-  --accent-glow: rgba(196, 154, 122, 0.2);
-  --bubble-user: #F0DCC8;
 }
 
 /* ==========================================
@@ -465,6 +425,7 @@ body {
 
 .message.user .message-bubble {
   background: var(--bubble-user);
+  border: 1px solid var(--bubble-user-border);
   border-bottom-right-radius: 6px;
   color: var(--text-primary);
 }
