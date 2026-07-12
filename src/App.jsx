@@ -8,6 +8,21 @@ import Settings from './components/Settings'
 import SearchPanel from './components/SearchPanel'
 import NotePopup from './components/NotePopup'
 
+// 文本相似度（字符二元组重合度，用于记忆和纸条的智能查重）
+function textSimilarity(a, b) {
+  const grams = (str) => {
+    const t = String(str || '').replace(/\s+/g, '')
+    const set = new Set()
+    for (let i = 0; i < t.length - 1; i++) set.add(t.slice(i, i + 2))
+    return set
+  }
+  const A = grams(a), B = grams(b)
+  if (A.size === 0 || B.size === 0) return 0
+  let inter = 0
+  for (const g of A) if (B.has(g)) inter++
+  return inter / Math.min(A.size, B.size)
+}
+
 export default function App() {
   const [user, setUser] = useState(null)
   const [authLoading, setAuthLoading] = useState(true)
@@ -36,6 +51,7 @@ export default function App() {
   const recentSavesRef = useRef(new Set())
   const abortControllerRef = useRef(null)
   const memoriesRef = useRef([])
+  const sessionStartRef = useRef(new Date().toISOString())
   useEffect(() => { memoriesRef.current = memories }, [memories])
 
   // ==========================================
@@ -163,7 +179,7 @@ export default function App() {
   }
 
   const loadUnreadNote = async () => {
-    const { data } = await supabase.from('notes').select('*').eq('is_read', false).order('created_at', { ascending: false }).limit(1).single()
+    const { data } = await supabase.from('notes').select('*').eq('is_read', false).lt('created_at', sessionStartRef.current).order('created_at', { ascending: false }).limit(1).single()
     if (data) setUnreadNote(data)
   }
 
@@ -280,10 +296,11 @@ export default function App() {
           if (!existingMsgId) setMessages(prev => prev.filter(m => m.id !== tempId))
         },
         onDone: async (finalContent, toolCalls) => {
+          const toolResults = {}  // 每笔工具调用的诚实回执（id → 结果）
           if (toolCalls.length > 0) {
             for (const tc of toolCalls) {
               if (tc?.function?.name) {
-                try { const args = JSON.parse(tc.function.arguments); await handleToolCall(tc.function.name, args, convId) } catch (e) { console.error('工具调用处理失败:', e) }
+                try { const args = JSON.parse(tc.function.arguments); toolResults[tc.id] = await handleToolCall(tc.function.name, args, convId) || { success: true } } catch (e) { console.error('工具调用处理失败:', e); toolResults[tc.id] = { success: false, reason: '参数解析失败' } }
               }
             }
           }
@@ -315,7 +332,7 @@ export default function App() {
                 rounds++
                 extraMessages.push(
                   { role: 'assistant', content: null, tool_calls: pendingToolCalls.map(tc => ({ id: tc.id, type: 'function', function: { name: tc.function.name, arguments: tc.function.arguments } })) },
-                  ...pendingToolCalls.filter(tc => tc?.function?.name).map(tc => ({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify({ success: true }) }))
+                  ...pendingToolCalls.filter(tc => tc?.function?.name).map(tc => ({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify(toolResults[tc.id] || { success: true }) }))
                 )
 
                 const res = await sendChatFollowUp({
@@ -333,7 +350,7 @@ export default function App() {
                 if (res.toolCalls && res.toolCalls.length > 0) {
                   for (const tc of res.toolCalls) {
                     if (tc?.function?.name) {
-                      try { const args = JSON.parse(tc.function.arguments); await handleToolCall(tc.function.name, args, convId) } catch (e) { console.error('追加轮工具调用处理失败:', e) }
+                      try { const args = JSON.parse(tc.function.arguments); toolResults[tc.id] = await handleToolCall(tc.function.name, args, convId) || { success: true } } catch (e) { console.error('追加轮工具调用处理失败:', e); toolResults[tc.id] = { success: false, reason: '参数解析失败' } }
                     }
                   }
                   if (!followUpContent) { pendingToolCalls = res.toolCalls; continue }
@@ -484,10 +501,10 @@ export default function App() {
     switch (name) {
      case 'save_memory': {
         const key = args.content.trim().toLowerCase()
-        const isDuplicate = memoriesRef.current.some(m => m.content.trim().toLowerCase() === key) || recentSavesRef.current.has(key)
+        const isDuplicate = recentSavesRef.current.has(key) || memoriesRef.current.some(m => textSimilarity(m.content, args.content) > 0.7)
         if (isDuplicate) {
-          showToast('💭 这件事已经记住了')
-          break
+          // 静音拦截：不打扰她，但如实告诉他
+          return { success: false, reason: '未保存：已有内容相似的记忆，不必重复记录。' }
         }
         recentSavesRef.current.add(key)
         setTimeout(() => recentSavesRef.current.delete(key), 10000)
@@ -495,18 +512,28 @@ export default function App() {
         if (data) {
           setMemories(prev => [...prev, data])
           showToast('💭 记住了一件事')
+          return { success: true }
         } else {
           recentSavesRef.current.delete(key)
           showToast('⚠️ 记忆保存失败' + (error?.message ? '：' + error.message : '，请重试'))
+          return { success: false, reason: '保存失败，可稍后再试。' }
         }
-        break
       }
       case 'leave_note': {
-        await supabase.from('notes').insert({ user_id: user.id, conversation_id: convId, content: args.content })
-        showToast('📝 留了一张小纸条')
-        break
+        const { data: recentNotes } = await supabase.from('notes').select('content').order('created_at', { ascending: false }).limit(10)
+        if ((recentNotes || []).some(n => textSimilarity(n.content, args.content) > 0.7)) {
+          return { success: false, reason: '未保存：最近已留过内容相似的纸条，不必重复。' }
+        }
+        const { error } = await supabase.from('notes').insert({ user_id: user.id, conversation_id: convId, content: args.content })
+        if (error) {
+          showToast('⚠️ 纸条保存失败')
+          return { success: false, reason: '保存失败，可稍后再试。' }
+        }
+        // 留纸条完全静默：她此刻不会知道，下次回到小屋才会遇见
+        return { success: true, note: '已悄悄留下，她下次回到小屋时会看到。' }
       }
     }
+    return { success: true }
   }
 
   const toggleFavorite = async (msgId) => {
