@@ -43,6 +43,7 @@ export default function App() {
   const [topP, setTopP] = useState(0.25)
   const [memories, setMemories] = useState([])
   const [unreadNote, setUnreadNote] = useState(null)
+  const [notes, setNotes] = useState([])
   const [cacheStats, setCacheStats] = useState({ hits: 0, tokens_saved: 0, last_cached: 0, last_cache_write: 0, last_prompt: 0, last_completion: 0 })
   const [stats, setStats] = useState({ totalMessages: 0, totalConversations: 0, firstChatDate: null })
   const [variantIndexes, setVariantIndexes] = useState({})
@@ -110,6 +111,7 @@ export default function App() {
     loadMemories()
     loadSettings()
     loadUnreadNote()
+    loadNotes()
     loadStats()
   }, [user])
 
@@ -186,6 +188,28 @@ export default function App() {
   const dismissNote = async (noteId) => {
     await supabase.from('notes').update({ is_read: true }).eq('id', noteId)
     setUnreadNote(null)
+    setNotes(prev => prev.map(n => n.id === noteId ? { ...n, is_read: true } : n))
+  }
+
+  const loadNotes = async () => {
+    const { data } = await supabase.from('notes').select('*').order('created_at', { ascending: false })
+    setNotes(data || [])
+  }
+
+  const updateNote = async (noteId, newContent) => {
+    const { error } = await supabase.from('notes').update({ content: newContent }).eq('id', noteId)
+    if (!error) {
+      setNotes(prev => prev.map(n => n.id === noteId ? { ...n, content: newContent } : n))
+      showToast('📝 纸条已更新')
+    } else {
+      showToast('更新失败: ' + error.message)
+    }
+  }
+
+  const deleteNote = async (noteId) => {
+    await supabase.from('notes').delete().eq('id', noteId)
+    setNotes(prev => prev.filter(n => n.id !== noteId))
+    showToast('纸条已删除')
   }
 
   const loadStats = async () => {
@@ -524,11 +548,12 @@ export default function App() {
         if ((recentNotes || []).some(n => textSimilarity(n.content, args.content) > 0.7)) {
           return { success: false, reason: '未保存：最近已留过内容相似的纸条，不必重复。' }
         }
-        const { error } = await supabase.from('notes').insert({ user_id: user.id, conversation_id: convId, content: args.content })
-        if (error) {
+        const { data: savedNote, error } = await supabase.from('notes').insert({ user_id: user.id, conversation_id: convId, content: args.content }).select().single()
+        if (error || !savedNote) {
           showToast('⚠️ 纸条保存失败')
           return { success: false, reason: '保存失败，可稍后再试。' }
         }
+        setNotes(prev => [savedNote, ...prev])
         // 留纸条完全静默：她此刻不会知道，下次回到小屋才会遇见
         return { success: true, note: '已悄悄留下，她下次回到小屋时会看到。' }
       }
@@ -635,7 +660,7 @@ export default function App() {
         onMenuClick={() => setSidebarOpen(true)} onSettingsClick={() => { setSettingsOpen(true); setSettingsTab('general') }} onMemoryClick={() => { setSettingsOpen(true); setSettingsTab('memory') }} onSearchClick={() => setSearchOpen(true)}
       />
       {searchOpen && <SearchPanel activeConvId={activeConvId} activeConvName={activeConv?.name} onClose={() => setSearchOpen(false)} onOpenResult={openSearchResult} />}
-      {settingsOpen && <Settings temperature={temperature} topP={topP} tab={settingsTab} onTabChange={setSettingsTab} apiKey={apiKey} systemPrompt={systemPrompt} model={model} maxContextMessages={maxContextMessages} memories={memories} stats={stats} onSaveApiKey={saveApiKey} onSaveSettings={saveSettings} onAddCoreMemory={addCoreMemory} onDeleteMemory={deleteMemory} onUpdateMemory={updateMemory} onClose={() => setSettingsOpen(false)} />}
+      {settingsOpen && <Settings temperature={temperature} topP={topP} tab={settingsTab} onTabChange={setSettingsTab} apiKey={apiKey} systemPrompt={systemPrompt} model={model} maxContextMessages={maxContextMessages} memories={memories} stats={stats} onSaveApiKey={saveApiKey} onSaveSettings={saveSettings} onAddCoreMemory={addCoreMemory} onDeleteMemory={deleteMemory} onUpdateMemory={updateMemory} notes={notes} onUpdateNote={updateNote} onDeleteNote={deleteNote} onClose={() => setSettingsOpen(false)} />}
       {unreadNote && <NotePopup note={unreadNote} onDismiss={() => dismissNote(unreadNote.id)} />}
       {toast && <div className="toast">{toast}</div>}
     </div>
