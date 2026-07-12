@@ -142,6 +142,8 @@ function buildTools() {
 export async function sendChatStream({
   apiKey,
   model = 'anthropic/claude-sonnet-4.5',
+  temperature,
+  topP,
   systemPrompt,
   memories,
   conversationHistory,
@@ -160,6 +162,8 @@ export async function sendChatStream({
     messages,
     stream: true,
     max_tokens: 16384,
+    ...(temperature !== undefined && temperature !== null ? { temperature } : {}),
+    ...(topP !== undefined && topP !== null ? { top_p: topP } : {}),
     cache_control: { type: 'ephemeral', ttl: '1h' },
     stream_options: { include_usage: true }
   }
@@ -272,6 +276,8 @@ export async function sendChatStream({
 export async function sendChatFollowUp({
   apiKey,
   model = 'anthropic/claude-sonnet-4.5',
+  temperature,
+  topP,
   systemPrompt,
   memories,
   conversationHistory,
@@ -301,6 +307,8 @@ export async function sendChatFollowUp({
         messages,
         stream: true,
         max_tokens: 16384,
+        ...(temperature !== undefined && temperature !== null ? { temperature } : {}),
+        ...(topP !== undefined && topP !== null ? { top_p: topP } : {}),
         cache_control: { type: 'ephemeral', ttl: '1h' },
         stream_options: { include_usage: true },
         tools: buildTools(),
