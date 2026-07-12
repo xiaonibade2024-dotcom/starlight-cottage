@@ -16,6 +16,9 @@ export default function Settings({
   onAddCoreMemory,
   onDeleteMemory,
   onUpdateMemory,
+  notes = [],
+  onUpdateNote,
+  onDeleteNote,
   onClose
 }) {
   const [localApiKey, setLocalApiKey] = useState(apiKey)
@@ -39,6 +42,41 @@ export default function Settings({
     }
     setEditingMemId(null)
     setEditMemText('')
+  }
+
+  const [editingNoteId, setEditingNoteId] = useState(null)
+  const [editNoteText, setEditNoteText] = useState('')
+
+  const saveNoteEdit = () => {
+    if (editNoteText.trim() && editingNoteId) {
+      onUpdateNote(editingNoteId, editNoteText.trim())
+    }
+    setEditingNoteId(null)
+    setEditNoteText('')
+  }
+
+  const formatNoteDate = (dateStr) => {
+    if (!dateStr) return ''
+    const d = new Date(dateStr)
+    return d.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' }) + ' ' + d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+  }
+
+  const renderNoteBody = (note) => {
+    if (editingNoteId !== note.id) return <div style={{ whiteSpace: 'pre-wrap' }}>{note.content}</div>
+    return (
+      <div>
+        <textarea
+          value={editNoteText}
+          onChange={e => setEditNoteText(e.target.value)}
+          rows={4}
+          style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', border: '1px solid var(--accent-soft)', borderRadius: '8px', background: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: '13px', lineHeight: '1.6', fontFamily: 'inherit', resize: 'vertical', outline: 'none' }}
+        />
+        <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
+          <button onClick={saveNoteEdit} style={{ padding: '4px 16px', fontSize: '12px', border: 'none', borderRadius: '12px', background: 'var(--accent)', color: '#fff', cursor: 'pointer' }}>保存</button>
+          <button onClick={() => { setEditingNoteId(null); setEditNoteText('') }} style={{ padding: '4px 16px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: '12px', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer' }}>取消</button>
+        </div>
+      </div>
+    )
   }
 
   const renderMemoryBody = (mem) => {
@@ -409,6 +447,33 @@ export default function Settings({
                 }}>
                   收藏的消息会出现在这里 ✨
                 </div>
+              </div>
+
+              <div className="settings-section">
+                <div className="settings-label">纸条匣 💌</div>
+                <div className="settings-hint">
+                  他留过的每一张小纸条都收在这里
+                </div>
+                {notes.length === 0 && (
+                  <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px', background: 'var(--bg-primary)', borderRadius: 'var(--radius-sm)', marginTop: '8px' }}>
+                    还没有纸条，也许某天推开门就有了 🌙
+                  </div>
+                )}
+                {notes.map(note => (
+                  <div key={note.id} className="memory-item" style={{ marginTop: '8px' }}>
+                    <div className="memory-item-header">
+                      <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                        {!note.is_read && <span title="还未在弹窗中遇见">💌 </span>}
+                        {formatNoteDate(note.created_at)}
+                      </div>
+                      <div style={{ display: 'flex', gap: '2px' }}>
+                        <button className="memory-delete" onClick={() => { setEditingNoteId(note.id); setEditNoteText(note.content) }} title="编辑">✎</button>
+                        <button className="memory-delete" onClick={() => { if (confirm('确定删除这张纸条吗？')) onDeleteNote(note.id) }} title="删除">×</button>
+                      </div>
+                    </div>
+                    {renderNoteBody(note)}
+                  </div>
+                ))}
               </div>
             </>
           )}
