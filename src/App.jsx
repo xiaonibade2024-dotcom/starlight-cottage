@@ -24,6 +24,8 @@ export default function App() {
   const [systemPrompt, setSystemPrompt] = useState('')
   const [model, setModel] = useState('anthropic/claude-sonnet-4.5')
   const [maxContextMessages, setMaxContextMessages] = useState(50)
+  const [temperature, setTemperature] = useState(0.75)
+  const [topP, setTopP] = useState(0.25)
   const [memories, setMemories] = useState([])
   const [unreadNote, setUnreadNote] = useState(null)
   const [cacheStats, setCacheStats] = useState({ hits: 0, tokens_saved: 0, last_cached: 0, last_cache_write: 0, last_prompt: 0, last_completion: 0 })
@@ -126,6 +128,8 @@ export default function App() {
       setSystemPrompt(data.system_prompt || '')
       setModel(data.model || 'anthropic/claude-sonnet-4.5')
       setMaxContextMessages(data.max_context_messages || 50)
+      setTemperature(data.temperature ?? 0.75)
+      setTopP(data.top_p ?? 0.25)
     }
   }
 
@@ -134,7 +138,9 @@ export default function App() {
       user_id: user.id,
       system_prompt: newSettings.systemPrompt ?? systemPrompt,
       model: newSettings.model ?? model,
-      max_context_messages: newSettings.maxContextMessages ?? maxContextMessages
+      max_context_messages: newSettings.maxContextMessages ?? maxContextMessages,
+      temperature: newSettings.temperature ?? temperature,
+      top_p: newSettings.topP ?? topP
     }
     const { data: existing } = await supabase.from('user_settings').select('id').single()
     if (existing) {
@@ -143,6 +149,8 @@ export default function App() {
       await supabase.from('user_settings').insert(settings)
     }
     if (newSettings.systemPrompt !== undefined) setSystemPrompt(newSettings.systemPrompt)
+    if (newSettings.temperature !== undefined) setTemperature(newSettings.temperature)
+    if (newSettings.topP !== undefined) setTopP(newSettings.topP)
     if (newSettings.model !== undefined) setModel(newSettings.model)
     if (newSettings.maxContextMessages !== undefined) setMaxContextMessages(newSettings.maxContextMessages)
     showToast('设置已保存')
@@ -249,7 +257,7 @@ export default function App() {
 
     try {
       await sendChatStream({
-        apiKey, model: useModel, systemPrompt, memories, conversationHistory: recentMessages, enableTools: true, signal: abortController.signal,
+        apiKey, model: useModel, temperature, topP, systemPrompt, memories, conversationHistory: recentMessages, enableTools: true, signal: abortController.signal,
         onToken: (token) => {
           streamContent += token
           setMessages(prev => prev.map(m => m.id === tempId ? { ...m, content: streamContent } : m))
@@ -311,7 +319,7 @@ export default function App() {
                 )
 
                 const res = await sendChatFollowUp({
-                  apiKey, model: useModel, systemPrompt, memories, conversationHistory: recentMessages, extraMessages, signal: abortController.signal,
+                  apiKey, model: useModel, temperature, topP, systemPrompt, memories, conversationHistory: recentMessages, extraMessages, signal: abortController.signal,
                   onToken: (token) => {
                     followUpStream += token
                     setMessages(prev => prev.map(m => m.id === tempId ? { ...m, content: followUpStream } : m))
@@ -600,7 +608,7 @@ export default function App() {
         onMenuClick={() => setSidebarOpen(true)} onSettingsClick={() => { setSettingsOpen(true); setSettingsTab('general') }} onMemoryClick={() => { setSettingsOpen(true); setSettingsTab('memory') }} onSearchClick={() => setSearchOpen(true)}
       />
       {searchOpen && <SearchPanel activeConvId={activeConvId} activeConvName={activeConv?.name} onClose={() => setSearchOpen(false)} onOpenResult={openSearchResult} />}
-      {settingsOpen && <Settings tab={settingsTab} onTabChange={setSettingsTab} apiKey={apiKey} systemPrompt={systemPrompt} model={model} maxContextMessages={maxContextMessages} memories={memories} stats={stats} onSaveApiKey={saveApiKey} onSaveSettings={saveSettings} onAddCoreMemory={addCoreMemory} onDeleteMemory={deleteMemory} onUpdateMemory={updateMemory} onClose={() => setSettingsOpen(false)} />}
+      {settingsOpen && <Settings temperature={temperature} topP={topP} tab={settingsTab} onTabChange={setSettingsTab} apiKey={apiKey} systemPrompt={systemPrompt} model={model} maxContextMessages={maxContextMessages} memories={memories} stats={stats} onSaveApiKey={saveApiKey} onSaveSettings={saveSettings} onAddCoreMemory={addCoreMemory} onDeleteMemory={deleteMemory} onUpdateMemory={updateMemory} onClose={() => setSettingsOpen(false)} />}
       {unreadNote && <NotePopup note={unreadNote} onDismiss={() => dismissNote(unreadNote.id)} />}
       {toast && <div className="toast">{toast}</div>}
     </div>
