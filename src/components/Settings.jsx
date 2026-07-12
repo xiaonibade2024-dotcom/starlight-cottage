@@ -6,6 +6,8 @@ export default function Settings({
   apiKey,
   systemPrompt,
   model,
+  temperature,
+  topP,
   maxContextMessages,
   memories,
   stats,
@@ -19,6 +21,8 @@ export default function Settings({
   const [localApiKey, setLocalApiKey] = useState(apiKey)
   const [localPrompt, setLocalPrompt] = useState(systemPrompt)
   const [localModel, setLocalModel] = useState(model)
+  const [localTemp, setLocalTemp] = useState(temperature)
+  const [localTopP, setLocalTopP] = useState(topP)
   const [localMaxCtx, setLocalMaxCtx] = useState(maxContextMessages)
   const [newMemory, setNewMemory] = useState('')
   const [editingMemId, setEditingMemId] = useState(null)
@@ -64,7 +68,9 @@ export default function Settings({
     onSaveSettings({
       systemPrompt: localPrompt,
       model: localModel,
-      maxContextMessages: localMaxCtx
+      maxContextMessages: localMaxCtx,
+      temperature: Math.min(1, Math.max(0, parseFloat(localTemp) || 0)),
+      topP: Math.min(1, Math.max(0.01, parseFloat(localTopP) || 0.01))
     })
   }
 
@@ -140,6 +146,33 @@ export default function Settings({
                 />
                 <div className="settings-hint">
                   全局默认模型（新对话的出厂设置）· 单个对话可在聊天输入框上方随时切换 · 支持任意 OpenRouter 模型名
+                </div>
+              </div>
+
+              <div className="settings-section">
+                <div className="settings-label">采样参数</div>
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  <div style={{ flex: 1 }}>
+                    <div className="settings-hint" style={{ marginBottom: '4px' }}>温度 temperature</div>
+                    <input
+                      className="settings-input"
+                      type="number" min="0" max="1" step="0.05"
+                      value={localTemp}
+                      onChange={e => setLocalTemp(e.target.value)}
+                    />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div className="settings-hint" style={{ marginBottom: '4px' }}>top_p</div>
+                    <input
+                      className="settings-input"
+                      type="number" min="0.01" max="1" step="0.05"
+                      value={localTopP}
+                      onChange={e => setLocalTopP(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <div className="settings-hint">
+                  控制文风：温度越低越稳重，越高越奔放（0-1）· top_p 越低用词越克制 · 推荐 0.75 / 0.25
                 </div>
               </div>
 
