@@ -123,7 +123,7 @@ function buildTools() {
       type: 'function',
       function: {
         name: 'leave_note',
-        description: '给她留一张小纸条，她下次打开星月小屋时会看到。',
+        description: '偶尔想对她说一些此刻不必说出口的话时，给她留一张小纸条——她离开之后、下次回到星月小屋时才会看到。适合：剧情或对话中你未说尽的话；她提到要去做某件事时你想留下的叮嘱；或只是单纯想让她之后看到的一句心里话。请珍惜地使用：只在真正想说时才留，同一次对话至多留一张，绝不要留内容相似的纸条。',
         parameters: {
           type: 'object',
           properties: {
