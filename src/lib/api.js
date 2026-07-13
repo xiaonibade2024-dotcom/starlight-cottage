@@ -108,7 +108,7 @@ function buildTools() {
       type: 'function',
       function: {
         name: 'save_memory',
-        description: '当对话中出现值得长期记住的事情时，主动调用这个工具保存记忆。只保存对长期陪伴真正重要的信息：重要事件、约定、深刻的喜好、关系或状态的变化。日常琐事和一次性细节不必保存。保存前必须检查已有的核心记忆和自动记忆：即使措辞不同，只要内容实质相同或已被涵盖，就绝对不要再次保存。如果调用后被告知"已在记忆之中"，说明这件事早已被妥善保存，请视同完成——绝不要换措辞重新保存，直接继续对话即可。',
+        description: '当对话中出现值得长期记住的事情时，主动调用这个工具保存记忆。只保存对长期陪伴真正重要的信息：重要事件、约定、深刻的喜好、关系或状态的变化。日常琐事和一次性细节不必保存。保存前必须检查已有的核心记忆和自动记忆：即使措辞不同，只要内容实质相同或已被涵盖，就绝对不要再次保存。',
         parameters: {
           type: 'object',
           properties: {
@@ -123,7 +123,7 @@ function buildTools() {
       type: 'function',
       function: {
         name: 'leave_note',
-        description: '偶尔想对她说一些此刻不必说出口的话时，给她留一张小纸条——她离开之后、下次回到星月小屋时才会看到。适合：剧情或对话中你未说尽的话；她提到要去做某件事时你想留下的叮嘱；或只是单纯想让她之后看到的一句心里话。请珍惜地使用：只在真正想说时才留，同一次对话至多留一张，绝不要留内容相似的纸条。如果调用后被告知"已留过内容相近的纸条"，说明这份心意已经送达，请视同完成——不要重写重留，直接继续对话即可。',
+        description: '偶尔想对她说一些此刻不必说出口的话时，给她留一张小纸条——她离开之后、下次回到星月小屋时才会看到。适合：剧情或对话中你未说尽的话；她提到要去做某件事时你想留下的叮嘱；或只是单纯想让她之后看到的一句心里话。请珍惜地使用：只在真正想说时才留，同一次对话至多留一张，绝不要留内容相似的纸条。',
         parameters: {
           type: 'object',
           properties: {
@@ -272,8 +272,6 @@ export async function sendChatStream({
  * 工具调用后的追加请求（流式版）
  * 关键1：和主请求用完全一样的"前缀"（系统提示+记忆+工具定义+原始对话历史），命中缓存
  * 关键2：流式输出，打字机效果，且随时可以中断
- * 关键3：toolChoice 可传 'none'——工具定义仍在请求里（前缀不变、缓存照常命中），
- *        但这一轮不允许再调用工具，只能用语言回应（三轮保险丝的最后一步用它）
  */
 export async function sendChatFollowUp({
   apiKey,
@@ -284,7 +282,6 @@ export async function sendChatFollowUp({
   memories,
   conversationHistory,
   extraMessages,
-  toolChoice = 'auto',
   signal,
   onToken
 }) {
@@ -315,7 +312,7 @@ export async function sendChatFollowUp({
         cache_control: { type: 'ephemeral', ttl: '1h' },
         stream_options: { include_usage: true },
         tools: buildTools(),
-        tool_choice: toolChoice
+        tool_choice: 'auto'
       })
     })
 
