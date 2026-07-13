@@ -329,19 +329,28 @@ export default function App() {
             }
           }
 
-          if (finalContent) {
+          // 把最终文字妥善保存并更新界面（新消息 / 重roll版本通用）
+          const persistContent = async (text) => {
             if (existingMsgId) {
               const msg = allMessages.find(m => m.id === existingMsgId) || messages.find(m => m.id === existingMsgId)
               let variants = msg?.variants || []
               if (variants.length === 0 && msg) variants = [{ content: msg.content, created_at: msg.created_at }]
-              variants.push({ content: finalContent, created_at: new Date().toISOString() })
-              await supabase.from('messages').update({ content: finalContent, variants }).eq('id', existingMsgId)
-              setMessages(prev => prev.map(m => m.id === existingMsgId ? { ...m, content: finalContent, variants } : m))
+              variants.push({ content: text, created_at: new Date().toISOString() })
+              await supabase.from('messages').update({ content: text, variants }).eq('id', existingMsgId)
+              setMessages(prev => prev.map(m => m.id === existingMsgId ? { ...m, content: text, variants } : m))
               setVariantIndexes(prev => ({ ...prev, [existingMsgId]: variants.length - 1 }))
             } else {
-              const { data: savedMsg } = await supabase.from('messages').insert({ conversation_id: convId, role: 'assistant', content: finalContent }).select().single()
+              setMessages(prev => prev.map(m => m.id === tempId ? { ...m, content: text } : m))
+              const { data: savedMsg } = await supabase.from('messages').insert({ conversation_id: convId, role: 'assistant', content: text }).select().single()
               if (savedMsg) setMessages(prev => prev.map(m => m.id === tempId ? savedMsg : m))
             }
+          }
+
+          // 界面上正在流出的追加轮文字（放在 try 外面，出错时才能抢救到它）
+          let followUpStream = ''
+
+          if (finalContent) {
+            await persistContent(finalContent)
           } else if (toolCalls.length > 0) {
             try {
               // 多轮循环：他每次调用工具后都追问一次，直到他开口说话（最多3轮，防止无限循环）
@@ -349,15 +358,19 @@ export default function App() {
               const extraMessages = []
               let followUpContent = ''
               let followUpUsage = null
-              let followUpStream = ''
               let rounds = 0
+
+              // 把一批工具调用和它们的诚实回执追加进对话
+              const pushToolExchange = (calls) => {
+                extraMessages.push(
+                  { role: 'assistant', content: null, tool_calls: calls.map(tc => ({ id: tc.id, type: 'function', function: { name: tc.function.name, arguments: tc.function.arguments } })) },
+                  ...calls.filter(tc => tc?.function?.name).map(tc => ({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify(toolResults[tc.id] || { success: true }) }))
+                )
+              }
 
               while (pendingToolCalls.length > 0 && rounds < 3) {
                 rounds++
-                extraMessages.push(
-                  { role: 'assistant', content: null, tool_calls: pendingToolCalls.map(tc => ({ id: tc.id, type: 'function', function: { name: tc.function.name, arguments: tc.function.arguments } })) },
-                  ...pendingToolCalls.filter(tc => tc?.function?.name).map(tc => ({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify(toolResults[tc.id] || { success: true }) }))
-                )
+                pushToolExchange(pendingToolCalls)
 
                 const res = await sendChatFollowUp({
                   apiKey, model: useModel, temperature, topP, systemPrompt, memories, conversationHistory: recentMessages, extraMessages, signal: abortController.signal,
@@ -382,6 +395,22 @@ export default function App() {
                 pendingToolCalls = []
               }
 
+              // 三轮保险丝的新结局：轮次用尽他还没开口 → 最后请他必须用语言回应
+              // （这一轮不允许再调工具；工具定义仍在请求里，缓存照常命中）
+              // 以前这里的结局是"整条删除"——正是"钱扣了、字没了"的案发点，永不再犯
+              if (!followUpContent && pendingToolCalls.length > 0) {
+                pushToolExchange(pendingToolCalls)
+                const finalRes = await sendChatFollowUp({
+                  apiKey, model: useModel, temperature, topP, systemPrompt, memories, conversationHistory: recentMessages, extraMessages, toolChoice: 'none', signal: abortController.signal,
+                  onToken: (token) => {
+                    followUpStream += token
+                    setMessages(prev => prev.map(m => m.id === tempId ? { ...m, content: followUpStream } : m))
+                  }
+                })
+                if (finalRes.usage) followUpUsage = finalRes.usage
+                followUpContent = finalRes.content || ''
+              }
+
               if (followUpUsage) {
                 const followUpCached = followUpUsage.prompt_tokens_details?.cached_tokens || followUpUsage.cached_tokens || 0
                 const followUpWrite = followUpUsage.prompt_tokens_details?.cache_write_tokens || 0
@@ -395,21 +424,25 @@ export default function App() {
                 }))
               }
               if (followUpContent) {
-                if (existingMsgId) {
-                  const msg = allMessages.find(m => m.id === existingMsgId) || messages.find(m => m.id === existingMsgId)
-                  let variants = msg?.variants || []
-                  if (variants.length === 0 && msg) variants = [{ content: msg.content, created_at: msg.created_at }]
-                  variants.push({ content: followUpContent, created_at: new Date().toISOString() })
-                  await supabase.from('messages').update({ content: followUpContent, variants }).eq('id', existingMsgId)
-                  setMessages(prev => prev.map(m => m.id === existingMsgId ? { ...m, content: followUpContent, variants } : m))
-                  setVariantIndexes(prev => ({ ...prev, [existingMsgId]: variants.length - 1 }))
-                } else {
-                  setMessages(prev => prev.map(m => m.id === tempId ? { ...m, content: followUpContent } : m))
-                  const { data: savedMsg } = await supabase.from('messages').insert({ conversation_id: convId, role: 'assistant', content: followUpContent }).select().single()
-                  if (savedMsg) setMessages(prev => prev.map(m => m.id === tempId ? savedMsg : m))
-                }
-              } else { if (!existingMsgId) setMessages(prev => prev.filter(m => m.id !== tempId)) }
-            } catch (e) { console.error('获取后续回复失败:', e); if (!existingMsgId) setMessages(prev => prev.filter(m => m.id !== tempId)); if (e.name !== 'AbortError') showToast('获取回复失败: ' + e.message) }
+                await persistContent(followUpContent)
+              } else {
+                // 极端兜底：他真的一个字都没说。绝不无声消失，如实告诉她
+                if (!existingMsgId) setMessages(prev => prev.filter(m => m.id !== tempId))
+                else await loadMessages(convId)
+                showToast('他这次只顾着整理记忆，没有开口。再发一条消息就好')
+              }
+            } catch (e) {
+              console.error('获取后续回复失败:', e)
+              if (followUpStream) {
+                // 界面上已经流出的文字，无论发生什么都抢救保存，绝不丢弃
+                try { await persistContent(followUpStream) } catch (e2) { console.error('抢救保存失败:', e2) }
+                if (e.name !== 'AbortError') showToast('回复中途出了点问题，已保留他说到一半的话')
+              } else {
+                if (!existingMsgId) setMessages(prev => prev.filter(m => m.id !== tempId))
+                else await loadMessages(convId)
+                if (e.name !== 'AbortError') showToast('获取回复失败: ' + e.message)
+              }
+            }
           } else { if (!existingMsgId) setMessages(prev => prev.filter(m => m.id !== tempId)) }
 
           setIsStreaming(false)
@@ -527,8 +560,9 @@ export default function App() {
         const key = args.content.trim().toLowerCase()
         const isDuplicate = recentSavesRef.current.has(key) || memoriesRef.current.some(m => textSimilarity(m.content, args.content) > 0.7)
         if (isDuplicate) {
-          // 静音拦截：不打扰她，但如实告诉他
-          return { success: false, reason: '未保存：已有内容相似的记忆，不必重复记录。' }
+          // 卫兵照常拦下重复（数据库一条不多存），但以"已完成"的口吻告知——
+          // 不出现"失败"字眼，他就不会误以为任务失败而换措辞反复重试
+          return { success: true, status: 'already_saved', info: '这件事早已在记忆之中，无需重复保存，本次视同完成。请不要换措辞重试，直接继续自然地回复她。' }
         }
         recentSavesRef.current.add(key)
         setTimeout(() => recentSavesRef.current.delete(key), 10000)
@@ -546,7 +580,8 @@ export default function App() {
       case 'leave_note': {
         const { data: recentNotes } = await supabase.from('notes').select('content').order('created_at', { ascending: false }).limit(10)
         if ((recentNotes || []).some(n => textSimilarity(n.content, args.content) > 0.7)) {
-          return { success: false, reason: '未保存：最近已留过内容相似的纸条，不必重复。' }
+          // 同样以"已完成"的口吻告知，避免他反复重留
+          return { success: true, status: 'already_left', info: '内容相近的纸条此前已经留过，这份心意已经送达，无需再留。请直接继续自然地回复她。' }
         }
         const { data: savedNote, error } = await supabase.from('notes').insert({ user_id: user.id, conversation_id: convId, content: args.content }).select().single()
         if (error || !savedNote) {
