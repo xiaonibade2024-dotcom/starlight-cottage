@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import remarkBreaks from 'remark-breaks'
@@ -39,6 +39,142 @@ function parseContent(content) {
   return { text: content, images: [] }
 }
 
+// 时间格式化（移到组件外部，避免每次渲染重复创建）
+function formatTime(dateStr) {
+  if (!dateStr) return ''
+  const d = new Date(dateStr)
+  const now = new Date()
+  const time = d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+  if (d.toDateString() === now.toDateString()) return '今天 ' + time
+  if (d.getFullYear() === now.getFullYear()) return d.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' }) + ' ' + time
+  return d.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }) + ' ' + time
+}
+
+// Markdown 渲染（移到组件外部）
+function renderTextContent(text) {
+  if (!text) return null
+  return (
+    <div className="md-content">
+      <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]} rehypePlugins={[rehypeHighlight]}>
+        {text}
+      </ReactMarkdown>
+    </div>
+  )
+}
+
+// 消息内容渲染（移到组件外部）
+function renderMessageContent(content) {
+  const { text, images } = parseContent(content)
+  return (
+    <>
+      {images.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: text ? '8px' : '0' }}>
+          {images.map((img, i) => (
+            <img key={i} src={img} alt="" style={{ maxWidth: '200px', maxHeight: '200px', borderRadius: '8px', objectFit: 'cover' }} />
+          ))}
+        </div>
+      )}
+      {text && renderTextContent(text)}
+    </>
+  )
+}
+
+// 按钮样式（移到组件外部，避免每次渲染重复创建对象）
+const actionBtnStyle = { background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', padding: '4px 8px', borderRadius: '6px', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '3px' }
+const variantBtnStyle = { background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '14px', padding: '2px 6px', borderRadius: '4px' }
+const favBtnActiveStyle = { ...actionBtnStyle, color: '#e74c3c' }
+
+// ==========================================
+// 单条消息组件（React.memo 包裹，防止不必要的重渲染）
+// ==========================================
+const MessageItem = React.memo(function MessageItem({
+  msg, isEditing, editContent, onEditContentChange,
+  isActive, isLastAssistant, variantIndex, isStreaming,
+  onMessageClick, onStartEdit, onSaveEdit, onSaveAndResend, onCancelEdit,
+  onRegenerate, onCopyMessage, onToggleFavorite, onSwitchVariant
+}) {
+  const editRef = useRef(null)
+
+  // 编辑框自动聚焦和调整高度
+  useEffect(() => {
+    if (isEditing && editRef.current) {
+      editRef.current.focus()
+      editRef.current.style.height = 'auto'
+      editRef.current.style.height = editRef.current.scrollHeight + 'px'
+    }
+  }, [isEditing])
+
+  const variants = msg.variants
+  const hasVariants = variants && variants.length > 1
+
+  return (
+    <div id={'msg-' + msg.id} className={`message ${msg.role}`}>
+      <div className="message-bubble" onClick={(e) => onMessageClick(msg.id, e)} style={{ cursor: isEditing ? 'default' : 'pointer' }}>
+        {isEditing ? (
+          <div style={{ minWidth: '280px' }}>
+            <textarea ref={editRef} value={editContent} onChange={e => onEditContentChange(e.target.value)}
+              style={{ width: '100%', minHeight: '60px', padding: '8px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-primary)', color: 'var(--text-primary)', fontSize: '14px', lineHeight: '1.5', resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+            <div style={{ display: 'flex', gap: '8px', marginTop: '8px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+              <button onClick={onCancelEdit} style={{ padding: '4px 14px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-secondary)', cursor: 'pointer' }}>取消</button>
+              <button onClick={onSaveEdit} style={{ padding: '4px 14px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', cursor: 'pointer' }}>保存</button>
+              {msg.role === 'user' && (
+                <button onClick={onSaveAndResend} style={{ padding: '4px 14px', fontSize: '13px', border: 'none', borderRadius: '8px', background: 'var(--accent, #7c6ca8)', color: 'white', cursor: 'pointer' }}>保存并发送</button>
+              )}
+            </div>
+          </div>
+        ) : (
+          <>
+            {renderMessageContent(msg.content)}
+            {msg.role === 'assistant' && msg.id?.startsWith('streaming-') && isStreaming && !msg.content && (
+              <div className="typing-indicator"><span /><span /><span /></div>
+            )}
+          </>
+        )}
+      </div>
+
+      <div className="message-meta">
+        <span className="message-time">{formatTime(msg.created_at)}</span>
+        {hasVariants && !isEditing && (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '2px', marginLeft: '4px' }}>
+            <button style={variantBtnStyle} onClick={(e) => { e.stopPropagation(); if (variantIndex > 0) onSwitchVariant(msg.id, variantIndex - 1) }} disabled={variantIndex <= 0}>◀</button>
+            <span style={{ fontSize: '11px', color: 'var(--text-muted)', minWidth: '28px', textAlign: 'center' }}>{variantIndex + 1}/{variants.length}</span>
+            <button style={variantBtnStyle} onClick={(e) => { e.stopPropagation(); if (variantIndex < variants.length - 1) onSwitchVariant(msg.id, variantIndex + 1) }} disabled={variantIndex >= variants.length - 1}>▶</button>
+          </span>
+        )}
+        {isActive && !msg.id?.startsWith('streaming-') && !isEditing && !isStreaming && (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '2px', marginLeft: '4px' }}>
+            <button style={actionBtnStyle} onClick={(e) => { e.stopPropagation(); onStartEdit(msg) }} title="编辑">✏️</button>
+            {msg.role === 'assistant' && isLastAssistant && (
+              <button style={actionBtnStyle} onClick={(e) => { e.stopPropagation(); onRegenerate(msg.id) }} title="重新生成">🔄</button>
+            )}
+            <button style={actionBtnStyle} onClick={(e) => { e.stopPropagation(); onCopyMessage(msg.content) }} title="复制">📋</button>
+            {msg.role === 'assistant' && (
+              <button style={msg.is_favorited ? favBtnActiveStyle : actionBtnStyle} onClick={(e) => { e.stopPropagation(); onToggleFavorite(msg.id) }} title={msg.is_favorited ? '取消收藏' : '收藏'}>
+                {msg.is_favorited ? '♥' : '♡'}
+              </button>
+            )}
+          </span>
+        )}
+      </div>
+    </div>
+  )
+}, (prev, next) => {
+  // 自定义比较函数：只比较影响渲染的数据 props，跳过回调函数的比较
+  // 这样即使 Chat 组件重渲染导致回调函数引用变化，消息也不会跟着重渲染
+  return (
+    prev.msg === next.msg &&
+    prev.isEditing === next.isEditing &&
+    prev.editContent === next.editContent &&
+    prev.isActive === next.isActive &&
+    prev.isLastAssistant === next.isLastAssistant &&
+    prev.variantIndex === next.variantIndex &&
+    prev.isStreaming === next.isStreaming
+  )
+})
+
+// ==========================================
+// 主聊天组件
+// ==========================================
 export default function Chat({
   conversation, messages, isStreaming, cacheStats, variantIndexes, scrollToMsgId, onScrollDone, currentModel, onChangeModel,
   onSend, onStop, onToggleFavorite, onRegenerate, onEditMessage, onEditAndResend, onSwitchVariant,
@@ -53,13 +189,18 @@ export default function Chat({
   const messagesEndRef = useRef(null)
   const messagesAreaRef = useRef(null)
   const textareaRef = useRef(null)
-  const editTextareaRef = useRef(null)
   const fileInputRef = useRef(null)
   const isNearBottomRef = useRef(true)
   const [modelPanelOpen, setModelPanelOpen] = useState(false)
   const [modelList, setModelList] = useState(null)
 
   const FALLBACK_MODELS = ['anthropic/claude-sonnet-4.5', 'anthropic/claude-opus-4.1', 'anthropic/claude-3.7-sonnet', 'anthropic/claude-3.5-haiku']
+
+  // 预计算最后一条 AI 消息的 ID（用 useMemo 缓存，只在 messages 变化时重新计算）
+  const lastAssistantId = useMemo(() => {
+    const assistants = messages.filter(m => m.role === 'assistant' && !m.id?.startsWith('streaming-'))
+    return assistants.length > 0 ? assistants[assistants.length - 1].id : null
+  }, [messages])
 
   // 第一次打开面板时才去拉取 Claude 系模型列表
   const openModelPanel = () => {
@@ -119,14 +260,6 @@ export default function Chat({
     }
   }, [input])
 
-  useEffect(() => {
-    if (editTextareaRef.current) {
-      editTextareaRef.current.focus()
-      editTextareaRef.current.style.height = 'auto'
-      editTextareaRef.current.style.height = editTextareaRef.current.scrollHeight + 'px'
-    }
-  }, [editingId])
-
   const handleScroll = () => {
     if (!messagesAreaRef.current) return
     const distance = messagesAreaRef.current.scrollHeight - messagesAreaRef.current.scrollTop - messagesAreaRef.current.clientHeight
@@ -138,7 +271,6 @@ export default function Chat({
     if ((!input.trim() && pendingImages.length === 0) || isStreaming) return
 
     if (pendingImages.length > 0) {
-      // 发送多模态消息
       const content = JSON.stringify({ text: input.trim(), images: pendingImages })
       onSend(content)
       setPendingImages([])
@@ -168,24 +300,23 @@ export default function Chat({
   const scrollToTop = () => { messagesAreaRef.current?.scrollTo({ top: 0, behavior: 'smooth' }) }
   const scrollToBottom = () => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }
 
-  const handleMessageClick = (msgId, e) => {
+  const handleMessageClick = useCallback((msgId, e) => {
     e.stopPropagation()
-    if (editingId) return
     setActiveMessageId(prev => prev === msgId ? null : msgId)
-  }
+  }, [])
   const handleAreaClick = () => { if (!editingId) setActiveMessageId(null) }
 
-  const startEdit = (msg) => {
+  const startEdit = useCallback((msg) => {
     const { text } = parseContent(msg.content)
     setEditingId(msg.id)
     setEditContent(text)
     setActiveMessageId(null)
-  }
+  }, [])
   const saveEdit = () => { if (editContent.trim() && editingId) { onEditMessage(editingId, editContent); setEditingId(null); setEditContent('') } }
   const saveAndResend = () => { if (editContent.trim() && editingId) { onEditAndResend(editingId, editContent); setEditingId(null); setEditContent('') } }
   const cancelEdit = () => { setEditingId(null); setEditContent('') }
 
-  const copyMessage = (content) => {
+  const copyMessage = useCallback((content) => {
     const { text } = parseContent(content)
     navigator.clipboard.writeText(text).then(() => {
       const el = document.createElement('div')
@@ -194,53 +325,8 @@ export default function Chat({
       document.body.appendChild(el)
       setTimeout(() => el.remove(), 1200)
     })
-  }
+  }, [])
 
-  const isLastAssistantMsg = (msgId) => {
-    const a = messages.filter(m => m.role === 'assistant' && !m.id?.startsWith('streaming-'))
-    return a.length > 0 && a[a.length - 1].id === msgId
-  }
-
-  const formatTime = (dateStr) => {
-    if (!dateStr) return ''
-    const d = new Date(dateStr)
-    const now = new Date()
-    const time = d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
-    if (d.toDateString() === now.toDateString()) return '今天 ' + time
-    if (d.getFullYear() === now.getFullYear()) return d.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' }) + ' ' + time
-    return d.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }) + ' ' + time
-  }
-
-  const renderTextContent = (text) => {
-    if (!text) return null
-    return (
-      <div className="md-content">
-        <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]} rehypePlugins={[rehypeHighlight]}>
-          {text}
-        </ReactMarkdown>
-      </div>
-    )
-  }
-
-  // 渲染消息内容（支持图片）
-  const renderMessageContent = (content) => {
-    const { text, images } = parseContent(content)
-    return (
-      <>
-        {images.length > 0 && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: text ? '8px' : '0' }}>
-            {images.map((img, i) => (
-              <img key={i} src={img} alt="" style={{ maxWidth: '200px', maxHeight: '200px', borderRadius: '8px', objectFit: 'cover' }} />
-            ))}
-          </div>
-        )}
-        {text && renderTextContent(text)}
-      </>
-    )
-  }
-
-  const actionBtnStyle = { background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', padding: '4px 8px', borderRadius: '6px', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '3px' }
-  const variantBtnStyle = { background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '14px', padding: '2px 6px', borderRadius: '4px' }
   const infoBarVisible = cacheStats.last_prompt > 0 || cacheStats.last_cached > 0
 
   return (
@@ -269,55 +355,26 @@ export default function Chat({
         )}
 
         {messages.map(msg => (
-          <div key={msg.id} id={'msg-' + msg.id} className={`message ${msg.role}`}>
-            <div className="message-bubble" onClick={(e) => handleMessageClick(msg.id, e)} style={{ cursor: editingId ? 'default' : 'pointer' }}>
-              {editingId === msg.id ? (
-                <div style={{ minWidth: '280px' }}>
-                  <textarea ref={editTextareaRef} value={editContent} onChange={e => setEditContent(e.target.value)}
-                    style={{ width: '100%', minHeight: '60px', padding: '8px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-primary)', color: 'var(--text-primary)', fontSize: '14px', lineHeight: '1.5', resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box' }} />
-                  <div style={{ display: 'flex', gap: '8px', marginTop: '8px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-                    <button onClick={cancelEdit} style={{ padding: '4px 14px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-secondary)', cursor: 'pointer' }}>取消</button>
-                    <button onClick={saveEdit} style={{ padding: '4px 14px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', cursor: 'pointer' }}>保存</button>
-                    {msg.role === 'user' && (
-                      <button onClick={saveAndResend} style={{ padding: '4px 14px', fontSize: '13px', border: 'none', borderRadius: '8px', background: 'var(--accent, #7c6ca8)', color: 'white', cursor: 'pointer' }}>保存并发送</button>
-                    )}
-                  </div>
-                </div>
-              ) : (
-                <>
-                  {renderMessageContent(msg.content)}
-                  {msg.role === 'assistant' && msg.id?.startsWith('streaming-') && isStreaming && !msg.content && (
-                    <div className="typing-indicator"><span /><span /><span /></div>
-                  )}
-                </>
-              )}
-            </div>
-
-            <div className="message-meta">
-              <span className="message-time">{formatTime(msg.created_at)}</span>
-              {msg.variants && msg.variants.length > 1 && editingId !== msg.id && (
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '2px', marginLeft: '4px' }}>
-                  <button style={variantBtnStyle} onClick={(e) => { e.stopPropagation(); const c = variantIndexes[msg.id] ?? 0; if (c > 0) onSwitchVariant(msg.id, c - 1) }} disabled={(variantIndexes[msg.id] ?? 0) <= 0}>◀</button>
-                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', minWidth: '28px', textAlign: 'center' }}>{(variantIndexes[msg.id] ?? 0) + 1}/{msg.variants.length}</span>
-                  <button style={variantBtnStyle} onClick={(e) => { e.stopPropagation(); const c = variantIndexes[msg.id] ?? 0; if (c < msg.variants.length - 1) onSwitchVariant(msg.id, c + 1) }} disabled={(variantIndexes[msg.id] ?? 0) >= msg.variants.length - 1}>▶</button>
-                </span>
-              )}
-              {activeMessageId === msg.id && !msg.id?.startsWith('streaming-') && editingId !== msg.id && !isStreaming && (
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '2px', marginLeft: '4px' }}>
-                  <button style={actionBtnStyle} onClick={(e) => { e.stopPropagation(); startEdit(msg) }} title="编辑">✏️</button>
-                  {msg.role === 'assistant' && isLastAssistantMsg(msg.id) && (
-                    <button style={actionBtnStyle} onClick={(e) => { e.stopPropagation(); onRegenerate(msg.id) }} title="重新生成">🔄</button>
-                  )}
-                  <button style={actionBtnStyle} onClick={(e) => { e.stopPropagation(); copyMessage(msg.content) }} title="复制">📋</button>
-                  {msg.role === 'assistant' && (
-                    <button style={{ ...actionBtnStyle, color: msg.is_favorited ? '#e74c3c' : 'var(--text-muted)' }} onClick={(e) => { e.stopPropagation(); onToggleFavorite(msg.id) }} title={msg.is_favorited ? '取消收藏' : '收藏'}>
-                      {msg.is_favorited ? '♥' : '♡'}
-                    </button>
-                  )}
-                </span>
-              )}
-            </div>
-          </div>
+          <MessageItem
+            key={msg.id}
+            msg={msg}
+            isEditing={editingId === msg.id}
+            editContent={editingId === msg.id ? editContent : ''}
+            onEditContentChange={setEditContent}
+            isActive={activeMessageId === msg.id}
+            isLastAssistant={msg.id === lastAssistantId}
+            variantIndex={variantIndexes[msg.id] ?? 0}
+            isStreaming={isStreaming}
+            onMessageClick={handleMessageClick}
+            onStartEdit={startEdit}
+            onSaveEdit={saveEdit}
+            onSaveAndResend={saveAndResend}
+            onCancelEdit={cancelEdit}
+            onRegenerate={onRegenerate}
+            onCopyMessage={copyMessage}
+            onToggleFavorite={onToggleFavorite}
+            onSwitchVariant={onSwitchVariant}
+          />
         ))}
         <div ref={messagesEndRef} />
       </div>
