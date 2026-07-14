@@ -108,7 +108,7 @@ function buildTools() {
       type: 'function',
       function: {
         name: 'save_memory',
-        description: '当对话中出现值得长期记住的事情时，主动调用这个工具保存记忆。只保存对长期陪伴真正重要的信息：重要事件、约定、深刻的喜好、关系或状态的变化。日常琐事和一次性细节不必保存。保存前必须检查已有的核心记忆和自动记忆：即使措辞不同，只要内容实质相同或已被涵盖，就绝对不要再次保存。',
+        description: '当对话中出现值得长期记住的事情时，主动调用这个工具保存记忆。只保存对长期陪伴真正重要的信息：重要事件、约定、深刻的喜好、关系或状态的变化。日常琐事和一次性细节不必保存。保存前必须检查已有的核心记忆和自动记忆：即使措辞不同，只要内容实质相同或已被涵盖，就绝对不要再次保存。如果收到"已在记忆中"的回执，说明这件事早已记好，请不要换措辞重试，直接继续回复她。',
         parameters: {
           type: 'object',
           properties: {
@@ -123,7 +123,7 @@ function buildTools() {
       type: 'function',
       function: {
         name: 'leave_note',
-        description: '偶尔想对她说一些此刻不必说出口的话时，给她留一张小纸条——她离开之后、下次回到星月小屋时才会看到。适合：剧情或对话中你未说尽的话；她提到要去做某件事时你想留下的叮嘱；或只是单纯想让她之后看到的一句心里话。请珍惜地使用：只在真正想说时才留，同一次对话至多留一张，绝不要留内容相似的纸条。',
+        description: '偶尔想对她说一些此刻不必说出口的话时，给她留一张小纸条——她离开之后、下次回到星月小屋时才会看到。适合：剧情或对话中你未说尽的话；她提到要去做某件事时你想留下的叮嘱；或只是单纯想让她之后看到的一句心里话。请珍惜地使用：只在真正想说时才留，同一次对话至多留一张，绝不要留内容相似的纸条。如果收到"已留过类似纸条"的回执，视同完成，请不要重试，直接继续回复她。',
         parameters: {
           type: 'object',
           properties: {
@@ -175,6 +175,7 @@ export async function sendChatStream({
 
   let fullContent = ''
   let toolCalls = []
+  let donePromise = null
 
   try {
     const response = await fetch(OPENROUTER_API_URL, {
@@ -208,7 +209,9 @@ export async function sendChatStream({
 
       for (const line of lines) {
         if (!line.startsWith('data: ') || line === 'data: [DONE]') {
-          if (line === 'data: [DONE]') onDone?.(fullContent, toolCalls)
+          if (line === 'data: [DONE]') {
+            donePromise = onDone?.(fullContent, toolCalls)
+          }
           continue
         }
 
@@ -250,17 +253,24 @@ export async function sendChatStream({
       }
     }
 
+    // 等待 onDone 完成后再返回——确保工具调用、消息保存、追加请求都在受控范围内完成
+    if (donePromise) {
+      try { await donePromise } catch (e) { console.error('onDone 处理异常:', e) }
+    }
+
     return { content: fullContent, toolCalls }
   } catch (error) {
     if (error.name === 'AbortError') {
       // 用户主动停止：保留已生成的部分内容，不算错误
-      onDone?.(fullContent, [])
+      if (!donePromise) donePromise = onDone?.(fullContent, [])
+      if (donePromise) try { await donePromise } catch (e) {}
       return { content: fullContent, toolCalls: [], aborted: true }
     }
     if (fullContent) {
       // 网络中断但已有内容：抢救文稿，绝不丢弃
       console.error('流式传输中断，已保留部分内容:', error)
-      onDone?.(fullContent, [])
+      if (!donePromise) donePromise = onDone?.(fullContent, [])
+      if (donePromise) try { await donePromise } catch (e) {}
       return { content: fullContent, toolCalls: [], interrupted: true }
     }
     onError?.(error)
@@ -282,6 +292,7 @@ export async function sendChatFollowUp({
   memories,
   conversationHistory,
   extraMessages,
+  enableTools = true,
   signal,
   onToken
 }) {
@@ -291,6 +302,22 @@ export async function sendChatFollowUp({
   let fullContent = ''
   let usage = null
   let toolCalls = []
+
+  const followUpBody = {
+    model,
+    messages,
+    stream: true,
+    max_tokens: 16384,
+    ...(temperature !== undefined && temperature !== null ? { temperature } : {}),
+    ...(topP !== undefined && topP !== null ? { top_p: topP } : {}),
+    cache_control: { type: 'ephemeral', ttl: '1h' },
+    stream_options: { include_usage: true }
+  }
+
+  if (enableTools) {
+    followUpBody.tools = buildTools()
+    followUpBody.tool_choice = 'auto'
+  }
 
   try {
     const response = await fetch(OPENROUTER_API_URL, {
@@ -302,18 +329,7 @@ export async function sendChatFollowUp({
         'HTTP-Referer': window.location.origin,
         'X-Title': 'Starlight Cottage'
       },
-      body: JSON.stringify({
-        model,
-        messages,
-        stream: true,
-        max_tokens: 16384,
-        ...(temperature !== undefined && temperature !== null ? { temperature } : {}),
-        ...(topP !== undefined && topP !== null ? { top_p: topP } : {}),
-        cache_control: { type: 'ephemeral', ttl: '1h' },
-        stream_options: { include_usage: true },
-        tools: buildTools(),
-        tool_choice: 'auto'
-      })
+      body: JSON.stringify(followUpBody)
     })
 
     if (!response.ok) {
