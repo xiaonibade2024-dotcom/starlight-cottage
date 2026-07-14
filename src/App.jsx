@@ -295,12 +295,25 @@ export default function App() {
 
     const recentMessages = allMessages.slice(-maxContextMessages).map(m => ({ role: m.role, content: m.content, created_at: m.created_at }))
 
+    // ★ 流式节流：用 rAF 把多个 token 合并成一次界面更新
+    let displayContent = ''
+    let rafId = null
+    const scheduleUpdate = (newContent) => {
+      displayContent = newContent
+      if (!rafId) {
+        rafId = requestAnimationFrame(() => {
+          rafId = null
+          setMessages(prev => prev.map(m => m.id === tempId ? { ...m, content: displayContent } : m))
+        })
+      }
+    }
+
     try {
       await sendChatStream({
         apiKey, model: useModel, temperature, topP, systemPrompt, memories, conversationHistory: recentMessages, enableTools: true, signal: abortController.signal,
         onToken: (token) => {
           streamContent += token
-          setMessages(prev => prev.map(m => m.id === tempId ? { ...m, content: streamContent } : m))
+          scheduleUpdate(streamContent)  // ★ 改动：用 scheduleUpdate 代替直接 setMessages
         },
         onToolCall: async () => {},
         onUsage: (usage) => {
@@ -316,10 +329,14 @@ export default function App() {
           }))
         },
         onError: (error) => {
+          if (rafId) { cancelAnimationFrame(rafId); rafId = null }  // ★ 清理待执行的 rAF
           showToast('发送失败: ' + error.message)
           if (!existingMsgId) setMessages(prev => prev.filter(m => m.id !== tempId))
         },
         onDone: async (finalContent, toolCalls) => {
+          // ★ 清理待执行的 rAF，确保最终内容由 persistContent 写入
+          if (rafId) { cancelAnimationFrame(rafId); rafId = null }
+
           const toolResults = {}
           if (toolCalls.length > 0) {
             for (const tc of toolCalls) {
@@ -374,7 +391,7 @@ export default function App() {
                   signal: abortController.signal,
                   onToken: (token) => {
                     followUpStream += token
-                    setMessages(prev => prev.map(m => m.id === tempId ? { ...m, content: followUpStream } : m))
+                    scheduleUpdate(followUpStream)  // ★ 改动：follow-up 也用 scheduleUpdate 节流
                   }
                 })
 
@@ -406,6 +423,9 @@ export default function App() {
                 }))
               }
 
+              // ★ 清理待执行的 rAF
+              if (rafId) { cancelAnimationFrame(rafId); rafId = null }
+
               // 永不丢稿：优先用最终完整内容，其次用已显示的流式内容
               const finalText = followUpContent || followUpStream
               if (finalText) {
@@ -417,6 +437,7 @@ export default function App() {
               }
             } catch (e) {
               console.error('获取后续回复失败:', e)
+              if (rafId) { cancelAnimationFrame(rafId); rafId = null }  // ★ 清理
               // 永不丢稿：如果已有显示内容，保留并尝试保存
               if (followUpStream) {
                 try { await persistContent(followUpStream) } catch (saveErr) { console.error('抢救保存失败:', saveErr) }
@@ -435,6 +456,7 @@ export default function App() {
         }
       })
     } catch (error) {
+      if (rafId) { cancelAnimationFrame(rafId); rafId = null }  // ★ 清理
       setIsStreaming(false)
       abortControllerRef.current = null
       if (!existingMsgId) setMessages(prev => prev.filter(m => m.id !== tempId))
