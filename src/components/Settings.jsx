@@ -62,18 +62,18 @@ export default function Settings({
   }
 
   const renderNoteBody = (note) => {
-    if (editingNoteId !== note.id) return <div style={{ whiteSpace: 'pre-wrap' }}>{note.content}</div>
+    if (editingNoteId !== note.id) return note.content
     return (
-      <div>
+      <div className="note-edit-area">
         <textarea
           value={editNoteText}
           onChange={e => setEditNoteText(e.target.value)}
           rows={4}
-          style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', border: '1px solid var(--accent-soft)', borderRadius: '8px', background: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: '13px', lineHeight: '1.6', fontFamily: 'inherit', resize: 'vertical', outline: 'none' }}
+          style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', border: '1px solid var(--accent-soft)', borderRadius: '10px', background: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: '14px', lineHeight: '1.7', fontFamily: 'inherit', resize: 'vertical', outline: 'none' }}
         />
-        <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
-          <button onClick={saveNoteEdit} style={{ padding: '4px 16px', fontSize: '12px', border: 'none', borderRadius: '12px', background: 'var(--accent)', color: '#fff', cursor: 'pointer' }}>保存</button>
-          <button onClick={() => { setEditingNoteId(null); setEditNoteText('') }} style={{ padding: '4px 16px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: '12px', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer' }}>取消</button>
+        <div style={{ display: 'flex', gap: '8px', marginTop: '8px', justifyContent: 'flex-end' }}>
+          <button onClick={() => { setEditingNoteId(null); setEditNoteText('') }} style={{ padding: '5px 16px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: '14px', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer' }}>取消</button>
+          <button onClick={saveNoteEdit} style={{ padding: '5px 16px', fontSize: '12px', border: 'none', borderRadius: '14px', background: 'var(--accent)', color: '#fff', cursor: 'pointer' }}>保存</button>
         </div>
       </div>
     )
@@ -455,23 +455,25 @@ export default function Settings({
                   他留过的每一张小纸条都收在这里
                 </div>
                 {notes.length === 0 && (
-                  <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px', background: 'var(--bg-primary)', borderRadius: 'var(--radius-sm)', marginTop: '8px' }}>
-                    还没有纸条，也许某天推开门就有了 🌙
+                  <div className="notes-empty">
+                    还没有纸条<br />也许某天推开门就有了 🌙
                   </div>
                 )}
                 {notes.map(note => (
-                  <div key={note.id} className="memory-item" style={{ marginTop: '8px' }}>
-                    <div className="memory-item-header">
-                      <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                        {!note.is_read && <span title="还未在弹窗中遇见">💌 </span>}
-                        {formatNoteDate(note.created_at)}
-                      </div>
-                      <div style={{ display: 'flex', gap: '2px' }}>
-                        <button className="memory-delete" onClick={() => { setEditingNoteId(note.id); setEditNoteText(note.content) }} title="编辑">✎</button>
-                        <button className="memory-delete" onClick={() => { if (confirm('确定删除这张纸条吗？')) onDeleteNote(note.id) }} title="删除">×</button>
+                  <div key={note.id} className={`note-card-item${editingNoteId === note.id ? ' editing' : ''}`}>
+                    <div className="note-card-header">
+                      {!note.is_read && <span className="note-unread-tag">💌 还未遇见</span>}
+                      <div className="note-card-actions">
+                        <button onClick={() => { setEditingNoteId(note.id); setEditNoteText(note.content) }} title="编辑">✎</button>
+                        <button className="note-delete" onClick={() => { if (confirm('确定删除这张纸条吗？')) onDeleteNote(note.id) }} title="删除">×</button>
                       </div>
                     </div>
-                    {renderNoteBody(note)}
+                    <div className="note-card-body">
+                      {renderNoteBody(note)}
+                    </div>
+                    <div className="note-card-date">
+                      {formatNoteDate(note.created_at)}
+                    </div>
                   </div>
                 ))}
               </div>
