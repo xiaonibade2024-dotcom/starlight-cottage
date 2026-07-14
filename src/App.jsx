@@ -320,7 +320,7 @@ export default function App() {
           if (!existingMsgId) setMessages(prev => prev.filter(m => m.id !== tempId))
         },
         onDone: async (finalContent, toolCalls) => {
-          const toolResults = {}  // 每笔工具调用的诚实回执（id → 结果）
+          const toolResults = {}
           if (toolCalls.length > 0) {
             for (const tc of toolCalls) {
               if (tc?.function?.name) {
@@ -329,38 +329,49 @@ export default function App() {
             }
           }
 
-          if (finalContent) {
+          // 辅助函数：保存内容到数据库并更新界面（消除三处重复代码）
+          const persistContent = async (content) => {
             if (existingMsgId) {
               const msg = allMessages.find(m => m.id === existingMsgId) || messages.find(m => m.id === existingMsgId)
               let variants = msg?.variants || []
               if (variants.length === 0 && msg) variants = [{ content: msg.content, created_at: msg.created_at }]
-              variants.push({ content: finalContent, created_at: new Date().toISOString() })
-              await supabase.from('messages').update({ content: finalContent, variants }).eq('id', existingMsgId)
-              setMessages(prev => prev.map(m => m.id === existingMsgId ? { ...m, content: finalContent, variants } : m))
+              variants.push({ content, created_at: new Date().toISOString() })
+              await supabase.from('messages').update({ content, variants }).eq('id', existingMsgId)
+              setMessages(prev => prev.map(m => m.id === existingMsgId ? { ...m, content, variants } : m))
               setVariantIndexes(prev => ({ ...prev, [existingMsgId]: variants.length - 1 }))
             } else {
-              const { data: savedMsg } = await supabase.from('messages').insert({ conversation_id: convId, role: 'assistant', content: finalContent }).select().single()
+              setMessages(prev => prev.map(m => m.id === tempId ? { ...m, content } : m))
+              const { data: savedMsg } = await supabase.from('messages').insert({ conversation_id: convId, role: 'assistant', content }).select().single()
               if (savedMsg) setMessages(prev => prev.map(m => m.id === tempId ? savedMsg : m))
             }
+          }
+
+          if (finalContent) {
+            await persistContent(finalContent)
           } else if (toolCalls.length > 0) {
+            // 多轮循环：他每次调用工具后都追问一次，直到他开口说话（最多3轮）
+            let followUpStream = ''
             try {
-              // 多轮循环：他每次调用工具后都追问一次，直到他开口说话（最多3轮，防止无限循环）
-              let pendingToolCalls = toolCalls  // 主请求的工具调用已在上面执行过
+              let pendingToolCalls = toolCalls
               const extraMessages = []
               let followUpContent = ''
               let followUpUsage = null
-              let followUpStream = ''
               let rounds = 0
 
               while (pendingToolCalls.length > 0 && rounds < 3) {
                 rounds++
+                // 保险丝最后一轮：关闭工具，逼他开口说话
+                const isLastRound = (rounds >= 3)
+
                 extraMessages.push(
                   { role: 'assistant', content: null, tool_calls: pendingToolCalls.map(tc => ({ id: tc.id, type: 'function', function: { name: tc.function.name, arguments: tc.function.arguments } })) },
                   ...pendingToolCalls.filter(tc => tc?.function?.name).map(tc => ({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify(toolResults[tc.id] || { success: true }) }))
                 )
 
                 const res = await sendChatFollowUp({
-                  apiKey, model: useModel, temperature, topP, systemPrompt, memories, conversationHistory: recentMessages, extraMessages, signal: abortController.signal,
+                  apiKey, model: useModel, temperature, topP, systemPrompt, memories, conversationHistory: recentMessages, extraMessages,
+                  enableTools: !isLastRound,
+                  signal: abortController.signal,
                   onToken: (token) => {
                     followUpStream += token
                     setMessages(prev => prev.map(m => m.id === tempId ? { ...m, content: followUpStream } : m))
@@ -394,22 +405,27 @@ export default function App() {
                   last_completion: followUpUsage.completion_tokens || 0
                 }))
               }
-              if (followUpContent) {
-                if (existingMsgId) {
-                  const msg = allMessages.find(m => m.id === existingMsgId) || messages.find(m => m.id === existingMsgId)
-                  let variants = msg?.variants || []
-                  if (variants.length === 0 && msg) variants = [{ content: msg.content, created_at: msg.created_at }]
-                  variants.push({ content: followUpContent, created_at: new Date().toISOString() })
-                  await supabase.from('messages').update({ content: followUpContent, variants }).eq('id', existingMsgId)
-                  setMessages(prev => prev.map(m => m.id === existingMsgId ? { ...m, content: followUpContent, variants } : m))
-                  setVariantIndexes(prev => ({ ...prev, [existingMsgId]: variants.length - 1 }))
-                } else {
-                  setMessages(prev => prev.map(m => m.id === tempId ? { ...m, content: followUpContent } : m))
-                  const { data: savedMsg } = await supabase.from('messages').insert({ conversation_id: convId, role: 'assistant', content: followUpContent }).select().single()
-                  if (savedMsg) setMessages(prev => prev.map(m => m.id === tempId ? savedMsg : m))
-                }
-              } else { if (!existingMsgId) setMessages(prev => prev.filter(m => m.id !== tempId)) }
-            } catch (e) { console.error('获取后续回复失败:', e); if (!existingMsgId) setMessages(prev => prev.filter(m => m.id !== tempId)); if (e.name !== 'AbortError') showToast('获取回复失败: ' + e.message) }
+
+              // 永不丢稿：优先用最终完整内容，其次用已显示的流式内容
+              const finalText = followUpContent || followUpStream
+              if (finalText) {
+                await persistContent(finalText)
+              } else {
+                // 兜底：真的一个字都没有，弹提示而非静默删除
+                if (!existingMsgId) setMessages(prev => prev.filter(m => m.id !== tempId))
+                showToast('💬 他似乎欲言又止，再试一次吧')
+              }
+            } catch (e) {
+              console.error('获取后续回复失败:', e)
+              // 永不丢稿：如果已有显示内容，保留并尝试保存
+              if (followUpStream) {
+                try { await persistContent(followUpStream) } catch (saveErr) { console.error('抢救保存失败:', saveErr) }
+                if (e.name !== 'AbortError') showToast('⚠️ 回复可能不完整')
+              } else {
+                if (!existingMsgId) setMessages(prev => prev.filter(m => m.id !== tempId))
+                if (e.name !== 'AbortError') showToast('获取回复失败: ' + e.message)
+              }
+            }
           } else { if (!existingMsgId) setMessages(prev => prev.filter(m => m.id !== tempId)) }
 
           setIsStreaming(false)
@@ -527,8 +543,8 @@ export default function App() {
         const key = args.content.trim().toLowerCase()
         const isDuplicate = recentSavesRef.current.has(key) || memoriesRef.current.some(m => textSimilarity(m.content, args.content) > 0.7)
         if (isDuplicate) {
-          // 静音拦截：不打扰她，但如实告诉他
-          return { success: false, reason: '未保存：已有内容相似的记忆，不必重复记录。' }
+          // 回执变声：告诉他"已完成"而非"失败"，消除重试动机
+          return { success: true, message: '这件事已在你的记忆中，无需再次保存。请直接继续回复她。' }
         }
         recentSavesRef.current.add(key)
         setTimeout(() => recentSavesRef.current.delete(key), 10000)
@@ -546,7 +562,8 @@ export default function App() {
       case 'leave_note': {
         const { data: recentNotes } = await supabase.from('notes').select('content').order('created_at', { ascending: false }).limit(10)
         if ((recentNotes || []).some(n => textSimilarity(n.content, args.content) > 0.7)) {
-          return { success: false, reason: '未保存：最近已留过内容相似的纸条，不必重复。' }
+          // 回执变声：告诉他"已完成"而非"失败"，消除重试动机
+          return { success: true, message: '最近已留过类似的纸条，视同完成。请直接继续回复她。' }
         }
         const { data: savedNote, error } = await supabase.from('notes').insert({ user_id: user.id, conversation_id: convId, content: args.content }).select().single()
         if (error || !savedNote) {
