@@ -689,7 +689,7 @@ body {
 }
 
 /* ==========================================
-   纸条详情弹窗（纸条匣点击展开）
+   纸条/收藏 详情弹窗（匣子点击展开）
    ========================================== */
 
 .note-detail-overlay {
@@ -732,7 +732,6 @@ body {
   }
 }
 
-/* 顶部装饰弧线 */
 .note-detail-accent {
   position: absolute;
   top: 0;
@@ -786,6 +785,48 @@ body {
 .note-detail-close:hover {
   background: var(--accent);
   color: var(--text-inverse);
+}
+
+/* ==========================================
+   匣子折叠开关 + 收藏预览
+   ========================================== */
+
+.section-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-secondary);
+  letter-spacing: 1px;
+  margin-bottom: 8px;
+  padding: 2px 0;
+  user-select: none;
+  transition: color var(--transition);
+}
+
+.section-toggle:hover {
+  color: var(--text-primary);
+}
+
+.toggle-arrow {
+  font-size: 12px;
+  transition: transform var(--transition);
+  transform: rotate(-90deg);
+}
+
+.toggle-arrow.open {
+  transform: rotate(0deg);
+}
+
+.favorite-preview {
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 72px;
+  overflow: hidden;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1.6;
 }
 
 /* ==========================================
