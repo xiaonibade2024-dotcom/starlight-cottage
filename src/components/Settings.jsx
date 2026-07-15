@@ -19,6 +19,9 @@ export default function Settings({
   notes = [],
   onUpdateNote,
   onDeleteNote,
+  favorites = [],
+  conversations = [],
+  onRemoveFavorite,
   onClose
 }) {
   const [localApiKey, setLocalApiKey] = useState(apiKey)
@@ -47,6 +50,9 @@ export default function Settings({
   const [editingNoteId, setEditingNoteId] = useState(null)
   const [editNoteText, setEditNoteText] = useState('')
   const [selectedNote, setSelectedNote] = useState(null)
+  const [selectedFav, setSelectedFav] = useState(null)
+  const [favoritesOpen, setFavoritesOpen] = useState(true)
+  const [notesOpen, setNotesOpen] = useState(true)
 
   const saveNoteEdit = () => {
     if (editNoteText.trim() && editingNoteId) {
@@ -60,6 +66,26 @@ export default function Settings({
     if (!dateStr) return ''
     const d = new Date(dateStr)
     return d.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' }) + ' ' + d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+  }
+
+  const formatShortDate = (dateStr) => {
+    if (!dateStr) return ''
+    const d = new Date(dateStr)
+    return `${d.getMonth() + 1}月${d.getDate()}日 ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  }
+
+  const getConvName = (convId) => {
+    const conv = conversations.find(c => c.id === convId)
+    return conv?.name || '未知对话'
+  }
+
+  const parseMsgText = (content) => {
+    if (!content) return ''
+    try {
+      const parsed = JSON.parse(content)
+      if (parsed.images) return parsed.text || '（图片消息）'
+    } catch (e) {}
+    return content
   }
 
   const renderNoteBody = (note) => {
@@ -102,7 +128,6 @@ export default function Settings({
     )
   }
 
-  // 99999 代表无上限
   const isUnlimited = localMaxCtx >= 99999
   const displayValue = isUnlimited ? '无上限' : localMaxCtx
 
@@ -123,7 +148,6 @@ export default function Settings({
     setNewMemory('')
   }
 
-  // 展示时最新的排最前（只影响这里的显示，不影响发给 AI 的顺序，缓存安全）
   const byNewest = (a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)
   const coreMemories = memories.filter(m => m.category === 'core').slice().sort(byNewest)
   const autoMemories = memories.filter(m => m.category === 'auto').slice().sort(byNewest)
@@ -250,7 +274,7 @@ export default function Settings({
             </>
           )}
 
-          {/* ===== 统计 ===== */}
+          {/* ===== 我们的记录 ===== */}
           {tab === 'stats' && (
             <>
               <div className="stats-grid">
@@ -260,33 +284,66 @@ export default function Settings({
                 <div className="stat-card"><div className="stat-value">{stats.firstChatDate ? new Date(stats.firstChatDate).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' }) : '—'}</div><div className="stat-label">第一次对话</div></div>
               </div>
 
+              {/* 回忆匣子 */}
               <div className="settings-section">
-                <div className="settings-label">回忆匣子</div>
+                <div className="section-toggle" onClick={() => setFavoritesOpen(!favoritesOpen)}>
+                  <span>回忆匣子 ✨{favorites.length > 0 ? `（${favorites.length} 条）` : ''}</span>
+                  <span className={`toggle-arrow${favoritesOpen ? ' open' : ''}`}>▾</span>
+                </div>
                 <div className="settings-hint">在对话中长按他说的话，点击 ♡ 可以收藏到这里</div>
-                <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px', background: 'var(--bg-primary)', borderRadius: 'var(--radius-sm)', marginTop: '8px' }}>收藏的消息会出现在这里 ✨</div>
+
+                {favoritesOpen && (
+                  <>
+                    {favorites.length === 0 && (
+                      <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px', background: 'var(--bg-primary)', borderRadius: 'var(--radius-sm)', marginTop: '8px' }}>收藏的消息会出现在这里 ✨</div>
+                    )}
+                    {favorites.map(fav => (
+                      <div key={fav.id} className="memory-item" style={{ marginTop: '8px' }}>
+                        <div className="memory-item-header">
+                          <div style={{ fontSize: '12px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, marginRight: '8px' }}>
+                            {getConvName(fav.conversation_id)} · {formatShortDate(fav.created_at)}
+                          </div>
+                          <button className="memory-delete" onClick={() => { if (confirm('取消收藏这条消息吗？')) onRemoveFavorite(fav.id) }} title="取消收藏">×</button>
+                        </div>
+                        <div className="favorite-preview" onClick={() => setSelectedFav(fav)}>
+                          {parseMsgText(fav.content)}
+                        </div>
+                      </div>
+                    ))}
+                  </>
+                )}
               </div>
 
+              {/* 纸条匣 */}
               <div className="settings-section">
-                <div className="settings-label">纸条匣 💌</div>
+                <div className="section-toggle" onClick={() => setNotesOpen(!notesOpen)}>
+                  <span>纸条匣 💌{notes.length > 0 ? `（${notes.length} 张）` : ''}</span>
+                  <span className={`toggle-arrow${notesOpen ? ' open' : ''}`}>▾</span>
+                </div>
                 <div className="settings-hint">他留过的每一张小纸条都收在这里，点击可以展开细看</div>
-                {notes.length === 0 && (
-                  <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px', background: 'var(--bg-primary)', borderRadius: 'var(--radius-sm)', marginTop: '8px' }}>还没有纸条，也许某天推开门就有了 🌙</div>
+
+                {notesOpen && (
+                  <>
+                    {notes.length === 0 && (
+                      <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px', background: 'var(--bg-primary)', borderRadius: 'var(--radius-sm)', marginTop: '8px' }}>还没有纸条，也许某天推开门就有了 🌙</div>
+                    )}
+                    {notes.map(note => (
+                      <div key={note.id} className="memory-item" style={{ marginTop: '8px' }}>
+                        <div className="memory-item-header">
+                          <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                            {!note.is_read && <span title="还未在弹窗中遇见">💌 </span>}
+                            {formatNoteDate(note.created_at)}
+                          </div>
+                          <div style={{ display: 'flex', gap: '2px' }}>
+                            <button className="memory-delete" onClick={() => { setEditingNoteId(note.id); setEditNoteText(note.content) }} title="编辑">✎</button>
+                            <button className="memory-delete" onClick={() => { if (confirm('确定删除这张纸条吗？')) onDeleteNote(note.id) }} title="删除">×</button>
+                          </div>
+                        </div>
+                        {renderNoteBody(note)}
+                      </div>
+                    ))}
+                  </>
                 )}
-                {notes.map(note => (
-                  <div key={note.id} className="memory-item" style={{ marginTop: '8px' }}>
-                    <div className="memory-item-header">
-                      <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                        {!note.is_read && <span title="还未在弹窗中遇见">💌 </span>}
-                        {formatNoteDate(note.created_at)}
-                      </div>
-                      <div style={{ display: 'flex', gap: '2px' }}>
-                        <button className="memory-delete" onClick={() => { setEditingNoteId(note.id); setEditNoteText(note.content) }} title="编辑">✎</button>
-                        <button className="memory-delete" onClick={() => { if (confirm('确定删除这张纸条吗？')) onDeleteNote(note.id) }} title="删除">×</button>
-                      </div>
-                    </div>
-                    {renderNoteBody(note)}
-                  </div>
-                ))}
               </div>
             </>
           )}
@@ -301,6 +358,18 @@ export default function Settings({
             <div className="note-detail-content">{selectedNote.content}</div>
             <div className="note-detail-date">{formatNoteDate(selectedNote.created_at)}</div>
             <button className="note-detail-close" onClick={() => setSelectedNote(null)}>收好了</button>
+          </div>
+        </div>
+      )}
+
+      {selectedFav && (
+        <div className="note-detail-overlay" onClick={() => setSelectedFav(null)}>
+          <div className="note-detail-card" onClick={e => e.stopPropagation()}>
+            <div className="note-detail-accent"></div>
+            <div className="note-detail-icon">♡</div>
+            <div className="note-detail-content">{parseMsgText(selectedFav.content)}</div>
+            <div className="note-detail-date">来自「{getConvName(selectedFav.conversation_id)}」· {formatNoteDate(selectedFav.created_at)}</div>
+            <button className="note-detail-close" onClick={() => setSelectedFav(null)}>收好了</button>
           </div>
         </div>
       )}
