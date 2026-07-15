@@ -44,6 +44,7 @@ export default function App() {
   const [memories, setMemories] = useState([])
   const [unreadNote, setUnreadNote] = useState(null)
   const [notes, setNotes] = useState([])
+  const [favorites, setFavorites] = useState([])
   const [cacheStats, setCacheStats] = useState({ hits: 0, tokens_saved: 0, last_cached: 0, last_cache_write: 0, last_prompt: 0, last_completion: 0 })
   const [stats, setStats] = useState({ totalMessages: 0, totalConversations: 0, firstChatDate: null })
   const [variantIndexes, setVariantIndexes] = useState({})
@@ -112,6 +113,7 @@ export default function App() {
     loadSettings()
     loadUnreadNote()
     loadNotes()
+    loadFavorites()
     loadStats()
   }, [user])
 
@@ -210,6 +212,11 @@ export default function App() {
     await supabase.from('notes').delete().eq('id', noteId)
     setNotes(prev => prev.filter(n => n.id !== noteId))
     showToast('纸条已删除')
+  }
+
+  const loadFavorites = async () => {
+    const { data } = await supabase.from('messages').select('*').eq('is_favorited', true).order('created_at', { ascending: false })
+    setFavorites(data || [])
   }
 
   const loadStats = async () => {
@@ -313,7 +320,7 @@ export default function App() {
         apiKey, model: useModel, temperature, topP, systemPrompt, memories, conversationHistory: recentMessages, enableTools: true, signal: abortController.signal,
         onToken: (token) => {
           streamContent += token
-          scheduleUpdate(streamContent)  // ★ 改动：用 scheduleUpdate 代替直接 setMessages
+          scheduleUpdate(streamContent)
         },
         onToolCall: async () => {},
         onUsage: (usage) => {
@@ -329,12 +336,11 @@ export default function App() {
           }))
         },
         onError: (error) => {
-          if (rafId) { cancelAnimationFrame(rafId); rafId = null }  // ★ 清理待执行的 rAF
+          if (rafId) { cancelAnimationFrame(rafId); rafId = null }
           showToast('发送失败: ' + error.message)
           if (!existingMsgId) setMessages(prev => prev.filter(m => m.id !== tempId))
         },
         onDone: async (finalContent, toolCalls) => {
-          // ★ 清理待执行的 rAF，确保最终内容由 persistContent 写入
           if (rafId) { cancelAnimationFrame(rafId); rafId = null }
 
           const toolResults = {}
@@ -366,7 +372,6 @@ export default function App() {
           if (finalContent) {
             await persistContent(finalContent)
           } else if (toolCalls.length > 0) {
-            // 多轮循环：他每次调用工具后都追问一次，直到他开口说话（最多3轮）
             let followUpStream = ''
             try {
               let pendingToolCalls = toolCalls
@@ -377,7 +382,6 @@ export default function App() {
 
               while (pendingToolCalls.length > 0 && rounds < 3) {
                 rounds++
-                // 保险丝最后一轮：关闭工具，逼他开口说话
                 const isLastRound = (rounds >= 3)
 
                 extraMessages.push(
@@ -391,14 +395,13 @@ export default function App() {
                   signal: abortController.signal,
                   onToken: (token) => {
                     followUpStream += token
-                    scheduleUpdate(followUpStream)  // ★ 改动：follow-up 也用 scheduleUpdate 节流
+                    scheduleUpdate(followUpStream)
                   }
                 })
 
                 if (res.usage) followUpUsage = res.usage
                 followUpContent = res.content || ''
 
-                // 这一轮他又调用了工具？照样全部执行，绝不无视
                 if (res.toolCalls && res.toolCalls.length > 0) {
                   for (const tc of res.toolCalls) {
                     if (tc?.function?.name) {
@@ -423,22 +426,18 @@ export default function App() {
                 }))
               }
 
-              // ★ 清理待执行的 rAF
               if (rafId) { cancelAnimationFrame(rafId); rafId = null }
 
-              // 永不丢稿：优先用最终完整内容，其次用已显示的流式内容
               const finalText = followUpContent || followUpStream
               if (finalText) {
                 await persistContent(finalText)
               } else {
-                // 兜底：真的一个字都没有，弹提示而非静默删除
                 if (!existingMsgId) setMessages(prev => prev.filter(m => m.id !== tempId))
                 showToast('💬 他似乎欲言又止，再试一次吧')
               }
             } catch (e) {
               console.error('获取后续回复失败:', e)
-              if (rafId) { cancelAnimationFrame(rafId); rafId = null }  // ★ 清理
-              // 永不丢稿：如果已有显示内容，保留并尝试保存
+              if (rafId) { cancelAnimationFrame(rafId); rafId = null }
               if (followUpStream) {
                 try { await persistContent(followUpStream) } catch (saveErr) { console.error('抢救保存失败:', saveErr) }
                 if (e.name !== 'AbortError') showToast('⚠️ 回复可能不完整')
@@ -456,7 +455,7 @@ export default function App() {
         }
       })
     } catch (error) {
-      if (rafId) { cancelAnimationFrame(rafId); rafId = null }  // ★ 清理
+      if (rafId) { cancelAnimationFrame(rafId); rafId = null }
       setIsStreaming(false)
       abortControllerRef.current = null
       if (!existingMsgId) setMessages(prev => prev.filter(m => m.id !== tempId))
@@ -533,7 +532,6 @@ export default function App() {
   const editAndResend = async (msgId, newContent) => {
     if (!newContent.trim() || isStreaming || !apiKey) return
 
-    // 保存编辑
     await supabase.from('messages').update({ content: newContent.trim() }).eq('id', msgId)
     const updatedMessages = messages.map(m => m.id === msgId ? { ...m, content: newContent.trim() } : m)
     setMessages(updatedMessages)
@@ -542,15 +540,12 @@ export default function App() {
     if (msgIndex < 0) return
     const convId = updatedMessages[msgIndex].conversation_id
 
-    // 找到这条消息之后的 AI 回复
     const nextAssistantIndex = updatedMessages.findIndex((m, i) => i > msgIndex && m.role === 'assistant')
 
     if (nextAssistantIndex >= 0) {
-      // 重新生成已有的 AI 回复
       const historyUpToUser = updatedMessages.slice(0, msgIndex + 1)
       await streamAIResponse(convId, historyUpToUser, updatedMessages[nextAssistantIndex].id)
     } else {
-      // 没有 AI 回复，创建新的
       const historyUpToUser = updatedMessages.slice(0, msgIndex + 1)
       await streamAIResponse(convId, historyUpToUser)
     }
@@ -565,7 +560,6 @@ export default function App() {
         const key = args.content.trim().toLowerCase()
         const isDuplicate = recentSavesRef.current.has(key) || memoriesRef.current.some(m => textSimilarity(m.content, args.content) > 0.7)
         if (isDuplicate) {
-          // 回执变声：告诉他"已完成"而非"失败"，消除重试动机
           return { success: true, message: '这件事已在你的记忆中，无需再次保存。请直接继续回复她。' }
         }
         recentSavesRef.current.add(key)
@@ -584,7 +578,6 @@ export default function App() {
       case 'leave_note': {
         const { data: recentNotes } = await supabase.from('notes').select('content').order('created_at', { ascending: false }).limit(10)
         if ((recentNotes || []).some(n => textSimilarity(n.content, args.content) > 0.7)) {
-          // 回执变声：告诉他"已完成"而非"失败"，消除重试动机
           return { success: true, message: '最近已留过类似的纸条，视同完成。请直接继续回复她。' }
         }
         const { data: savedNote, error } = await supabase.from('notes').insert({ user_id: user.id, conversation_id: convId, content: args.content }).select().single()
@@ -593,7 +586,6 @@ export default function App() {
           return { success: false, reason: '保存失败，可稍后再试。' }
         }
         setNotes(prev => [savedNote, ...prev])
-        // 留纸条完全静默：她此刻不会知道，下次回到小屋才会遇见
         return { success: true, note: '已悄悄留下，她下次回到小屋时会看到。' }
       }
     }
@@ -606,7 +598,19 @@ export default function App() {
     const newFav = !msg.is_favorited
     await supabase.from('messages').update({ is_favorited: newFav }).eq('id', msgId)
     setMessages(prev => prev.map(m => m.id === msgId ? { ...m, is_favorited: newFav } : m))
+    if (newFav) {
+      setFavorites(prev => [{ ...msg, is_favorited: true }, ...prev])
+    } else {
+      setFavorites(prev => prev.filter(f => f.id !== msgId))
+    }
     showToast(newFav ? '已收藏到回忆匣子 ✨' : '已取消收藏')
+  }
+
+  const removeFavorite = async (msgId) => {
+    await supabase.from('messages').update({ is_favorited: false }).eq('id', msgId)
+    setFavorites(prev => prev.filter(f => f.id !== msgId))
+    setMessages(prev => prev.map(m => m.id === msgId ? { ...m, is_favorited: false } : m))
+    showToast('已取消收藏')
   }
 
   const deleteMemory = async (memId) => {
@@ -699,7 +703,7 @@ export default function App() {
         onMenuClick={() => setSidebarOpen(true)} onSettingsClick={() => { setSettingsOpen(true); setSettingsTab('general') }} onMemoryClick={() => { setSettingsOpen(true); setSettingsTab('memory') }} onSearchClick={() => setSearchOpen(true)}
       />
       {searchOpen && <SearchPanel activeConvId={activeConvId} activeConvName={activeConv?.name} onClose={() => setSearchOpen(false)} onOpenResult={openSearchResult} />}
-      {settingsOpen && <Settings temperature={temperature} topP={topP} tab={settingsTab} onTabChange={setSettingsTab} apiKey={apiKey} systemPrompt={systemPrompt} model={model} maxContextMessages={maxContextMessages} memories={memories} stats={stats} onSaveApiKey={saveApiKey} onSaveSettings={saveSettings} onAddCoreMemory={addCoreMemory} onDeleteMemory={deleteMemory} onUpdateMemory={updateMemory} notes={notes} onUpdateNote={updateNote} onDeleteNote={deleteNote} onClose={() => setSettingsOpen(false)} />}
+      {settingsOpen && <Settings temperature={temperature} topP={topP} tab={settingsTab} onTabChange={setSettingsTab} apiKey={apiKey} systemPrompt={systemPrompt} model={model} maxContextMessages={maxContextMessages} memories={memories} stats={stats} onSaveApiKey={saveApiKey} onSaveSettings={saveSettings} onAddCoreMemory={addCoreMemory} onDeleteMemory={deleteMemory} onUpdateMemory={updateMemory} notes={notes} onUpdateNote={updateNote} onDeleteNote={deleteNote} favorites={favorites} conversations={conversations} onRemoveFavorite={removeFavorite} onClose={() => setSettingsOpen(false)} />}
       {unreadNote && <NotePopup note={unreadNote} onDismiss={() => dismissNote(unreadNote.id)} />}
       {toast && <div className="toast">{toast}</div>}
     </div>
