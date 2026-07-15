@@ -57,8 +57,7 @@ export default function App() {
   useEffect(() => { memoriesRef.current = memories }, [memories])
 
   // ==========================================
-  // 推门先开口：打开小屋时，如果距上次对话超过一天，
-  // 他有一定缘分先开口（每天最多一次，每次打开只判定一次）
+  // 推门先开口
   // ==========================================
   const greetAttemptedRef = useRef(false)
   useEffect(() => {
@@ -67,16 +66,12 @@ export default function App() {
     if (!messages || messages.length === 0) return
     const last = messages[messages.length - 1]
     if (!last?.created_at || String(last.id).startsWith('streaming-')) return
-
-    // 走到这里说明对话已完整加载，本次打开只判定这一次
     greetAttemptedRef.current = true
-
     const hours = (Date.now() - new Date(last.created_at).getTime()) / 3600000
     if (hours < 24) return
     const today = new Date().toDateString()
     if (localStorage.getItem('starlight_greet_date') === today) return
     if (Math.random() > 0.6) return
-
     localStorage.setItem('starlight_greet_date', today)
     const gapDesc = hours >= 48 ? `${Math.floor(hours / 24)} 天` : `${Math.floor(hours)} 小时`
     const contextNote = {
@@ -229,6 +224,7 @@ export default function App() {
       })
     }
   }
+
   const selectConversation = async (convId) => {
     setActiveConvId(convId)
     setSidebarOpen(false)
@@ -289,7 +285,6 @@ export default function App() {
     setIsStreaming(true)
     const abortController = new AbortController()
     abortControllerRef.current = abortController
-    // 对话有自己记住的模型就用它，否则用全局默认
     const useModel = conversations.find(c => c.id === convId)?.model || model
     let streamContent = ''
     const tempId = existingMsgId || ('streaming-' + Date.now())
@@ -302,7 +297,6 @@ export default function App() {
 
     const recentMessages = allMessages.slice(-maxContextMessages).map(m => ({ role: m.role, content: m.content, created_at: m.created_at }))
 
-    // ★ 流式节流：用 rAF 把多个 token 合并成一次界面更新
     let displayContent = ''
     let rafId = null
     const scheduleUpdate = (newContent) => {
@@ -352,7 +346,6 @@ export default function App() {
             }
           }
 
-          // 辅助函数：保存内容到数据库并更新界面（消除三处重复代码）
           const persistContent = async (content) => {
             if (existingMsgId) {
               const msg = allMessages.find(m => m.id === existingMsgId) || messages.find(m => m.id === existingMsgId)
@@ -463,16 +456,10 @@ export default function App() {
     }
   }
 
-  // ==========================================
-  // 停止生成
-  // ==========================================
   const stopStreaming = () => {
     abortControllerRef.current?.abort()
   }
 
-  // ==========================================
-  // 给当前对话设置专属模型（null = 跟随全局默认）
-  // ==========================================
   const setConversationModel = async (newModel) => {
     if (!activeConvId) return
     const value = newModel || null
@@ -480,9 +467,6 @@ export default function App() {
     await supabase.from('conversations').update({ model: value }).eq('id', activeConvId)
   }
 
-  // ==========================================
-  // 打开搜索结果
-  // ==========================================
   const openSearchResult = async (convId, msgId) => {
     setSearchOpen(false)
     if (convId !== activeConvId) {
@@ -491,9 +475,15 @@ export default function App() {
     if (msgId) setScrollToMsgId(msgId)
   }
 
-  // ==========================================
-  // 重新生成 AI 回复
-  // ==========================================
+  // 从回忆匣子/纸条匣跳转到对话中的那条消息
+  const locateMessage = async (convId, msgId) => {
+    setSettingsOpen(false)
+    if (convId !== activeConvId) {
+      await selectConversation(convId)
+    }
+    if (msgId) setScrollToMsgId(msgId)
+  }
+
   const regenerateResponse = async (msgId) => {
     if (isStreaming || !apiKey) return
     const msgIndex = messages.findIndex(m => m.id === msgId)
@@ -503,9 +493,6 @@ export default function App() {
     await streamAIResponse(convId, historyMessages, msgId)
   }
 
-  // ==========================================
-  // 切换版本
-  // ==========================================
   const switchVariant = async (msgId, newIndex) => {
     const msg = messages.find(m => m.id === msgId)
     if (!msg || !msg.variants || msg.variants.length === 0) return
@@ -516,9 +503,6 @@ export default function App() {
     setVariantIndexes(prev => ({ ...prev, [msgId]: newIndex }))
   }
 
-  // ==========================================
-  // 编辑消息（仅保存）
-  // ==========================================
   const editMessage = async (msgId, newContent) => {
     if (!newContent.trim()) return
     await supabase.from('messages').update({ content: newContent.trim() }).eq('id', msgId)
@@ -526,22 +510,15 @@ export default function App() {
     showToast('消息已保存')
   }
 
-  // ==========================================
-  // 编辑并重新发送
-  // ==========================================
   const editAndResend = async (msgId, newContent) => {
     if (!newContent.trim() || isStreaming || !apiKey) return
-
     await supabase.from('messages').update({ content: newContent.trim() }).eq('id', msgId)
     const updatedMessages = messages.map(m => m.id === msgId ? { ...m, content: newContent.trim() } : m)
     setMessages(updatedMessages)
-
     const msgIndex = updatedMessages.findIndex(m => m.id === msgId)
     if (msgIndex < 0) return
     const convId = updatedMessages[msgIndex].conversation_id
-
     const nextAssistantIndex = updatedMessages.findIndex((m, i) => i > msgIndex && m.role === 'assistant')
-
     if (nextAssistantIndex >= 0) {
       const historyUpToUser = updatedMessages.slice(0, msgIndex + 1)
       await streamAIResponse(convId, historyUpToUser, updatedMessages[nextAssistantIndex].id)
@@ -551,9 +528,6 @@ export default function App() {
     }
   }
 
-  // ==========================================
-  // 处理工具调用
-  // ==========================================
   const handleToolCall = async (name, args, convId) => {
     switch (name) {
      case 'save_memory': {
@@ -640,19 +614,12 @@ export default function App() {
     const { data: msgs } = await supabase.from('messages').select('*').eq('conversation_id', convId).order('created_at', { ascending: true })
     const messages = msgs || []
     let blob, filename
-
     if (format === 'md') {
       const lines = [`# ${conv.name}`, '', `> 导出自星月小屋 · ${new Date().toLocaleString('zh-CN')}`, '']
       for (const m of messages) {
         let text = m.content || ''
         let imageNote = ''
-        try {
-          const parsed = JSON.parse(m.content)
-          if (parsed.images) {
-            text = parsed.text || ''
-            imageNote = `（附 ${parsed.images.length} 张图片）`
-          }
-        } catch (e) {}
+        try { const parsed = JSON.parse(m.content); if (parsed.images) { text = parsed.text || ''; imageNote = `（附 ${parsed.images.length} 张图片）` } } catch (e) {}
         const who = m.role === 'user' ? '我' : 'TA'
         const time = new Date(m.created_at).toLocaleString('zh-CN')
         lines.push('---', '', `**${who}** · ${time}`, '', text + (imageNote ? `\n\n${imageNote}` : ''), '')
@@ -664,7 +631,6 @@ export default function App() {
       blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' })
       filename = `${conv.name}_${new Date().toLocaleDateString()}.json`
     }
-
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url; a.download = filename; a.click()
@@ -703,7 +669,7 @@ export default function App() {
         onMenuClick={() => setSidebarOpen(true)} onSettingsClick={() => { setSettingsOpen(true); setSettingsTab('general') }} onMemoryClick={() => { setSettingsOpen(true); setSettingsTab('memory') }} onSearchClick={() => setSearchOpen(true)}
       />
       {searchOpen && <SearchPanel activeConvId={activeConvId} activeConvName={activeConv?.name} onClose={() => setSearchOpen(false)} onOpenResult={openSearchResult} />}
-      {settingsOpen && <Settings temperature={temperature} topP={topP} tab={settingsTab} onTabChange={setSettingsTab} apiKey={apiKey} systemPrompt={systemPrompt} model={model} maxContextMessages={maxContextMessages} memories={memories} stats={stats} onSaveApiKey={saveApiKey} onSaveSettings={saveSettings} onAddCoreMemory={addCoreMemory} onDeleteMemory={deleteMemory} onUpdateMemory={updateMemory} notes={notes} onUpdateNote={updateNote} onDeleteNote={deleteNote} favorites={favorites} conversations={conversations} onRemoveFavorite={removeFavorite} onClose={() => setSettingsOpen(false)} />}
+      {settingsOpen && <Settings temperature={temperature} topP={topP} tab={settingsTab} onTabChange={setSettingsTab} apiKey={apiKey} systemPrompt={systemPrompt} model={model} maxContextMessages={maxContextMessages} memories={memories} stats={stats} onSaveApiKey={saveApiKey} onSaveSettings={saveSettings} onAddCoreMemory={addCoreMemory} onDeleteMemory={deleteMemory} onUpdateMemory={updateMemory} notes={notes} onUpdateNote={updateNote} onDeleteNote={deleteNote} favorites={favorites} conversations={conversations} onRemoveFavorite={removeFavorite} onLocateMessage={locateMessage} onClose={() => setSettingsOpen(false)} />}
       {unreadNote && <NotePopup note={unreadNote} onDismiss={() => dismissNote(unreadNote.id)} />}
       {toast && <div className="toast">{toast}</div>}
     </div>
