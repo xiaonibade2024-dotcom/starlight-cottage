@@ -22,6 +22,7 @@ export default function Settings({
   favorites = [],
   conversations = [],
   onRemoveFavorite,
+  onLocateMessage,
   onClose
 }) {
   const [localApiKey, setLocalApiKey] = useState(apiKey)
@@ -330,11 +331,11 @@ export default function Settings({
                     {notes.map(note => (
                       <div key={note.id} className="memory-item" style={{ marginTop: '8px' }}>
                         <div className="memory-item-header">
-                          <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                          <div style={{ fontSize: '12px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, marginRight: '8px' }}>
                             {!note.is_read && <span title="还未在弹窗中遇见">💌 </span>}
-                            {formatNoteDate(note.created_at)}
+                            {getConvName(note.conversation_id)} · {formatShortDate(note.created_at)}
                           </div>
-                          <div style={{ display: 'flex', gap: '2px' }}>
+                          <div style={{ display: 'flex', gap: '2px', flexShrink: 0 }}>
                             <button className="memory-delete" onClick={() => { setEditingNoteId(note.id); setEditNoteText(note.content) }} title="编辑">✎</button>
                             <button className="memory-delete" onClick={() => { if (confirm('确定删除这张纸条吗？')) onDeleteNote(note.id) }} title="删除">×</button>
                           </div>
@@ -356,7 +357,7 @@ export default function Settings({
             <div className="note-detail-accent"></div>
             <div className="note-detail-icon">✦</div>
             <div className="note-detail-content">{selectedNote.content}</div>
-            <div className="note-detail-date">{formatNoteDate(selectedNote.created_at)}</div>
+            <div className="note-detail-date">来自「{getConvName(selectedNote.conversation_id)}」· {formatNoteDate(selectedNote.created_at)}</div>
             <button className="note-detail-close" onClick={() => setSelectedNote(null)}>收好了</button>
           </div>
         </div>
@@ -370,6 +371,7 @@ export default function Settings({
             <div className="note-detail-content">{parseMsgText(selectedFav.content)}</div>
             <div className="note-detail-date">来自「{getConvName(selectedFav.conversation_id)}」· {formatNoteDate(selectedFav.created_at)}</div>
             <button className="note-detail-close" onClick={() => setSelectedFav(null)}>收好了</button>
+            <div className="note-detail-locate" onClick={() => { setSelectedFav(null); onLocateMessage?.(selectedFav.conversation_id, selectedFav.id) }}>前往对话 →</div>
           </div>
         </div>
       )}
