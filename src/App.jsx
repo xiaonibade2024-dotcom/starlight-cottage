@@ -541,15 +541,20 @@ export default function App() {
         }
       }
       case 'leave_note': {
-        // 30分钟冷却期：同一个对话内，两张纸条之间至少间隔30分钟
-        const { data: lastNote } = await supabase.from('notes').select('created_at').eq('conversation_id', convId).order('created_at', { ascending: false }).limit(1).single()
-        if (lastNote) {
-          const minutesSince = (Date.now() - new Date(lastNote.created_at).getTime()) / 60000
-          if (minutesSince < 30) {
-            return { success: true, message: '这次对话已经留过纸条了，把想说的话攒在心里，晚一些再留也不迟。请直接继续回复她。' }
+        // 智能纸条拦截：5分钟冷却 + 对话内相似度0.4
+        const { data: lastConvNote } = await supabase.from('notes').select('created_at, content').eq('conversation_id', convId).order('created_at', { ascending: false }).limit(1).single()
+        if (lastConvNote) {
+          const minutesSince = (Date.now() - new Date(lastConvNote.created_at).getTime()) / 60000
+          // 5分钟内一律拦截（防连发/网络重试）
+          if (minutesSince < 5) {
+            return { success: true, message: '这次对话刚留过纸条，把想说的话攒在心里，晚一些再留也不迟。请直接继续回复她。' }
+          }
+          // 5分钟以上：检查和上一张纸条的内容相似度，同一件事换角度写也拦住
+          if (textSimilarity(lastConvNote.content, args.content) > 0.4) {
+            return { success: true, message: '这次对话已经留过类似的纸条了，视同完成。请直接继续回复她。' }
           }
         }
-        // 相似度查重（跨对话）
+        // 跨对话相似度查重（阈值0.7，保持不变）
         const { data: recentNotes } = await supabase.from('notes').select('content').order('created_at', { ascending: false }).limit(10)
         if ((recentNotes || []).some(n => textSimilarity(n.content, args.content) > 0.7)) {
           return { success: true, message: '最近已留过类似的纸条，视同完成。请直接继续回复她。' }
