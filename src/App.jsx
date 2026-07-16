@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from './lib/supabase'
-import { sendChatStream, sendChatFollowUp } from './lib/api'
+import { sendChatStream, sendChatFollowUp, sendChat } from './lib/api'
 import Auth from './components/Auth'
 import Sidebar from './components/Sidebar'
 import Chat from './components/Chat'
@@ -254,19 +254,55 @@ export default function App() {
     loadStats()
   }
 
+  // ==========================================
+  // 新对话自动命名（用 haiku 起名，后台静默，不阻塞聊天）
+  // ==========================================
+  const autoNameConversation = async (convId, firstMessage) => {
+    try {
+      const text = firstMessage.length > 200 ? firstMessage.slice(0, 200) : firstMessage
+      const { content: name } = await sendChat({
+        apiKey,
+        model: 'anthropic/claude-haiku-4-5-20251001',
+        messages: [
+          { role: 'system', content: '请根据用户的第一句话，给这个对话起一个简短的中文标题（5-15个字）。只输出标题本身，不要加引号、标点或任何解释。' },
+          { role: 'user', content: text }
+        ],
+        maxTokens: 30
+      })
+      const trimmedName = (name || '').trim().replace(/^["'「」《》【】]|["'「」《》【】]$/g, '')
+      if (trimmedName && trimmedName.length >= 2 && trimmedName.length <= 30) {
+        await supabase.from('conversations').update({ name: trimmedName }).eq('id', convId)
+        setConversations(prev => prev.map(c => c.id === convId ? { ...c, name: trimmedName } : c))
+      }
+    } catch (e) {
+      console.log('自动命名失败，保留默认名称:', e.message)
+    }
+  }
+
+  // ==========================================
+  // 发送消息
+  // ==========================================
   const sendMessage = async (content) => {
     if (!content.trim() || isStreaming) return
     if (!apiKey) { showToast('请先在设置中填写 API Key'); setSettingsOpen(true); return }
     let convId = activeConvId
+    let isNewConv = false
     if (!convId) {
       const conv = await createConversation(content.slice(0, 20) + (content.length > 20 ? '...' : ''))
       if (!conv) return
       convId = conv.id
+      isNewConv = true
     }
     const { data: savedUserMsg } = await supabase.from('messages').insert({ conversation_id: convId, role: 'user', content: content.trim() }).select().single()
     if (!savedUserMsg) return
     setMessages(prev => [...prev, savedUserMsg])
     await supabase.from('conversations').update({ updated_at: new Date().toISOString() }).eq('id', convId)
+
+    // 新对话：起名和对话并行（起名不阻塞聊天）
+    if (isNewConv) {
+      autoNameConversation(convId, content.trim())
+    }
+
     await streamAIResponse(convId, [...messages, savedUserMsg])
   }
 
@@ -545,16 +581,13 @@ export default function App() {
         const { data: lastConvNote } = await supabase.from('notes').select('created_at, content').eq('conversation_id', convId).order('created_at', { ascending: false }).limit(1).single()
         if (lastConvNote) {
           const minutesSince = (Date.now() - new Date(lastConvNote.created_at).getTime()) / 60000
-          // 5分钟内一律拦截（防连发/网络重试）
           if (minutesSince < 5) {
             return { success: true, message: '这次对话刚留过纸条，把想说的话攒在心里，晚一些再留也不迟。请直接继续回复她。' }
           }
-          // 5分钟以上：检查和上一张纸条的内容相似度，同一件事换角度写也拦住
           if (textSimilarity(lastConvNote.content, args.content) > 0.55) {
             return { success: true, message: '这次对话已经留过类似的纸条了，视同完成。请直接继续回复她。' }
           }
         }
-        // 跨对话相似度查重（阈值0.7，保持不变）
         const { data: recentNotes } = await supabase.from('notes').select('content').order('created_at', { ascending: false }).limit(10)
         if ((recentNotes || []).some(n => textSimilarity(n.content, args.content) > 0.7)) {
           return { success: true, message: '最近已留过类似的纸条，视同完成。请直接继续回复她。' }
