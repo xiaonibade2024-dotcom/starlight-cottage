@@ -275,6 +275,7 @@ export default function App() {
     const abortController = new AbortController()
     abortControllerRef.current = abortController
     const useModel = conversations.find(c => c.id === convId)?.model || model
+    const isPureMode = conversations.find(c => c.id === convId)?.pure_mode || false
     let streamContent = ''
     const tempId = existingMsgId || ('streaming-' + Date.now())
 
@@ -300,7 +301,7 @@ export default function App() {
 
     try {
       await sendChatStream({
-        apiKey, model: useModel, temperature, topP, systemPrompt, memories, conversationHistory: recentMessages, enableTools: true, signal: abortController.signal,
+        apiKey, model: useModel, temperature, topP, systemPrompt, memories, conversationHistory: recentMessages, enableTools: !isPureMode, signal: abortController.signal,
         onToken: (token) => {
           streamContent += token
           scheduleUpdate(streamContent)
@@ -676,6 +677,7 @@ const togglePureMode = async () => {
       <Chat
         conversation={activeConv} messages={messages} isStreaming={isStreaming} cacheStats={cacheStats} variantIndexes={variantIndexes}
         currentModel={activeConv?.model || model} onChangeModel={setConversationModel}
+        pureMode={activeConv?.pure_mode || false} onTogglePureMode={togglePureMode}
         scrollToMsgId={scrollToMsgId} onScrollDone={() => setScrollToMsgId(null)}
         onSend={sendMessage} onStop={stopStreaming} onToggleFavorite={toggleFavorite} onRegenerate={regenerateResponse} onEditMessage={editMessage} onEditAndResend={editAndResend} onSwitchVariant={switchVariant}
         onMenuClick={() => setSidebarOpen(true)} onSettingsClick={() => { setSettingsOpen(true); setSettingsTab('general') }} onMemoryClick={() => { setSettingsOpen(true); setSettingsTab('memory') }} onSearchClick={() => setSearchOpen(true)}
