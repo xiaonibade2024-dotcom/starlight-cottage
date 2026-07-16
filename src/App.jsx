@@ -448,7 +448,14 @@ export default function App() {
   const stopStreaming = () => {
     abortControllerRef.current?.abort()
   }
-
+const togglePureMode = async () => {
+    if (!activeConvId) return
+    const conv = conversations.find(c => c.id === activeConvId)
+    const newValue = !conv?.pure_mode
+    setConversations(prev => prev.map(c => c.id === activeConvId ? { ...c, pure_mode: newValue } : c))
+    await supabase.from('conversations').update({ pure_mode: newValue }).eq('id', activeConvId)
+    showToast(newValue ? '✧ 纯净模式 · 他会专心陪你，不记东西也不留纸条' : '✦ 完整模式 · 记忆和纸条已恢复')
+  }
   const setConversationModel = async (newModel) => {
     if (!activeConvId) return
     const value = newModel || null
