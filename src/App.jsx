@@ -56,9 +56,6 @@ export default function App() {
   const sessionStartRef = useRef(new Date().toISOString())
   useEffect(() => { memoriesRef.current = memories }, [memories])
 
-  // ==========================================
-  // 推门先开口
-  // ==========================================
   const greetAttemptedRef = useRef(false)
   useEffect(() => {
     if (greetAttemptedRef.current) return
@@ -257,20 +254,15 @@ export default function App() {
     loadStats()
   }
 
-  // ==========================================
-  // 发送消息
-  // ==========================================
   const sendMessage = async (content) => {
     if (!content.trim() || isStreaming) return
     if (!apiKey) { showToast('请先在设置中填写 API Key'); setSettingsOpen(true); return }
-
     let convId = activeConvId
     if (!convId) {
       const conv = await createConversation(content.slice(0, 20) + (content.length > 20 ? '...' : ''))
       if (!conv) return
       convId = conv.id
     }
-
     const { data: savedUserMsg } = await supabase.from('messages').insert({ conversation_id: convId, role: 'user', content: content.trim() }).select().single()
     if (!savedUserMsg) return
     setMessages(prev => [...prev, savedUserMsg])
@@ -278,9 +270,6 @@ export default function App() {
     await streamAIResponse(convId, [...messages, savedUserMsg])
   }
 
-  // ==========================================
-  // 流式 AI 回复
-  // ==========================================
   const streamAIResponse = async (convId, allMessages, existingMsgId = null) => {
     setIsStreaming(true)
     const abortController = new AbortController()
@@ -475,7 +464,6 @@ export default function App() {
     if (msgId) setScrollToMsgId(msgId)
   }
 
-  // 从回忆匣子/纸条匣跳转到对话中的那条消息
   const locateMessage = async (convId, msgId) => {
     setSettingsOpen(false)
     if (convId !== activeConvId) {
@@ -528,6 +516,9 @@ export default function App() {
     }
   }
 
+  // ==========================================
+  // 处理工具调用
+  // ==========================================
   const handleToolCall = async (name, args, convId) => {
     switch (name) {
      case 'save_memory': {
@@ -550,6 +541,15 @@ export default function App() {
         }
       }
       case 'leave_note': {
+        // 30分钟冷却期：同一个对话内，两张纸条之间至少间隔30分钟
+        const { data: lastNote } = await supabase.from('notes').select('created_at').eq('conversation_id', convId).order('created_at', { ascending: false }).limit(1).single()
+        if (lastNote) {
+          const minutesSince = (Date.now() - new Date(lastNote.created_at).getTime()) / 60000
+          if (minutesSince < 30) {
+            return { success: true, message: '这次对话已经留过纸条了，把想说的话攒在心里，晚一些再留也不迟。请直接继续回复她。' }
+          }
+        }
+        // 相似度查重（跨对话）
         const { data: recentNotes } = await supabase.from('notes').select('content').order('created_at', { ascending: false }).limit(10)
         if ((recentNotes || []).some(n => textSimilarity(n.content, args.content) > 0.7)) {
           return { success: true, message: '最近已留过类似的纸条，视同完成。请直接继续回复她。' }
