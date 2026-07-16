@@ -159,8 +159,6 @@ const MessageItem = React.memo(function MessageItem({
     </div>
   )
 }, (prev, next) => {
-  // 自定义比较函数：只比较影响渲染的数据 props，跳过回调函数的比较
-  // 这样即使 Chat 组件重渲染导致回调函数引用变化，消息也不会跟着重渲染
   return (
     prev.msg === next.msg &&
     prev.isEditing === next.isEditing &&
@@ -176,7 +174,8 @@ const MessageItem = React.memo(function MessageItem({
 // 主聊天组件
 // ==========================================
 export default function Chat({
-  conversation, messages, isStreaming, cacheStats, variantIndexes, scrollToMsgId, onScrollDone, currentModel, onChangeModel, pureMode, onTogglePureMode,
+  conversation, messages, isStreaming, cacheStats, variantIndexes, scrollToMsgId, onScrollDone, currentModel, onChangeModel,
+  pureMode, onTogglePureMode,
   onSend, onStop, onToggleFavorite, onRegenerate, onEditMessage, onEditAndResend, onSwitchVariant,
   onMenuClick, onSettingsClick, onMemoryClick, onSearchClick
 }) {
@@ -196,13 +195,11 @@ export default function Chat({
 
   const FALLBACK_MODELS = ['anthropic/claude-sonnet-4.5', 'anthropic/claude-opus-4.1', 'anthropic/claude-3.7-sonnet', 'anthropic/claude-3.5-haiku']
 
-  // 预计算最后一条 AI 消息的 ID（用 useMemo 缓存，只在 messages 变化时重新计算）
   const lastAssistantId = useMemo(() => {
     const assistants = messages.filter(m => m.role === 'assistant' && !m.id?.startsWith('streaming-'))
     return assistants.length > 0 ? assistants[assistants.length - 1].id : null
   }, [messages])
 
-  // 第一次打开面板时才去拉取 Claude 系模型列表
   const openModelPanel = () => {
     setModelPanelOpen(v => !v)
     if (modelList === null) {
@@ -221,8 +218,6 @@ export default function Chat({
     setModelPanelOpen(false)
   }
 
-  // 智能滚动：只有当你本来就在底部附近时，新内容才会带着页面往下滚
-  // 如果你翻上去看历史记录，就不打扰你
   useEffect(() => {
     if (scrollToMsgId) return
     if (isNearBottomRef.current) {
@@ -230,14 +225,12 @@ export default function Chat({
     }
   }, [messages])
 
-  // 切换对话时，回到跟随模式并落到底部
   useEffect(() => {
     if (scrollToMsgId) return
     isNearBottomRef.current = true
     messagesEndRef.current?.scrollIntoView()
   }, [conversation?.id])
 
-  // 搜索定位：滚动到目标消息并闪一下淡紫光
   useEffect(() => {
     if (!scrollToMsgId) return
     const el = document.getElementById('msg-' + scrollToMsgId)
