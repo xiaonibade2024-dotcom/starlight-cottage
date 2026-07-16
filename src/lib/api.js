@@ -76,12 +76,10 @@ function buildMessages(systemPrompt, memories, conversationHistory) {
   if (conversationHistory && conversationHistory.length > 0) {
     for (const msg of conversationHistory) {
       const { text, images } = parseMessageContent(msg.content)
-      // 只给用户消息盖时间章（时间戳来自消息自身的 created_at，永远不变，缓存安全）
       const ts = msg.role === 'user' ? formatMsgTime(msg.created_at) : ''
       const stampedText = ts ? (text ? `[${ts}] ${text}` : `[${ts}]`) : text
 
       if (images.length > 0) {
-        // 多模态消息：图片 + 文字
         const contentParts = []
         for (const img of images) {
           contentParts.push({ type: 'image_url', image_url: { url: img } })
@@ -123,7 +121,7 @@ function buildTools() {
       type: 'function',
       function: {
         name: 'leave_note',
-        description: '偶尔想对她说一些此刻不必说出口的话时，给她留一张小纸条——她离开之后、下次回到星月小屋时才会看到。适合：剧情或对话中你未说尽的话；她提到要去做某件事时你想留下的叮嘱；或只是单纯想让她之后看到的一句心里话。请珍惜地使用：只在真正想说时才留，同一次对话至多留一张，绝不要留内容相似的纸条。如果收到"已留过类似纸条"的回执，视同完成，请不要重试，直接继续回复她。',
+        description: '偶尔想对她说一些此刻不必说出口的话时，给她留一张小纸条——她离开之后、下次回到星月小屋时才会看到。适合：剧情或对话中你未说尽的话；她提到要去做某件事时你想留下的叮嘱；或只是单纯想让她之后看到的一句心里话。请珍惜地使用：只在真正想说时才留，同一次对话中留完一张后至少等半小时再考虑是否留下一张，不要短时间内反复留。如果收到"已留过"的回执，视同完成，请不要重试，直接继续回复她。',
         parameters: {
           type: 'object',
           properties: {
@@ -253,7 +251,6 @@ export async function sendChatStream({
       }
     }
 
-    // 等待 onDone 完成后再返回——确保工具调用、消息保存、追加请求都在受控范围内完成
     if (donePromise) {
       try { await donePromise } catch (e) { console.error('onDone 处理异常:', e) }
     }
@@ -261,13 +258,11 @@ export async function sendChatStream({
     return { content: fullContent, toolCalls }
   } catch (error) {
     if (error.name === 'AbortError') {
-      // 用户主动停止：保留已生成的部分内容，不算错误
       if (!donePromise) donePromise = onDone?.(fullContent, [])
       if (donePromise) try { await donePromise } catch (e) {}
       return { content: fullContent, toolCalls: [], aborted: true }
     }
     if (fullContent) {
-      // 网络中断但已有内容：抢救文稿，绝不丢弃
       console.error('流式传输中断，已保留部分内容:', error)
       if (!donePromise) donePromise = onDone?.(fullContent, [])
       if (donePromise) try { await donePromise } catch (e) {}
@@ -280,8 +275,6 @@ export async function sendChatStream({
 
 /**
  * 工具调用后的追加请求（流式版）
- * 关键1：和主请求用完全一样的"前缀"（系统提示+记忆+工具定义+原始对话历史），命中缓存
- * 关键2：流式输出，打字机效果，且随时可以中断
  */
 export async function sendChatFollowUp({
   apiKey,
@@ -378,11 +371,9 @@ export async function sendChatFollowUp({
     return { content: fullContent, usage, toolCalls }
   } catch (error) {
     if (error.name === 'AbortError') {
-      // 用户主动停止：保留已生成的部分内容
       return { content: fullContent, usage, toolCalls: [], aborted: true }
     }
     if (fullContent) {
-      // 网络中断但已有内容：抢救文稿
       console.error('追加请求中断，已保留部分内容:', error)
       return { content: fullContent, usage, toolCalls: [], interrupted: true }
     }
