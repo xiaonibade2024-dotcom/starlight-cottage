@@ -176,7 +176,7 @@ const MessageItem = React.memo(function MessageItem({
 // 主聊天组件
 // ==========================================
 export default function Chat({
-  conversation, messages, isStreaming, cacheStats, variantIndexes, scrollToMsgId, onScrollDone, currentModel, onChangeModel,
+  conversation, messages, isStreaming, cacheStats, variantIndexes, scrollToMsgId, onScrollDone, currentModel, onChangeModel, pureMode, onTogglePureMode,
   onSend, onStop, onToggleFavorite, onRegenerate, onEditMessage, onEditAndResend, onSwitchVariant,
   onMenuClick, onSettingsClick, onMemoryClick, onSearchClick
 }) {
@@ -411,8 +411,15 @@ export default function Chat({
 
       {/* 输入区域 */}
       <div className="input-area">
-        {/* 工具条：模型徽章独自靠右，悬在发送键上方 */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', marginBottom: '8px' }}>
+        {/* 工具条：纯净模式 + 模型徽章，靠右排列 */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', marginBottom: '8px', gap: '8px' }}>
+          {conversation && (
+            <button
+              onClick={onTogglePureMode}
+              title={pureMode ? '切换到完整模式（恢复记忆和纸条）' : '切换到纯净模式（关闭记忆和纸条）'}
+              style={{ padding: '5px 12px', fontSize: '12px', border: '1px solid ' + (pureMode ? '#A8C4A0' : 'var(--border)'), borderRadius: '14px', background: pureMode ? 'rgba(168, 196, 160, 0.12)' : 'var(--bg-secondary)', color: pureMode ? '#A8C4A0' : 'var(--text-secondary)', cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.3s' }}
+            >{pureMode ? '✧ 纯净' : '✦ 完整'}</button>
+          )}
           <div style={{ position: 'relative' }}>
             <button
               onClick={openModelPanel}
