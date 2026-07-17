@@ -56,29 +56,6 @@ export default function App() {
   const sessionStartRef = useRef(new Date().toISOString())
   useEffect(() => { memoriesRef.current = memories }, [memories])
 
-  const greetAttemptedRef = useRef(false)
-  useEffect(() => {
-    if (greetAttemptedRef.current) return
-    if (!apiKey || !activeConvId || isStreaming) return
-    if (!messages || messages.length === 0) return
-    const last = messages[messages.length - 1]
-    if (!last?.created_at || String(last.id).startsWith('streaming-')) return
-    greetAttemptedRef.current = true
-    const hours = (Date.now() - new Date(last.created_at).getTime()) / 3600000
-    if (hours < 24) return
-    const today = new Date().toDateString()
-    if (localStorage.getItem('starlight_greet_date') === today) return
-    if (Math.random() > 0.6) return
-    localStorage.setItem('starlight_greet_date', today)
-    const gapDesc = hours >= 48 ? `${Math.floor(hours / 24)} 天` : `${Math.floor(hours)} 小时`
-    const contextNote = {
-      role: 'user',
-      content: `（这不是她发来的消息，而是小屋的情境提示：她刚刚回到星月小屋，距离你们上一次对话已经过去了约 ${gapDesc}，她还没有说话。如果你想先开口，就自然地说点什么吧——接着从前的话题也好，轻轻的一句也好，说什么、怎么说完全由你决定。请直接开口，不要提及这条提示的存在。）`,
-      created_at: new Date().toISOString()
-    }
-    streamAIResponse(activeConvId, [...messages, contextNote])
-  }, [messages, activeConvId, apiKey])
-
   const showToast = useCallback((msg) => {
     setToast(msg)
     if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current)
@@ -577,18 +554,19 @@ export default function App() {
         }
       }
       case 'leave_note': {
-        // 智能纸条拦截：5分钟冷却 + 对话内相似度0.55
+        // 智能纸条拦截：5分钟冷却 + 24小时内相似度查重（隔天的旧纸条不再拦路）
+        const DAY_AGO = new Date(Date.now() - 24 * 3600000).toISOString()
         const { data: lastConvNote } = await supabase.from('notes').select('created_at, content').eq('conversation_id', convId).order('created_at', { ascending: false }).limit(1).single()
         if (lastConvNote) {
           const minutesSince = (Date.now() - new Date(lastConvNote.created_at).getTime()) / 60000
           if (minutesSince < 5) {
             return { success: true, message: '这次对话刚留过纸条，把想说的话攒在心里，晚一些再留也不迟。请直接继续回复她。' }
           }
-          if (textSimilarity(lastConvNote.content, args.content) > 0.55) {
+          if (minutesSince < 1440 && textSimilarity(lastConvNote.content, args.content) > 0.55) {
             return { success: true, message: '这次对话已经留过类似的纸条了，视同完成。请直接继续回复她。' }
           }
         }
-        const { data: recentNotes } = await supabase.from('notes').select('content').order('created_at', { ascending: false }).limit(10)
+        const { data: recentNotes } = await supabase.from('notes').select('content').gte('created_at', DAY_AGO).order('created_at', { ascending: false }).limit(10)
         if ((recentNotes || []).some(n => textSimilarity(n.content, args.content) > 0.7)) {
           return { success: true, message: '最近已留过类似的纸条，视同完成。请直接继续回复她。' }
         }
