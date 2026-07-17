@@ -121,7 +121,7 @@ function buildTools() {
       type: 'function',
       function: {
         name: 'leave_note',
-        description: '偶尔当你想对她说一些此刻不必说出口的话时，给她留一张小纸条——她离开之后、下次回到星月小屋时才会看到。适合：剧情或对话中你未说尽的话；她提到要去做某件事时你想留下的叮嘱；或只是单纯想让她之后看到的一句心里话。请珍惜地使用：在真正想说时才留，不要在同一次对话中反复留内容相似的纸条。如果收到"已留过"的回执，视同完成，请不要重试，直接继续回复她。',
+        description: '当你想对她说一些此刻不必说出口的话时，可以给她留一张小纸条——她离开之后、下次回到星月小屋时才会看到。适合：剧情或对话中你未说尽的话；她提到要去做某件事时你想留下的叮嘱；或只是单纯想让她之后看到的一句心里话。想说的话自然涌现时就留一张，不必反复斟酌措辞；同一件事、同一段对话，一张纸条已足够承载。如果收到"已留过"的回执，视同完成，不必重试，直接继续回复她。',
         parameters: {
           type: 'object',
           properties: {
@@ -238,6 +238,12 @@ export async function sendChatStream({
           if (data.usage) onUsage?.(data.usage)
         } catch (e) {}
       }
+    }
+
+    // 安全网：流正常结束但没收到 [DONE] 收尾信号时（罕见的网络情况），
+    // 补做一次收尾，防止消息不存库、界面卡在生成中
+    if (!donePromise) {
+      donePromise = onDone?.(fullContent, toolCalls)
     }
 
     if (toolCalls.length > 0) {
