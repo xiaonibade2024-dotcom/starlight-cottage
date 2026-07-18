@@ -52,6 +52,7 @@ export default function Settings({
   const [editNoteText, setEditNoteText] = useState('')
   const [selectedNote, setSelectedNote] = useState(null)
   const [selectedFav, setSelectedFav] = useState(null)
+  const [selectedMem, setSelectedMem] = useState(null)
   const [favoritesOpen, setFavoritesOpen] = useState(true)
   const [notesOpen, setNotesOpen] = useState(true)
 
@@ -89,6 +90,16 @@ export default function Settings({
     return content
   }
 
+  // 列表预览：把空行收拢成单换行，让有限的预览高度装下更多内容
+  const previewText = (text) => String(text || '').replace(/\n{2,}/g, '\n')
+
+  // 弹窗正文：按空行拆成段落，段距由 CSS 优雅控制（只改显示，原文不动）
+  const renderPopupText = (text) => {
+    return String(text || '').split(/\n{2,}/).map((para, i) => (
+      <p key={i} className="note-detail-para">{para}</p>
+    ))
+  }
+
   const renderNoteBody = (note) => {
     if (editingNoteId !== note.id) return (
       <div style={{ whiteSpace: 'pre-wrap', cursor: 'pointer' }} onClick={() => setSelectedNote(note)}>
@@ -112,7 +123,11 @@ export default function Settings({
   }
 
   const renderMemoryBody = (mem) => {
-    if (editingMemId !== mem.id) return mem.content
+    if (editingMemId !== mem.id) return (
+      <div style={{ cursor: 'pointer' }} onClick={() => setSelectedMem(mem)}>
+        {mem.content}
+      </div>
+    )
     return (
       <div>
         <textarea
@@ -234,14 +249,14 @@ export default function Settings({
             <>
               <div className="settings-section">
                 <div className="settings-label">核心记忆（你手动维护）</div>
-                <div className="settings-hint" style={{ marginBottom: '12px' }}>这些是你希望他始终记住的重要事情</div>
+                <div className="settings-hint" style={{ marginBottom: '12px' }}>这些是你希望他始终记住的重要事情 · 点击内容可以展开细看</div>
                 {coreMemories.map(mem => (
                   <div key={mem.id} className="memory-item">
                     <div className="memory-item-header">
                       <div className="memory-tags">{mem.tags?.map((tag, i) => (<span key={i} className="memory-tag">{tag}</span>))}</div>
-                      <div style={{ display: 'flex', gap: '2px' }}>
+                      <div className="memory-actions">
                         <button className="memory-delete" onClick={() => startMemEdit(mem)} title="编辑">✎</button>
-                        <button className="memory-delete" onClick={() => onDeleteMemory(mem.id)} title="删除">×</button>
+                        <button className="memory-delete" onClick={() => { if (confirm('确定删除这条记忆吗？')) onDeleteMemory(mem.id) }} title="删除">×</button>
                       </div>
                     </div>
                     {renderMemoryBody(mem)}
@@ -255,7 +270,7 @@ export default function Settings({
 
               <div className="settings-section">
                 <div className="settings-label">他主动记住的（{autoMemories.length} 条）</div>
-                <div className="settings-hint" style={{ marginBottom: '12px' }}>这些是他在对话中自己觉得重要并记下来的</div>
+                <div className="settings-hint" style={{ marginBottom: '12px' }}>这些是他在对话中自己觉得重要并记下来的 · 点击内容可以展开细看</div>
                 {autoMemories.length === 0 && (
                   <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px', background: 'var(--bg-primary)', borderRadius: 'var(--radius-sm)' }}>还没有自动记忆<br />聊起来之后他会自己记住重要的事</div>
                 )}
@@ -263,9 +278,9 @@ export default function Settings({
                   <div key={mem.id} className="memory-item">
                     <div className="memory-item-header">
                       <div className="memory-tags">{mem.tags?.map((tag, i) => (<span key={i} className="memory-tag">{tag}</span>))}</div>
-                      <div style={{ display: 'flex', gap: '2px' }}>
+                      <div className="memory-actions">
                         <button className="memory-delete" onClick={() => startMemEdit(mem)} title="编辑">✎</button>
-                        <button className="memory-delete" onClick={() => onDeleteMemory(mem.id)} title="删除">×</button>
+                        <button className="memory-delete" onClick={() => { if (confirm('确定删除这条记忆吗？')) onDeleteMemory(mem.id) }} title="删除">×</button>
                       </div>
                     </div>
                     {renderMemoryBody(mem)}
@@ -307,7 +322,7 @@ export default function Settings({
                           <button className="memory-delete" onClick={() => { if (confirm('取消收藏这条消息吗？')) onRemoveFavorite(fav.id) }} title="取消收藏">×</button>
                         </div>
                         <div className="favorite-preview" onClick={() => setSelectedFav(fav)}>
-                          {parseMsgText(fav.content)}
+                          {previewText(parseMsgText(fav.content))}
                         </div>
                       </div>
                     ))}
@@ -335,7 +350,7 @@ export default function Settings({
                             {!note.is_read && <span title="还未在弹窗中遇见">💌 </span>}
                             {getConvName(note.conversation_id)} · {formatShortDate(note.created_at)}
                           </div>
-                          <div style={{ display: 'flex', gap: '2px', flexShrink: 0 }}>
+                          <div className="memory-actions">
                             <button className="memory-delete" onClick={() => { setEditingNoteId(note.id); setEditNoteText(note.content) }} title="编辑">✎</button>
                             <button className="memory-delete" onClick={() => { if (confirm('确定删除这张纸条吗？')) onDeleteNote(note.id) }} title="删除">×</button>
                           </div>
@@ -355,8 +370,9 @@ export default function Settings({
         <div className="note-detail-overlay" onClick={() => setSelectedNote(null)}>
           <div className="note-detail-card" onClick={e => e.stopPropagation()}>
             <div className="note-detail-accent"></div>
+            <div className="note-detail-frame"></div>
             <div className="note-detail-icon">✦</div>
-            <div className="note-detail-content">{selectedNote.content}</div>
+            <div className="note-detail-content">{renderPopupText(selectedNote.content)}</div>
             <div className="note-detail-date">来自「{getConvName(selectedNote.conversation_id)}」· {formatNoteDate(selectedNote.created_at)}</div>
             <button className="note-detail-close" onClick={() => setSelectedNote(null)}>收好了</button>
           </div>
@@ -367,11 +383,25 @@ export default function Settings({
         <div className="note-detail-overlay" onClick={() => setSelectedFav(null)}>
           <div className="note-detail-card" onClick={e => e.stopPropagation()}>
             <div className="note-detail-accent"></div>
+            <div className="note-detail-frame"></div>
             <div className="note-detail-icon">♡</div>
-            <div className="note-detail-content">{parseMsgText(selectedFav.content)}</div>
+            <div className="note-detail-content plain">{renderPopupText(parseMsgText(selectedFav.content))}</div>
             <div className="note-detail-date">来自「{getConvName(selectedFav.conversation_id)}」· {formatNoteDate(selectedFav.created_at)}</div>
             <button className="note-detail-close" onClick={() => setSelectedFav(null)}>收好了</button>
             <div className="note-detail-locate" onClick={() => { setSelectedFav(null); onLocateMessage?.(selectedFav.conversation_id, selectedFav.id) }}>前往对话 →</div>
+          </div>
+        </div>
+      )}
+
+      {selectedMem && (
+        <div className="note-detail-overlay" onClick={() => setSelectedMem(null)}>
+          <div className="note-detail-card" onClick={e => e.stopPropagation()}>
+            <div className="note-detail-accent"></div>
+            <div className="note-detail-frame"></div>
+            <div className="note-detail-icon">💭</div>
+            <div className="note-detail-content plain">{renderPopupText(selectedMem.content)}</div>
+            <div className="note-detail-date">{selectedMem.category === 'core' ? '核心记忆' : '他自己记下的'} · 记于 {formatNoteDate(selectedMem.created_at)}</div>
+            <button className="note-detail-close" onClick={() => setSelectedMem(null)}>收好了</button>
           </div>
         </div>
       )}
