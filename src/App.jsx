@@ -270,10 +270,12 @@ export default function App() {
       convId = conv.id
       isNewConv = true
     }
-    const { data: savedUserMsg } = await supabase.from('messages').insert({ conversation_id: convId, role: 'user', content: content.trim() }).select().single()
+    // 树系统：给新消息盖"上一条是谁"的印章（第一条消息认对话本身作根；老消息为空=直线时代，正常）
+    const parentId = (!isNewConv && messages.length > 0) ? messages[messages.length - 1].id : convId
+    const { data: savedUserMsg } = await supabase.from('messages').insert({ conversation_id: convId, role: 'user', content: content.trim(), parent_id: parentId }).select().single()
     if (!savedUserMsg) return
     setMessages(prev => [...prev, savedUserMsg])
-    await supabase.from('conversations').update({ updated_at: new Date().toISOString() }).eq('id', convId)
+    await supabase.from('conversations').update({ updated_at: new Date().toISOString(), active_leaf_id: savedUserMsg.id }).eq('id', convId)
 
     // 新对话：起名和对话并行（起名不阻塞聊天）
     if (isNewConv) {
@@ -359,8 +361,13 @@ export default function App() {
               setVariantIndexes(prev => ({ ...prev, [existingMsgId]: variants.length - 1 }))
             } else {
               setMessages(prev => prev.map(m => m.id === tempId ? { ...m, content } : m))
-              const { data: savedMsg } = await supabase.from('messages').insert({ conversation_id: convId, role: 'assistant', content }).select().single()
-              if (savedMsg) setMessages(prev => prev.map(m => m.id === tempId ? savedMsg : m))
+              // 树系统：他的回复认最后那条用户消息作为上一条
+              const parentForAssistant = allMessages.length > 0 ? allMessages[allMessages.length - 1].id : convId
+              const { data: savedMsg } = await supabase.from('messages').insert({ conversation_id: convId, role: 'assistant', content, parent_id: parentForAssistant }).select().single()
+              if (savedMsg) {
+                setMessages(prev => prev.map(m => m.id === tempId ? savedMsg : m))
+                await supabase.from('conversations').update({ active_leaf_id: savedMsg.id }).eq('id', convId)
+              }
             }
           }
 
@@ -531,6 +538,12 @@ export default function App() {
 
   const deleteMessage = async (msgId) => {
     const target = messages.find(m => m.id === msgId)
+    // 树系统：删除前把它的"孩子们"过继给它的上一条，树梢书签若指着它也一并挪走，避免断链
+    if (target) {
+      await supabase.from('messages').update({ parent_id: target.parent_id || null }).eq('parent_id', msgId)
+      await supabase.from('conversations').update({ active_leaf_id: target.parent_id || null }).eq('id', target.conversation_id).eq('active_leaf_id', msgId)
+      setMessages(prev => prev.map(m => m.parent_id === msgId ? { ...m, parent_id: target.parent_id || null } : m))
+    }
     await supabase.from('messages').delete().eq('id', msgId)
     setMessages(prev => prev.filter(m => m.id !== msgId))
     if (target?.is_favorited) setFavorites(prev => prev.filter(f => f.id !== msgId))
