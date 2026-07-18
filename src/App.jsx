@@ -529,6 +529,15 @@ export default function App() {
     }
   }
 
+  const deleteMessage = async (msgId) => {
+    const target = messages.find(m => m.id === msgId)
+    await supabase.from('messages').delete().eq('id', msgId)
+    setMessages(prev => prev.filter(m => m.id !== msgId))
+    if (target?.is_favorited) setFavorites(prev => prev.filter(f => f.id !== msgId))
+    showToast('已删除这条消息')
+    loadStats()
+  }
+
   // ==========================================
   // 处理工具调用
   // ==========================================
@@ -681,7 +690,7 @@ export default function App() {
         conversation={activeConv} messages={messages} isStreaming={isStreaming} cacheStats={cacheStats} variantIndexes={variantIndexes}
         currentModel={activeConv?.model || model} onChangeModel={setConversationModel}
         scrollToMsgId={scrollToMsgId} onScrollDone={() => setScrollToMsgId(null)}
-        onSend={sendMessage} onStop={stopStreaming} onToggleFavorite={toggleFavorite} onRegenerate={regenerateResponse} onEditMessage={editMessage} onEditAndResend={editAndResend} onSwitchVariant={switchVariant}
+        onSend={sendMessage} onStop={stopStreaming} onToggleFavorite={toggleFavorite} onRegenerate={regenerateResponse} onEditMessage={editMessage} onEditAndResend={editAndResend} onSwitchVariant={switchVariant} onDeleteMessage={deleteMessage}
         onMenuClick={() => setSidebarOpen(true)} onSettingsClick={() => { setSettingsOpen(true); setSettingsTab('general') }} onMemoryClick={() => { setSettingsOpen(true); setSettingsTab('memory') }} onSearchClick={() => setSearchOpen(true)}
       />
       {searchOpen && <SearchPanel activeConvId={activeConvId} activeConvName={activeConv?.name} onClose={() => setSearchOpen(false)} onOpenResult={openSearchResult} />}
