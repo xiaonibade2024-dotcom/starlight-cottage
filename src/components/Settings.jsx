@@ -115,8 +115,8 @@ export default function Settings({
           style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', border: '1px solid var(--accent-soft)', borderRadius: '8px', background: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: '13px', lineHeight: '1.6', fontFamily: 'inherit', resize: 'vertical', outline: 'none' }}
         />
         <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
-          <button onClick={saveNoteEdit} style={{ padding: '4px 16px', fontSize: '12px', border: 'none', borderRadius: '12px', background: 'var(--accent)', color: '#fff', cursor: 'pointer' }}>保存</button>
-          <button onClick={() => { setEditingNoteId(null); setEditNoteText('') }} style={{ padding: '4px 16px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: '12px', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer' }}>取消</button>
+          <button onClick={saveNoteEdit} style={{ padding: '5px 18px', fontSize: '12px', border: 'none', borderRadius: '20px', background: 'var(--accent)', color: '#fff', cursor: 'pointer' }}>保存</button>
+          <button onClick={() => { setEditingNoteId(null); setEditNoteText('') }} style={{ padding: '5px 18px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: '20px', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer' }}>取消</button>
         </div>
       </div>
     )
@@ -137,8 +137,8 @@ export default function Settings({
           style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', border: '1px solid var(--accent-soft)', borderRadius: '8px', background: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: '13px', lineHeight: '1.6', fontFamily: 'inherit', resize: 'vertical', outline: 'none' }}
         />
         <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
-          <button onClick={saveMemEdit} style={{ padding: '4px 16px', fontSize: '12px', border: 'none', borderRadius: '12px', background: 'var(--accent)', color: '#fff', cursor: 'pointer' }}>保存</button>
-          <button onClick={() => { setEditingMemId(null); setEditMemText('') }} style={{ padding: '4px 16px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: '12px', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer' }}>取消</button>
+          <button onClick={saveMemEdit} style={{ padding: '5px 18px', fontSize: '12px', border: 'none', borderRadius: '20px', background: 'var(--accent)', color: '#fff', cursor: 'pointer' }}>保存</button>
+          <button onClick={() => { setEditingMemId(null); setEditMemText('') }} style={{ padding: '5px 18px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: '20px', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer' }}>取消</button>
         </div>
       </div>
     )
@@ -227,9 +227,9 @@ export default function Settings({
                 </div>
                 <div style={{ display: 'flex', gap: '6px', marginTop: '8px', flexWrap: 'wrap' }}>
                   {[10, 30, 50, 80, 100, 200, 500].map(v => (
-                    <button key={v} onClick={() => setLocalMaxCtx(v)} style={{ padding: '4px 12px', fontSize: '12px', border: localMaxCtx === v ? '1px solid var(--accent)' : '1px solid var(--border)', borderRadius: '12px', background: localMaxCtx === v ? 'var(--accent)' : 'var(--bg-primary)', color: localMaxCtx === v ? 'white' : 'var(--text-secondary)', cursor: 'pointer' }}>{v}</button>
+                    <button key={v} onClick={() => setLocalMaxCtx(v)} style={{ padding: '5px 14px', fontSize: '12px', border: localMaxCtx === v ? '1px solid var(--accent)' : '1px solid var(--border)', borderRadius: '20px', background: localMaxCtx === v ? 'var(--accent)' : 'var(--bg-primary)', color: localMaxCtx === v ? 'white' : 'var(--text-secondary)', cursor: 'pointer' }}>{v}</button>
                   ))}
-                  <button onClick={() => setLocalMaxCtx(99999)} style={{ padding: '4px 12px', fontSize: '12px', border: isUnlimited ? '1px solid var(--accent)' : '1px solid var(--border)', borderRadius: '12px', background: isUnlimited ? 'var(--accent)' : 'var(--bg-primary)', color: isUnlimited ? 'white' : 'var(--text-secondary)', cursor: 'pointer' }}>无上限</button>
+                  <button onClick={() => setLocalMaxCtx(99999)} style={{ padding: '5px 14px', fontSize: '12px', border: isUnlimited ? '1px solid var(--accent)' : '1px solid var(--border)', borderRadius: '20px', background: isUnlimited ? 'var(--accent)' : 'var(--bg-primary)', color: isUnlimited ? 'white' : 'var(--text-secondary)', cursor: 'pointer' }}>无上限</button>
                 </div>
                 <div className="settings-hint">每次发送时携带的最近消息数量。越多上下文越完整，但消耗也越大。建议 30-60。选择"无上限"会发送当前对话的全部历史消息。</div>
               </div>
@@ -398,7 +398,7 @@ export default function Settings({
           <div className="note-detail-card" onClick={e => e.stopPropagation()}>
             <div className="note-detail-accent"></div>
             <div className="note-detail-frame"></div>
-            <div className="note-detail-icon">💭</div>
+            <div className="note-detail-icon">✧</div>
             <div className="note-detail-content plain">{renderPopupText(selectedMem.content)}</div>
             <div className="note-detail-date">{selectedMem.category === 'core' ? '核心记忆' : '他自己记下的'} · 记于 {formatNoteDate(selectedMem.created_at)}</div>
             <button className="note-detail-close" onClick={() => setSelectedMem(null)}>收好了</button>
