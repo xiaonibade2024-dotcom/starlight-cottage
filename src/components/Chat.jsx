@@ -4,6 +4,33 @@ import remarkGfm from 'remark-gfm'
 import remarkBreaks from 'remark-breaks'
 import rehypeHighlight from 'rehype-highlight'
 
+// ==========================================
+// 钢笔画线条图标（内联 SVG，无任何依赖）
+// ==========================================
+const IC = {
+  menu: <><path d="M4 6h16" /><path d="M4 12h16" /><path d="M4 18h16" /></>,
+  search: <><circle cx="11" cy="11" r="7" /><path d="M20.2 20.2L16 16" /></>,
+  spark: <path d="M12 4c.9 3.6 2.4 5.1 6 6-3.6.9-5.1 2.4-6 6-.9-3.6-2.4-5.1-6-6 3.6-.9 5.1-2.4 6-6z" />,
+  sliders: <><path d="M4 7h3.5" /><circle cx="9.5" cy="7" r="2" /><path d="M11.5 7H20" /><path d="M4 12h8.5" /><circle cx="14.5" cy="12" r="2" /><path d="M16.5 12H20" /><path d="M4 17h1.5" /><circle cx="7.5" cy="17" r="2" /><path d="M9.5 17H20" /></>,
+  pencil: <><path d="M4 20h4L18.5 9.5a2.1 2.1 0 0 0-3-3L5 17v3" /><path d="M13.5 6.5l3 3" /></>,
+  refresh: <><path d="M20 11a8 8 0 0 0-15.5-2" /><path d="M4.5 5v4h4" /><path d="M4 13a8 8 0 0 0 15.5 2" /><path d="M19.5 19v-4h-4" /></>,
+  copy: <><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15V5a2 2 0 0 1 2-2h10" /></>,
+  trash: <><path d="M4 7h16" /><path d="M10 11v6" /><path d="M14 11v6" /><path d="M6.5 7l1 12.2a2 2 0 0 0 2 1.8h5a2 2 0 0 0 2-1.8l1-12.2" /><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" /></>,
+  chevL: <path d="M14.5 6L8.5 12l6 6" />,
+  chevR: <path d="M9.5 6l6 6-6 6" />,
+  chevU: <path d="M6 14.5l6-6 6 6" />,
+  chevD: <path d="M6 9.5l6 6 6-6" />,
+  plus: <><path d="M12 5v14" /><path d="M5 12h14" /></>
+}
+
+function Icon({ name, size = 17, sw = 1.6 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ display: 'block' }}>
+      {IC[name]}
+    </svg>
+  )
+}
+
 // 压缩图片
 function resizeImage(file, maxWidth = 1600) {
   return new Promise((resolve) => {
@@ -79,11 +106,6 @@ function renderMessageContent(content) {
   )
 }
 
-// 按钮样式（移到组件外部，避免每次渲染重复创建对象）
-const actionBtnStyle = { background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', padding: '4px 8px', borderRadius: '6px', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '3px' }
-const variantBtnStyle = { background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '14px', padding: '2px 6px', borderRadius: '4px' }
-const favBtnActiveStyle = { ...actionBtnStyle, color: '#e74c3c' }
-
 // ==========================================
 // 单条消息组件（React.memo 包裹，防止不必要的重渲染）
 // ==========================================
@@ -91,7 +113,7 @@ const MessageItem = React.memo(function MessageItem({
   msg, isEditing, editContent, onEditContentChange,
   isActive, isLastAssistant, variantIndex, isStreaming,
   onMessageClick, onStartEdit, onSaveEdit, onSaveAndResend, onCancelEdit,
-  onRegenerate, onCopyMessage, onToggleFavorite, onSwitchVariant
+  onRegenerate, onCopyMessage, onToggleFavorite, onSwitchVariant, onDeleteMessage
 }) {
   const editRef = useRef(null)
 
@@ -115,10 +137,10 @@ const MessageItem = React.memo(function MessageItem({
             <textarea ref={editRef} value={editContent} onChange={e => onEditContentChange(e.target.value)}
               style={{ width: '100%', minHeight: '60px', padding: '8px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-primary)', color: 'var(--text-primary)', fontSize: '14px', lineHeight: '1.5', resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box' }} />
             <div style={{ display: 'flex', gap: '8px', marginTop: '8px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-              <button onClick={onCancelEdit} style={{ padding: '4px 14px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-secondary)', cursor: 'pointer' }}>取消</button>
-              <button onClick={onSaveEdit} style={{ padding: '4px 14px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', cursor: 'pointer' }}>保存</button>
+              <button onClick={onCancelEdit} style={{ padding: '4px 14px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '16px', background: 'var(--bg-secondary)', color: 'var(--text-secondary)', cursor: 'pointer' }}>取消</button>
+              <button onClick={onSaveEdit} style={{ padding: '4px 14px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '16px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', cursor: 'pointer' }}>保存</button>
               {msg.role === 'user' && (
-                <button onClick={onSaveAndResend} style={{ padding: '4px 14px', fontSize: '13px', border: 'none', borderRadius: '8px', background: 'var(--accent, #7c6ca8)', color: 'white', cursor: 'pointer' }}>保存并发送</button>
+                <button onClick={onSaveAndResend} style={{ padding: '4px 14px', fontSize: '13px', border: 'none', borderRadius: '16px', background: 'var(--accent, #7c6ca8)', color: 'white', cursor: 'pointer' }}>保存并发送</button>
               )}
             </div>
           </div>
@@ -136,20 +158,21 @@ const MessageItem = React.memo(function MessageItem({
         <span className="message-time">{formatTime(msg.created_at)}</span>
         {hasVariants && !isEditing && (
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '2px', marginLeft: '4px' }}>
-            <button style={variantBtnStyle} onClick={(e) => { e.stopPropagation(); if (variantIndex > 0) onSwitchVariant(msg.id, variantIndex - 1) }} disabled={variantIndex <= 0}>◀</button>
+            <button className="msg-action" style={{ padding: '3px 4px' }} onClick={(e) => { e.stopPropagation(); if (variantIndex > 0) onSwitchVariant(msg.id, variantIndex - 1) }} disabled={variantIndex <= 0}><Icon name="chevL" size={13} /></button>
             <span style={{ fontSize: '11px', color: 'var(--text-muted)', minWidth: '28px', textAlign: 'center' }}>{variantIndex + 1}/{variants.length}</span>
-            <button style={variantBtnStyle} onClick={(e) => { e.stopPropagation(); if (variantIndex < variants.length - 1) onSwitchVariant(msg.id, variantIndex + 1) }} disabled={variantIndex >= variants.length - 1}>▶</button>
+            <button className="msg-action" style={{ padding: '3px 4px' }} onClick={(e) => { e.stopPropagation(); if (variantIndex < variants.length - 1) onSwitchVariant(msg.id, variantIndex + 1) }} disabled={variantIndex >= variants.length - 1}><Icon name="chevR" size={13} /></button>
           </span>
         )}
         {isActive && !msg.id?.startsWith('streaming-') && !isEditing && !isStreaming && (
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '2px', marginLeft: '4px' }}>
-            <button style={actionBtnStyle} onClick={(e) => { e.stopPropagation(); onStartEdit(msg) }} title="编辑">✏️</button>
+            <button className="msg-action" onClick={(e) => { e.stopPropagation(); onStartEdit(msg) }} title="编辑"><Icon name="pencil" size={15} /></button>
             {msg.role === 'assistant' && isLastAssistant && (
-              <button style={actionBtnStyle} onClick={(e) => { e.stopPropagation(); onRegenerate(msg.id) }} title="重新生成">🔄</button>
+              <button className="msg-action" onClick={(e) => { e.stopPropagation(); onRegenerate(msg.id) }} title="重新生成"><Icon name="refresh" size={15} /></button>
             )}
-            <button style={actionBtnStyle} onClick={(e) => { e.stopPropagation(); onCopyMessage(msg.content) }} title="复制">📋</button>
+            <button className="msg-action" onClick={(e) => { e.stopPropagation(); onCopyMessage(msg.content) }} title="复制"><Icon name="copy" size={15} /></button>
+            <button className="msg-action danger" onClick={(e) => { e.stopPropagation(); if (confirm('确定删除这条消息吗？删除后他也看不到这条了。')) onDeleteMessage(msg.id) }} title="删除"><Icon name="trash" size={15} /></button>
             {msg.role === 'assistant' && (
-              <button style={msg.is_favorited ? favBtnActiveStyle : actionBtnStyle} onClick={(e) => { e.stopPropagation(); onToggleFavorite(msg.id) }} title={msg.is_favorited ? '取消收藏' : '收藏'}>
+              <button className={msg.is_favorited ? 'msg-action fav-on' : 'msg-action'} style={{ fontSize: '14px' }} onClick={(e) => { e.stopPropagation(); onToggleFavorite(msg.id) }} title={msg.is_favorited ? '取消收藏' : '收藏'}>
                 {msg.is_favorited ? '♥' : '♡'}
               </button>
             )}
@@ -177,7 +200,7 @@ const MessageItem = React.memo(function MessageItem({
 // ==========================================
 export default function Chat({
   conversation, messages, isStreaming, cacheStats, variantIndexes, scrollToMsgId, onScrollDone, currentModel, onChangeModel,
-  onSend, onStop, onToggleFavorite, onRegenerate, onEditMessage, onEditAndResend, onSwitchVariant,
+  onSend, onStop, onToggleFavorite, onRegenerate, onEditMessage, onEditAndResend, onSwitchVariant, onDeleteMessage,
   onMenuClick, onSettingsClick, onMemoryClick, onSearchClick
 }) {
   const [input, setInput] = useState('')
@@ -333,13 +356,13 @@ export default function Chat({
     <div className="main-area">
       <div className="chat-header">
         <div className="chat-header-left">
-          <button className="menu-btn" onClick={onMenuClick}>☰</button>
+          <button className="menu-btn" onClick={onMenuClick}><Icon name="menu" size={20} sw={1.7} /></button>
           <span className="chat-header-title">{conversation?.name || '星月小屋'}</span>
         </div>
         <div className="chat-header-right">
-          <button className="header-btn" title="搜索" onClick={onSearchClick}>🔍</button>
-          <button className="header-btn" title="记忆" onClick={onMemoryClick}>💭</button>
-          <button className="header-btn" title="设置" onClick={onSettingsClick}>⚙</button>
+          <button className="header-btn" title="搜索" onClick={onSearchClick}><Icon name="search" /></button>
+          <button className="header-btn" title="记忆" onClick={onMemoryClick}><Icon name="spark" /></button>
+          <button className="header-btn" title="设置" onClick={onSettingsClick}><Icon name="sliders" /></button>
         </div>
       </div>
 
@@ -374,6 +397,7 @@ export default function Chat({
             onCopyMessage={copyMessage}
             onToggleFavorite={onToggleFavorite}
             onSwitchVariant={onSwitchVariant}
+            onDeleteMessage={onDeleteMessage}
           />
         ))}
         <div ref={messagesEndRef} />
@@ -390,11 +414,11 @@ export default function Chat({
       )}
 
       {messages.length > 5 && (
-        <button onClick={scrollToTop} title="回到顶部" style={{ position: 'absolute', right: '16px', bottom: showScrollBtn ? (infoBarVisible ? '200px' : '174px') : (infoBarVisible ? '150px' : '124px'), width: '36px', height: '36px', borderRadius: '50%', border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-secondary)', fontSize: '16px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.1)', opacity: 0.8, transition: 'opacity 0.2s, bottom 0.2s', zIndex: 10 }}
-          onMouseEnter={e => e.currentTarget.style.opacity = '1'} onMouseLeave={e => e.currentTarget.style.opacity = '0.8'}>↑</button>
+        <button onClick={scrollToTop} title="回到顶部" style={{ position: 'absolute', right: '16px', bottom: showScrollBtn ? (infoBarVisible ? '200px' : '174px') : (infoBarVisible ? '150px' : '124px'), width: '36px', height: '36px', borderRadius: '50%', border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.1)', opacity: 0.8, transition: 'opacity 0.2s, bottom 0.2s', zIndex: 10 }}
+          onMouseEnter={e => e.currentTarget.style.opacity = '1'} onMouseLeave={e => e.currentTarget.style.opacity = '0.8'}><Icon name="chevU" size={16} /></button>
       )}
       {showScrollBtn && (
-        <button onClick={scrollToBottom} title="回到最新" style={{ position: 'absolute', right: '16px', bottom: infoBarVisible ? '150px' : '124px', width: '36px', height: '36px', borderRadius: '50%', border: '1px solid var(--border)', background: 'var(--accent, #7c6ca8)', color: 'white', fontSize: '16px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.15)', transition: 'bottom 0.2s', zIndex: 10 }}>↓</button>
+        <button onClick={scrollToBottom} title="回到最新" style={{ position: 'absolute', right: '16px', bottom: infoBarVisible ? '150px' : '124px', width: '36px', height: '36px', borderRadius: '50%', border: '1px solid var(--border)', background: 'var(--accent, #7c6ca8)', color: 'white', fontSize: '16px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.15)', transition: 'bottom 0.2s', zIndex: 10 }}><Icon name="chevD" size={16} /></button>
       )}
 
       {/* 图片预览 */}
@@ -464,9 +488,9 @@ export default function Chat({
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={isStreaming}
-            style={{ width: '44px', height: '44px', borderRadius: '50%', border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-secondary)', fontSize: '20px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+            style={{ width: '44px', height: '44px', borderRadius: '50%', border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
             title="添加图片"
-          >+</button>
+          ><Icon name="plus" size={19} sw={1.5} /></button>
           <textarea ref={textareaRef} className="input-box" placeholder="" value={input} onChange={e => setInput(e.target.value)} rows={1} />
           <button className="send-btn" onClick={isStreaming ? onStop : handleSend} disabled={!isStreaming && !input.trim() && pendingImages.length === 0} title={isStreaming ? '停止生成' : '发送'}>{isStreaming ? '■' : '♥'}</button>
         </div>
