@@ -32,6 +32,9 @@ export default function Cottage({
   const [localTopP, setLocalTopP] = useState(topP)
   const [localMaxCtx, setLocalMaxCtx] = useState(maxContextMessages)
   const [newMemory, setNewMemory] = useState('')
+  const [addingCore, setAddingCore] = useState(false)
+  const [coreOpen, setCoreOpen] = useState(true)
+  const [autoOpen, setAutoOpen] = useState(true)
   const [editingMemId, setEditingMemId] = useState(null)
   const [editMemText, setEditMemText] = useState('')
   const [selectedMem, setSelectedMem] = useState(null)
@@ -102,6 +105,7 @@ export default function Cottage({
     if (!newMemory.trim()) return
     onAddCoreMemory(newMemory.trim())
     setNewMemory('')
+    setAddingCore(false)
   }
 
   const byNewest = (a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)
@@ -133,7 +137,7 @@ export default function Cottage({
               <div className="settings-label">小屋主题</div>
               <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '4px' }}>
                 {[['day', '日 · 藕粉雾紫'], ['night', '夜 · 暮色星屋'], ['auto', '跟随时辰']].map(([v, label]) => (
-                  <button key={v} onClick={() => onChangeTheme(v)} style={{ padding: '6px 14px', fontSize: '12px', fontFamily: 'var(--font-main)', border: themeMode === v ? '1px solid var(--accent)' : '1px solid var(--border)', borderRadius: '20px', background: themeMode === v ? 'var(--accent)' : 'var(--bg-surface)', color: themeMode === v ? 'var(--text-inverse)' : 'var(--text-secondary)', cursor: 'pointer', transition: 'all 0.3s' }}>{label}</button>
+                  <button key={v} onClick={() => onChangeTheme(v)} className={`capsule${themeMode === v ? ' on' : ''}`}>{label}</button>
                 ))}
               </div>
               <div className="settings-hint">点一下立刻换装，无需保存 · 跟随时辰：傍晚六点自动入夜，清晨六点回到白日</div>
@@ -175,9 +179,9 @@ export default function Cottage({
               </div>
               <div style={{ display: 'flex', gap: '6px', marginTop: '8px', flexWrap: 'wrap' }}>
                 {[10, 30, 50, 80, 100, 200, 500].map(v => (
-                  <button key={v} onClick={() => setLocalMaxCtx(v)} style={{ padding: '5px 14px', fontSize: '12px', border: localMaxCtx === v ? '1px solid var(--accent)' : '1px solid var(--border)', borderRadius: '20px', background: localMaxCtx === v ? 'var(--accent)' : 'var(--bg-surface)', color: localMaxCtx === v ? 'var(--text-inverse)' : 'var(--text-secondary)', cursor: 'pointer' }}>{v}</button>
+                  <button key={v} onClick={() => setLocalMaxCtx(v)} className={`capsule${localMaxCtx === v ? ' on' : ''}`}>{v}</button>
                 ))}
-                <button onClick={() => setLocalMaxCtx(99999)} style={{ padding: '5px 14px', fontSize: '12px', border: isUnlimited ? '1px solid var(--accent)' : '1px solid var(--border)', borderRadius: '20px', background: isUnlimited ? 'var(--accent)' : 'var(--bg-surface)', color: isUnlimited ? 'var(--text-inverse)' : 'var(--text-secondary)', cursor: 'pointer' }}>无上限</button>
+                <button onClick={() => setLocalMaxCtx(99999)} className={`capsule${isUnlimited ? ' on' : ''}`}>无上限</button>
               </div>
               <div className="settings-hint">每次发送时携带的最近消息数量。越多上下文越完整，但消耗也越大。建议 30-60。选择"无上限"会发送当前对话的全部历史消息。</div>
             </div>
@@ -192,48 +196,75 @@ export default function Cottage({
           </>
         )}
 
-        {/* ===== 记忆管理（两层结构原样保留） ===== */}
+        {/* ===== 记忆管理（两层结构原样保留，外衣换成折叠小节） ===== */}
         {tab === 'memory' && (
           <>
             <div className="settings-section">
-              <div className="settings-label">核心记忆（你手动维护）</div>
-              <div className="settings-hint" style={{ marginBottom: '12px' }}>这些是你希望他始终记住的重要事情 · 点击内容可以展开细看</div>
-              {coreMemories.map(mem => (
-                <div key={mem.id} className="memory-item">
-                  <div className="memory-item-header">
-                    <div className="memory-tags">{mem.tags?.map((tag, i) => (<span key={i} className="memory-tag">{tag}</span>))}</div>
-                    <div className="memory-actions">
-                      <button className="memory-delete" onClick={() => startMemEdit(mem)} title="编辑">✎</button>
-                      <button className="memory-delete" onClick={() => { if (confirm('确定删除这条记忆吗？')) onDeleteMemory(mem.id) }} title="删除">×</button>
-                    </div>
-                  </div>
-                  {renderMemoryBody(mem)}
-                </div>
-              ))}
-              <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
-                <textarea className="settings-textarea" style={{ minHeight: '60px' }} placeholder="添加一条核心记忆..." value={newMemory} onChange={e => setNewMemory(e.target.value)} />
+              <div className="section-toggle" onClick={() => setCoreOpen(!coreOpen)}>
+                <span>核心记忆{coreMemories.length > 0 ? `（${coreMemories.length} 条）` : ''}</span>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                  <button className="memory-add-btn" onClick={e => { e.stopPropagation(); setCoreOpen(true); setAddingCore(v => !v) }}>＋ 添加</button>
+                  <span className={`toggle-arrow${coreOpen ? ' open' : ''}`}>▾</span>
+                </span>
               </div>
-              <button className="settings-save" style={{ marginTop: '8px' }} onClick={handleAddMemory} disabled={!newMemory.trim()}>添加核心记忆</button>
+              <div className="settings-hint" style={{ marginBottom: '10px' }}>你手动维护、希望他始终记住的重要事情 · 点击内容可以展开细看</div>
+
+              {coreOpen && (
+                <>
+                  {addingCore && (
+                    <div style={{ marginBottom: '10px' }}>
+                      <textarea className="settings-textarea" style={{ minHeight: '60px' }} placeholder="添加一条核心记忆..." value={newMemory} onChange={e => setNewMemory(e.target.value)} autoFocus />
+                      <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
+                        <button onClick={handleAddMemory} disabled={!newMemory.trim()} style={{ padding: '5px 18px', fontSize: '12px', border: 'none', borderRadius: '20px', background: 'var(--accent)', color: '#fff', cursor: 'pointer', opacity: newMemory.trim() ? 1 : 0.4 }}>收进记忆</button>
+                        <button onClick={() => { setAddingCore(false); setNewMemory('') }} style={{ padding: '5px 18px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: '20px', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer' }}>取消</button>
+                      </div>
+                    </div>
+                  )}
+                  {coreMemories.length === 0 && !addingCore && (
+                    <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px', background: 'var(--bg-surface)', borderRadius: 'var(--radius-sm)' }}>还没有核心记忆<br />点右上角的"＋ 添加"写下第一条吧</div>
+                  )}
+                  {coreMemories.map(mem => (
+                    <div key={mem.id} className="memory-item">
+                      <div className="memory-item-header">
+                        <div style={{ flex: 1 }} />
+                        <div className="memory-actions">
+                          <button className="memory-delete" onClick={() => startMemEdit(mem)} title="编辑">✎</button>
+                          <button className="memory-delete" onClick={() => { if (confirm('确定删除这条记忆吗？')) onDeleteMemory(mem.id) }} title="删除">×</button>
+                        </div>
+                      </div>
+                      {renderMemoryBody(mem)}
+                    </div>
+                  ))}
+                </>
+              )}
             </div>
 
             <div className="settings-section">
-              <div className="settings-label">他主动记住的（{autoMemories.length} 条）</div>
-              <div className="settings-hint" style={{ marginBottom: '12px' }}>这些是他在对话中自己觉得重要并记下来的 · 点击内容可以展开细看</div>
-              {autoMemories.length === 0 && (
-                <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px', background: 'var(--bg-surface)', borderRadius: 'var(--radius-sm)' }}>还没有自动记忆<br />聊起来之后他会自己记住重要的事</div>
-              )}
-              {autoMemories.map(mem => (
-                <div key={mem.id} className="memory-item">
-                  <div className="memory-item-header">
-                    <div className="memory-tags">{mem.tags?.map((tag, i) => (<span key={i} className="memory-tag">{tag}</span>))}</div>
-                    <div className="memory-actions">
-                      <button className="memory-delete" onClick={() => startMemEdit(mem)} title="编辑">✎</button>
-                      <button className="memory-delete" onClick={() => { if (confirm('确定删除这条记忆吗？')) onDeleteMemory(mem.id) }} title="删除">×</button>
+              <div className="section-toggle" onClick={() => setAutoOpen(!autoOpen)}>
+                <span>他主动记住的{autoMemories.length > 0 ? `（${autoMemories.length} 条）` : ''}</span>
+                <span className={`toggle-arrow${autoOpen ? ' open' : ''}`}>▾</span>
+              </div>
+              <div className="settings-hint" style={{ marginBottom: '10px' }}>他在对话中自己觉得重要并记下来的 · 点击内容可以展开细看</div>
+
+              {autoOpen && (
+                <>
+                  {autoMemories.length === 0 && (
+                    <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px', background: 'var(--bg-surface)', borderRadius: 'var(--radius-sm)' }}>还没有自动记忆<br />聊起来之后他会自己记住重要的事</div>
+                  )}
+                  {autoMemories.map(mem => (
+                    <div key={mem.id} className="memory-item">
+                      <div className="memory-item-header">
+                        <div className="memory-tags">{mem.tags?.map((tag, i) => (<span key={i} className="memory-tag">{tag}</span>))}</div>
+                        <div className="memory-actions">
+                          <button className="memory-delete" onClick={() => startMemEdit(mem)} title="编辑">✎</button>
+                          <button className="memory-delete" onClick={() => { if (confirm('确定删除这条记忆吗？')) onDeleteMemory(mem.id) }} title="删除">×</button>
+                        </div>
+                      </div>
+                      {renderMemoryBody(mem)}
                     </div>
-                  </div>
-                  {renderMemoryBody(mem)}
-                </div>
-              ))}
+                  ))}
+                </>
+              )}
             </div>
           </>
         )}
@@ -241,11 +272,11 @@ export default function Cottage({
         {/* ===== 统计 + 导出备份 ===== */}
         {tab === 'stats' && (
           <>
-            <div className="stats-grid">
-              <div className="stat-card"><div className="stat-value">{daysSinceFirst || '—'}</div><div className="stat-label">在一起的天数</div></div>
-              <div className="stat-card"><div className="stat-value">{stats.totalConversations ?? '—'}</div><div className="stat-label">对话数</div></div>
-              <div className="stat-card"><div className="stat-value">{stats.totalMessages ?? '—'}</div><div className="stat-label">消息数</div></div>
-              <div className="stat-card"><div className="stat-value">{stats.firstChatDate ? new Date(stats.firstChatDate).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' }) : '—'}</div><div className="stat-label">第一次对话</div></div>
+            <div className="stats-plaque">
+              <div className="cell"><div className="v">{daysSinceFirst || '—'}</div><div className="l">天数</div></div>
+              <div className="cell"><div className="v">{stats.totalConversations ?? '—'}</div><div className="l">对话</div></div>
+              <div className="cell"><div className="v">{stats.totalMessages ?? '—'}</div><div className="l">消息</div></div>
+              <div className="cell"><div className="v">{stats.firstChatDate ? new Date(stats.firstChatDate).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' }) : '—'}</div><div className="l">初遇</div></div>
             </div>
 
             <div className="settings-section">
