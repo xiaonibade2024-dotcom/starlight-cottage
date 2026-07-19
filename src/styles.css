@@ -525,11 +525,11 @@ body {
 
 /* ==========================================
    热力图月历（改版第④步）
-   日主题色阶为图纸定稿（浅→深五档）；
+   日主题色阶 = 方案C·晨雾（萧潇拍板，覆盖图纸原定稿）；五档皆浅，深字通用
    夜主题色阶为本步新调：暮色里的五档玫瑰，由暗向亮渐次点起
    ========================================== */
 
-:root { --heat-1: #F8E9F0; --heat-2: #EFCEDF; --heat-3: #E0A9C6; --heat-4: #CD82AB; --heat-5: #B25E90; }
+:root { --heat-1: #FAF0F6; --heat-2: #F5E1EC; --heat-3: #EFCFE1; --heat-4: #E6B7D1; --heat-5: #DA9FC0; }
 [data-theme="night"] { --heat-1: #443843; --heat-2: #58414F; --heat-3: #714B60; --heat-4: #8D5674; --heat-5: #AC6489; }
 
 /* 月历卡头部：‹ 2026 年 7 月 › + 本月总条数小字 */
@@ -555,7 +555,6 @@ body {
 .heat-cell.l3 { background: var(--heat-3); }
 .heat-cell.l4 { background: var(--heat-4); }
 .heat-cell.l5 { background: var(--heat-5); }
-.heat-cell.l4, .heat-cell.l5 { color: #FDF6FA; }
 [data-theme="night"] .heat-cell { border-color: var(--border); }
 [data-theme="night"] .heat-cell.lit { color: #F0DEE9; border-color: transparent; }
 
