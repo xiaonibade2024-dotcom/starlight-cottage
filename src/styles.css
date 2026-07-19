@@ -460,3 +460,51 @@ body {
 
 /* 夜主题细节：代码块比夜底再深半分，保住轮廓 */
 [data-theme="night"] .md-content pre { background: #262129; }
+
+/* ==========================================
+   骨架（改版第②步）：页面列 + 底部四标签导航 + 新顶栏
+   ========================================== */
+
+/* 模型徽章 · 安静版配色（图纸第一节定稿） */
+:root { --badge-bg: #F5EDF2; --badge-border: #EBDDE5; --badge-text: #9A8390; }
+[data-theme="night"] { --badge-bg: #3F3742; --badge-border: #4E4452; --badge-text: #B4A2B6; }
+
+/* 页面列：侧边栏右边的整根柱子（当前房间 + 底栏） */
+.page-column { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.page-column .main-area { min-height: 0; }
+
+/* 底部四标签导航（对话 · 拾光 · 一隅 · 小屋） */
+.bottom-nav { display: flex; justify-content: center; gap: 4px; flex-shrink: 0; border-top: 1px solid var(--border-light); background: var(--bg-surface); padding: 5px 10px calc(5px + env(safe-area-inset-bottom, 0px)); }
+.nav-tab { flex: 1; max-width: 150px; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 0 4px; background: none; border: none; border-radius: 10px; color: var(--text-muted); cursor: pointer; font-family: var(--font-main); transition: color var(--transition); }
+.nav-tab span { font-size: 11px; letter-spacing: 2px; }
+.nav-tab.active { color: var(--accent); }
+.nav-tab:active { transform: scale(0.95); }
+
+/* 房间页（拾光/一隅/小屋）的通用骨架 */
+.page { flex: 1; min-height: 0; overflow-y: auto; background: var(--bg-primary); padding: 24px 20px 32px; }
+.page-inner { max-width: 560px; margin: 0 auto; }
+.page-header { margin: 4px 4px 20px; }
+.page-title { font-size: 24px; font-weight: 300; letter-spacing: 6px; color: var(--text-primary); }
+.page-caption { font-family: var(--font-accent); font-size: 11px; letter-spacing: 4px; color: var(--text-muted); margin-top: 4px; }
+
+/* 页面卡片：拾光页可用极浅投影；夜里无影，轮廓靠描边撑 */
+.page-card { background: var(--bg-surface); border: 1px solid var(--border-light); border-radius: var(--radius-md); padding: 16px; margin-bottom: 16px; }
+.page-moments .page-card { box-shadow: 0 2px 8px rgba(180, 140, 165, 0.08); }
+[data-theme="night"] .page-moments .page-card { box-shadow: none; border-color: var(--border); }
+
+/* 房间页上的内嵌小卡（记忆条/统计卡）：页面底色是 bg-primary，小卡换成 bg-surface 才有轮廓 */
+.page .memory-item, .page .stat-card { background: var(--bg-surface); border: 1px solid var(--border-light); }
+.page-moments .memory-item { border: none; background: var(--bg-primary); }
+.page .settings-input, .page .settings-textarea { background: var(--bg-surface); }
+
+/* 新顶栏：对话名 + 副行"相识第 X 天" */
+.chat-header-title-block { display: flex; flex-direction: column; min-width: 0; }
+.chat-header-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chat-header-sub { font-size: 11px; color: var(--text-muted); letter-spacing: 1px; margin-top: 1px; }
+
+/* 模型徽章（安静灰粉，住在顶栏右侧） */
+.model-badge { padding: 5px 12px; font-size: 12px; border: 1px solid var(--badge-border); border-radius: 14px; background: var(--badge-bg); color: var(--badge-text); cursor: pointer; font-family: inherit; white-space: nowrap; max-width: 42vw; overflow: hidden; text-overflow: ellipsis; transition: all var(--transition); }
+.model-badge:hover { border-color: var(--accent-soft); color: var(--text-secondary); }
+
+/* 底栏落成后，toast 提示上移一层，别被底栏挡住 */
+.toast { bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
