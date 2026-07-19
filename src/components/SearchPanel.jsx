@@ -76,7 +76,7 @@ export default function SearchPanel({ activeConvId, activeConvName, onClose, onO
     const parts = snippet.split(new RegExp(`(${escapeRegExp(q)})`, 'gi'))
     return parts.map((part, i) =>
       part.toLowerCase() === q.toLowerCase()
-        ? <span key={i} style={{ background: '#FBE79E', borderRadius: '3px', padding: '0 1px' }}>{part}</span>
+        ? <span key={i} style={{ background: '#FBE79E', color: '#5C4A3A', borderRadius: '3px', padding: '0 1px' }}>{part}</span>
         : <React.Fragment key={i}>{part}</React.Fragment>
     )
   }
