@@ -14,6 +14,9 @@ const WEEKDAYS = ['一', '二', '三', '四', '五', '六', '日']
 // 把一个时刻归到"本地的哪一天"，得到 '2026-7-18' 这样的钥匙
 const dayKey = (d) => `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`
 
+// 月度小抄：这次会话里看过的月份先亮旧账、后台悄悄对新账（去东京问一趟要一两秒，别让她干等）
+const monthCache = {}
+
 export default function HeatCalendar({ conversations = [], notes = [], diaries = [], onOpenConversation, firstMetTime = null }) {
   const now = new Date()
   // 月历翻到哪个月：锚在该月 1 号
@@ -59,8 +62,10 @@ export default function HeatCalendar({ conversations = [], notes = [], diaries =
   // 只取三列小字段；超过 1000 条时一页页取齐（Supabase 单次最多给 1000 条）
   useEffect(() => {
     let alive = true
+    const cacheKey = `${y}-${m}`
+    if (monthCache[cacheKey]) setDayData(monthCache[cacheKey])
     const load = async () => {
-      setLoading(true)
+      setLoading(!monthCache[cacheKey])
       const start = new Date(y, m, 1).toISOString()
       const end = new Date(y, m + 1, 1).toISOString()
       const rows = []
@@ -77,7 +82,6 @@ export default function HeatCalendar({ conversations = [], notes = [], diaries =
         rows.push(...data)
         if (data.length < PAGE) break
       }
-      if (!alive) return
       const map = {}
       for (const r of rows) {
         const k = dayKey(new Date(r.created_at))
@@ -92,6 +96,8 @@ export default function HeatCalendar({ conversations = [], notes = [], diaries =
           d.tokens += (u.completion_tokens || 0)
         }
       }
+      monthCache[cacheKey] = map
+      if (!alive) return
       setDayData(map)
       setLoading(false)
     }
@@ -202,8 +208,8 @@ export default function HeatCalendar({ conversations = [], notes = [], diaries =
             {(selTokens > 0 || selCost > 0) && (
               <div className="day-card-fact">✦ 他写下 {fmtTokens(selTokens)} tokens · ${selCost.toFixed(4)}</div>
             )}
-            {selDiary?.pages > 0 && <div className="day-card-fact">✎ 他写下了 {selDiary.pages} 页日记</div>}
-            {selNotes > 0 && <div className="day-card-fact">💌 这天收到 {selNotes} 张纸条</div>}
+            {selDiary?.pages > 0 && <div className="day-card-fact">他写下了 {selDiary.pages} 页日记</div>}
+            {selNotes > 0 && <div className="day-card-fact">这天收到 {selNotes} 张纸条</div>}
             {metDays >= 1 && <div className="day-card-fact">这天是相识的第 {metDays} 天 🌙</div>}
 
             <button className="note-detail-close" onClick={() => setSelected(null)}>收好了</button>
