@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -21,7 +20,8 @@ const IC = {
   chevR: <path d="M9.5 6l6 6-6 6" />,
   chevU: <path d="M6 14.5l6-6 6 6" />,
   chevD: <path d="M6 9.5l6 6 6-6" />,
-  plus: <><path d="M12 5v14" /><path d="M5 12h14" /></>
+  plus: <><path d="M12 5v14" /><path d="M5 12h14" /></>,
+  image: <><rect x="4" y="5" width="16" height="14" rx="2" /><circle cx="9" cy="10" r="1.6" /><path d="M4.5 16.5l4.5-4 3.5 3 3-2.5 4 3.5" /></>
 }
 
 function Icon({ name, size = 17, sw = 1.6 }) {
@@ -221,6 +221,7 @@ const MessageItem = React.memo(function MessageItem({
 export default function Chat({
   conversation, messages, isStreaming, cacheStats, variantIndexes, branchInfo, onSwitchBranch, scrollToMsgId, onScrollDone, currentModel, onChangeModel,
   daysTogether = 0, hidden = false,
+  diaryWriting = false, showDiaryHint = false, onInviteDiary, onOpenDiaryBook,
   onSend, onStop, onToggleFavorite, onRegenerate, onEditMessage, onEditAndResend, onSwitchVariant, onDeleteMessage,
   onMenuClick, onSearchClick
 }) {
@@ -230,6 +231,7 @@ export default function Chat({
   const [editContent, setEditContent] = useState('')
   const [activeMessageId, setActiveMessageId] = useState(null)
   const [pendingImages, setPendingImages] = useState([])
+  const [attachMenuOpen, setAttachMenuOpen] = useState(false)
   const messagesEndRef = useRef(null)
   const messagesAreaRef = useRef(null)
   const textareaRef = useRef(null)
@@ -465,6 +467,15 @@ export default function Chat({
             onDeleteMessage={onDeleteMessage}
           />
         ))}
+        {/* 日记提示行（改版第⑤步）：他提笔时轻轻说一声；写好后浮现一次，不存库、刷新即散 */}
+        {(diaryWriting || showDiaryHint) && (
+          <div
+            className={`diary-hint${diaryWriting ? ' writing' : ''}`}
+            onClick={() => { if (!diaryWriting) onOpenDiaryBook?.() }}
+          >
+            {diaryWriting ? '他翻开了日记本，正提笔写着什么…' : '……他在日记本上写了些什么 ✎'}
+          </div>
+        )}
         <div ref={messagesEndRef} />
       </div>
 
@@ -498,16 +509,32 @@ export default function Chat({
         </div>
       )}
 
-      {/* 输入区域（模型徽章已搬去顶栏；⊕/输入框/♥ 三件套 44px 等高对称不动） */}
+      {/* 输入区域（模型徽章已搬去顶栏；⊕/输入框/♥ 三件套 44px 等高对称不动）
+          ⊕ 现在是小菜单（改版第⑤步）：添加图片 / 邀请他写日记；第⑥步"未拆的信"将来也住这里 */}
       <div className="input-area">
         <div className="input-wrapper" style={{ display: 'flex', alignItems: 'flex-end', gap: '8px' }}>
           <input type="file" ref={fileInputRef} accept="image/*" multiple style={{ display: 'none' }} onChange={handleImageSelect} />
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isStreaming}
-            style={{ width: '44px', height: '44px', borderRadius: '50%', border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
-            title="添加图片"
-          ><Icon name="plus" size={19} sw={1.5} /></button>
+          <div style={{ position: 'relative', flexShrink: 0 }}>
+            <button
+              onClick={() => setAttachMenuOpen(v => !v)}
+              disabled={isStreaming}
+              style={{ width: '44px', height: '44px', borderRadius: '50%', border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              title="添加"
+            ><Icon name="plus" size={19} sw={1.5} /></button>
+            {attachMenuOpen && (
+              <>
+                <div style={{ position: 'fixed', inset: 0, zIndex: 90 }} onClick={() => setAttachMenuOpen(false)} />
+                <div className="attach-menu">
+                  <div className="attach-menu-item" onClick={() => { setAttachMenuOpen(false); fileInputRef.current?.click() }}>
+                    <Icon name="image" size={16} /><span>添加图片</span>
+                  </div>
+                  <div className={`attach-menu-item${diaryWriting ? ' disabled' : ''}`} onClick={() => { if (diaryWriting) return; setAttachMenuOpen(false); onInviteDiary?.() }}>
+                    <Icon name="pencil" size={16} /><span>{diaryWriting ? '他正在写…' : '邀请他写日记'}</span>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
           <textarea ref={textareaRef} className="input-box" placeholder="" value={input} onChange={e => setInput(e.target.value)} rows={1} />
           <button className="send-btn" onClick={isStreaming ? onStop : handleSend} disabled={!isStreaming && !input.trim() && pendingImages.length === 0} title={isStreaming ? '停止生成' : '发送'}>{isStreaming ? '■' : '♥'}</button>
         </div>
