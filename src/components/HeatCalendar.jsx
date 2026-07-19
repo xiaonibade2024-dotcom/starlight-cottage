@@ -168,7 +168,8 @@ export default function HeatCalendar({ conversations = [], notes = [], diaries =
           return (
             <div key={k} className={cls.join(' ')} onClick={() => { if (!isFuture) setSelected({ key: k, date }) }}>
               {date.getDate()}
-              {(noteDays[k] > 0 || diaryDays[k]?.pages > 0) && <span className="heat-dot" />}
+              {noteDays[k] > 0 && <span className="heat-dot" />}
+              {diaryDays[k]?.pages > 0 && <span className="heat-stroke" />}
             </div>
           )
         })}
