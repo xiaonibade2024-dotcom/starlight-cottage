@@ -585,3 +585,27 @@ body {
 .day-conv-count { flex-shrink: 0; font-size: 12px; color: var(--text-secondary); }
 .day-card-fact { font-size: 12px; color: var(--text-muted); letter-spacing: 0.5px; margin-bottom: 8px; }
 .day-card .note-detail-close { margin-top: 12px; }
+
+/* ========== 他的日记（改版第⑤步） ========== */
+/* ⊕ 小菜单：朝上展开（住在输入区），幽灵小按钮方言 */
+.attach-menu { position: absolute; bottom: calc(100% + 10px); left: 0; z-index: 91; min-width: 168px; background: var(--bg-primary); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.12); padding: 6px; }
+.attach-menu-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 8px; cursor: pointer; font-size: 13px; color: var(--text-primary); transition: background var(--transition); user-select: none; }
+@media (hover: hover) { .attach-menu-item:hover { background: var(--accent-glow); } }
+.attach-menu-item:active { background: var(--accent-glow); }
+.attach-menu-item.disabled { color: var(--text-muted); cursor: default; }
+@media (hover: hover) { .attach-menu-item.disabled:hover { background: transparent; } }
+.attach-menu-item.disabled:active { background: transparent; }
+
+/* 一次性提示行：居中细语，不存库、刷新即散 */
+.diary-hint { text-align: center; font-size: 12px; color: var(--text-muted); letter-spacing: 1px; padding: 14px 16px 6px; cursor: pointer; user-select: none; transition: color var(--transition); animation: diaryHintIn 0.6s ease; }
+@media (hover: hover) { .diary-hint:hover { color: var(--accent); } }
+.diary-hint.writing { cursor: default; animation: diaryWriting 2.4s ease-in-out infinite; }
+@media (hover: hover) { .diary-hint.writing:hover { color: var(--text-muted); } }
+@keyframes diaryHintIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@keyframes diaryWriting { 0%, 100% { opacity: 0.45; } 50% { opacity: 0.9; } }
+
+/* 心情词小签：水洗玫瑰体系的小小成员 */
+.mood-chip { display: inline-block; padding: 2px 10px; border-radius: 20px; background: var(--wash-bg); border: 1px solid var(--wash-border); color: var(--accent); font-size: 11px; letter-spacing: 1px; }
+
+/* 页码：衬线细体小字，像真的印在纸角 */
+.diary-page-no { font-family: var(--font-accent); font-style: italic; letter-spacing: 0.5px; }
