@@ -1,8 +1,11 @@
 import React, { useState } from 'react'
+import HeatCalendar from './HeatCalendar'
 
 // ==========================================
-// 拾光页（改版第②步）：回忆匣子 + 纸条匣 从设置搬来
-// 功能一根汗毛不动，只搬家换装；月历/日记/信 等第④⑤⑥步入住
+// 拾光页（改版第②步搬入匣子，第④步月历入住）
+// 顶部：热力图月历（含当日小结卡）
+// 其下：回忆匣子 + 纸条匣，功能一根汗毛不动
+// 日记/信 等第⑤⑥步入住
 // ==========================================
 export default function Moments({
   notes = [],
@@ -11,7 +14,8 @@ export default function Moments({
   onUpdateNote,
   onDeleteNote,
   onRemoveFavorite,
-  onLocateMessage
+  onLocateMessage,
+  onOpenConversation
 }) {
   const [editingNoteId, setEditingNoteId] = useState(null)
   const [editNoteText, setEditNoteText] = useState('')
@@ -95,6 +99,13 @@ export default function Moments({
           <div className="page-title">拾光</div>
           <div className="page-caption">MOMENTS KEPT</div>
         </div>
+
+        {/* 热力图月历（改版第④步）：每一天的深浅，是你们说过的话 */}
+        <HeatCalendar
+          conversations={conversations}
+          notes={notes}
+          onOpenConversation={onOpenConversation}
+        />
 
         {/* 回忆匣子 */}
         <div className="page-card">
