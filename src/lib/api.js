@@ -422,3 +422,54 @@ export async function sendChat({
   const data = await response.json()
   return { content: data.choices?.[0]?.message?.content || '', usage: data.usage }
 }
+
+/**
+ * 邀请他写日记（改版第⑤步）
+ * 非流式、不带工具：日记是独白，不需要伸手拿工具。
+ * 消息结构走 buildMessages（system+记忆+当前时间线），与聊天请求同前缀，
+ * 所以系统提示和历史大概率命中缓存，只有末尾的邀请是新字。
+ * 邀请由调用方作为最后一条 user 消息放进 conversationHistory（带 created_at 即自动盖时间戳）。
+ */
+export async function sendDiaryRequest({
+  apiKey,
+  model = 'anthropic/claude-sonnet-4.5',
+  temperature,
+  topP,
+  systemPrompt,
+  memories,
+  conversationHistory,
+  signal
+}) {
+  const messages = buildMessages(systemPrompt, memories, conversationHistory)
+
+  const body = {
+    model,
+    messages,
+    stream: false,
+    max_tokens: 4096,
+    ...(temperature !== undefined && temperature !== null ? { temperature } : {}),
+    ...(topP !== undefined && topP !== null ? { top_p: topP } : {}),
+    cache_control: { type: 'ephemeral', ttl: '1h' },
+    usage: { include: true }
+  }
+
+  const response = await fetch(OPENROUTER_API_URL, {
+    method: 'POST',
+    signal,
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+      'HTTP-Referer': window.location.origin,
+      'X-Title': 'Starlight Cottage'
+    },
+    body: JSON.stringify(body)
+  })
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(errorData.error?.message || `请求失败: ${response.status}`)
+  }
+
+  const data = await response.json()
+  return { content: data.choices?.[0]?.message?.content || '', usage: data.usage }
+}
