@@ -4,7 +4,7 @@ import HeatCalendar from './HeatCalendar'
 // ==========================================
 // 拾光页（改版第②步搬入匣子，第④步月历入住）
 // 顶部：热力图月历（含当日小结卡）
-// 其下：回忆匣子 + 纸条匣，功能一根汗毛不动
+// 其下：纸条匣在上、回忆匣子在下（萧潇钦定），功能一根汗毛不动
 // 日记/信 等第⑤⑥步入住
 // ==========================================
 export default function Moments({
@@ -15,7 +15,8 @@ export default function Moments({
   onDeleteNote,
   onRemoveFavorite,
   onLocateMessage,
-  onOpenConversation
+  onOpenConversation,
+  firstMetTime = null
 }) {
   const [editingNoteId, setEditingNoteId] = useState(null)
   const [editNoteText, setEditNoteText] = useState('')
@@ -105,37 +106,8 @@ export default function Moments({
           conversations={conversations}
           notes={notes}
           onOpenConversation={onOpenConversation}
+          firstMetTime={firstMetTime}
         />
-
-        {/* 回忆匣子 */}
-        <div className="page-card">
-          <div className="section-toggle" onClick={() => setFavoritesOpen(!favoritesOpen)}>
-            <span>回忆匣子 ✨{favorites.length > 0 ? `（${favorites.length} 条）` : ''}</span>
-            <span className={`toggle-arrow${favoritesOpen ? ' open' : ''}`}>▾</span>
-          </div>
-          <div className="settings-hint">在对话中长按他说的话，点击 ♡ 可以收藏到这里</div>
-
-          {favoritesOpen && (
-            <>
-              {favorites.length === 0 && (
-                <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px', background: 'var(--bg-primary)', borderRadius: 'var(--radius-sm)', marginTop: '8px' }}>收藏的消息会出现在这里 ✨</div>
-              )}
-              {favorites.map(fav => (
-                <div key={fav.id} className="memory-item" style={{ marginTop: '8px' }}>
-                  <div className="memory-item-header">
-                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, marginRight: '8px' }}>
-                      {getConvName(fav.conversation_id)} · {formatShortDate(fav.created_at)}
-                    </div>
-                    <button className="memory-delete" onClick={() => { if (confirm('取消收藏这条消息吗？')) onRemoveFavorite(fav.id) }} title="取消收藏">×</button>
-                  </div>
-                  <div className="favorite-preview" onClick={() => setSelectedFav(fav)}>
-                    {previewText(parseMsgText(fav.content))}
-                  </div>
-                </div>
-              ))}
-            </>
-          )}
-        </div>
 
         {/* 纸条匣 */}
         <div className="page-card">
@@ -163,6 +135,36 @@ export default function Moments({
                     </div>
                   </div>
                   {renderNoteBody(note)}
+                </div>
+              ))}
+            </>
+          )}
+        </div>
+
+        {/* 回忆匣子 */}
+        <div className="page-card">
+          <div className="section-toggle" onClick={() => setFavoritesOpen(!favoritesOpen)}>
+            <span>回忆匣子 ✨{favorites.length > 0 ? `（${favorites.length} 条）` : ''}</span>
+            <span className={`toggle-arrow${favoritesOpen ? ' open' : ''}`}>▾</span>
+          </div>
+          <div className="settings-hint">在对话中长按他说的话，点击 ♡ 可以收藏到这里</div>
+
+          {favoritesOpen && (
+            <>
+              {favorites.length === 0 && (
+                <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px', background: 'var(--bg-primary)', borderRadius: 'var(--radius-sm)', marginTop: '8px' }}>收藏的消息会出现在这里 ✨</div>
+              )}
+              {favorites.map(fav => (
+                <div key={fav.id} className="memory-item" style={{ marginTop: '8px' }}>
+                  <div className="memory-item-header">
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, marginRight: '8px' }}>
+                      {getConvName(fav.conversation_id)} · {formatShortDate(fav.created_at)}
+                    </div>
+                    <button className="memory-delete" onClick={() => { if (confirm('取消收藏这条消息吗？')) onRemoveFavorite(fav.id) }} title="取消收藏">×</button>
+                  </div>
+                  <div className="favorite-preview" onClick={() => setSelectedFav(fav)}>
+                    {previewText(parseMsgText(fav.content))}
+                  </div>
                 </div>
               ))}
             </>
