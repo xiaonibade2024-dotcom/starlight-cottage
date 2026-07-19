@@ -469,11 +469,11 @@ export default function Chat({
       )}
 
       {messages.length > 5 && (
-        <button onClick={scrollToTop} title="回到顶部" style={{ position: 'absolute', right: '16px', bottom: showScrollBtn ? (infoBarVisible ? '170px' : '144px') : (infoBarVisible ? '120px' : '94px'), width: '36px', height: '36px', borderRadius: '50%', border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.1)', opacity: 0.8, transition: 'opacity 0.2s, bottom 0.2s', zIndex: 10 }}
+        <button onClick={scrollToTop} title="回到顶部" style={{ position: 'absolute', right: '16px', bottom: showScrollBtn ? (infoBarVisible ? '162px' : '136px') : (infoBarVisible ? '112px' : '86px'), width: '36px', height: '36px', borderRadius: '50%', border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.1)', opacity: 0.8, transition: 'opacity 0.2s, bottom 0.2s', zIndex: 10 }}
           onMouseEnter={e => e.currentTarget.style.opacity = '1'} onMouseLeave={e => e.currentTarget.style.opacity = '0.8'}><Icon name="chevU" size={16} /></button>
       )}
       {showScrollBtn && (
-        <button onClick={scrollToBottom} title="回到最新" style={{ position: 'absolute', right: '16px', bottom: infoBarVisible ? '120px' : '94px', width: '36px', height: '36px', borderRadius: '50%', border: '1px solid var(--border)', background: 'var(--accent, #7c6ca8)', color: 'white', fontSize: '16px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.15)', transition: 'bottom 0.2s', zIndex: 10 }}><Icon name="chevD" size={16} /></button>
+        <button onClick={scrollToBottom} title="回到最新" style={{ position: 'absolute', right: '16px', bottom: infoBarVisible ? '112px' : '86px', width: '36px', height: '36px', borderRadius: '50%', border: '1px solid var(--wash-border)', background: 'var(--wash-bg)', color: 'var(--accent)', fontSize: '16px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.15)', transition: 'bottom 0.2s', zIndex: 10 }}><Icon name="chevD" size={16} /></button>
       )}
 
       {/* 图片预览 */}
