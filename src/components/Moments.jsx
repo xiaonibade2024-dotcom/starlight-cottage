@@ -1,18 +1,20 @@
-import React, { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import HeatCalendar from './HeatCalendar'
 
 // ==========================================
-// 拾光页（改版第②步搬入匣子，第④步月历入住）
+// 拾光页（改版第②步搬入匣子，第④步月历入住，第⑤步日记本入住）
 // 顶部：热力图月历（含当日小结卡）
-// 其下：纸条匣在上、回忆匣子在下（萧潇钦定），功能一根汗毛不动
-// 日记/信 等第⑤⑥步入住
+// 其下：他的日记（第⑤步）、纸条匣、回忆匣子（纸条在上、回忆在下，萧潇钦定），功能一根汗毛不动
+// 未拆的信 等第⑥步入住
 // ==========================================
 export default function Moments({
   notes = [],
   favorites = [],
+  diaries = [],
   conversations = [],
   onUpdateNote,
   onDeleteNote,
+  onDeleteDiary,
   onRemoveFavorite,
   onLocateMessage,
   onOpenConversation,
@@ -22,8 +24,18 @@ export default function Moments({
   const [editNoteText, setEditNoteText] = useState('')
   const [selectedNote, setSelectedNote] = useState(null)
   const [selectedFav, setSelectedFav] = useState(null)
+  const [selectedDiary, setSelectedDiary] = useState(null)
   const [favoritesOpen, setFavoritesOpen] = useState(false)
   const [notesOpen, setNotesOpen] = useState(false)
+  const [diariesOpen, setDiariesOpen] = useState(false)
+
+  // 页码：最早的一页是 p.001，往后递增（按写下的先后编号，与展示顺序无关）
+  const diaryPageNo = useMemo(() => {
+    const sorted = [...diaries].sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+    const map = {}
+    sorted.forEach((d, i) => { map[d.id] = 'p.' + String(i + 1).padStart(3, '0') })
+    return map
+  }, [diaries])
 
   const saveNoteEdit = () => {
     if (editNoteText.trim() && editingNoteId) {
@@ -105,9 +117,47 @@ export default function Moments({
         <HeatCalendar
           conversations={conversations}
           notes={notes}
+          diaries={diaries}
           onOpenConversation={onOpenConversation}
           firstMetTime={firstMetTime}
         />
+
+        {/* 他的日记（改版第⑤步）：他提笔写下的独白，只在这里读到 */}
+        <div className="page-card">
+          <div className="section-toggle" onClick={() => setDiariesOpen(!diariesOpen)}>
+            <span>他的日记 ✎{diaries.length > 0 ? `（${diaries.length} 页）` : ''}</span>
+            <span className={`toggle-arrow${diariesOpen ? ' open' : ''}`}>▾</span>
+          </div>
+          <div className="settings-hint">在对话里点 ⊕ 邀请他写日记，每一页都会安静地收在这里</div>
+
+          {diariesOpen && (
+            <>
+              {diaries.length === 0 && (
+                <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px', background: 'var(--bg-primary)', borderRadius: 'var(--radius-sm)', marginTop: '8px' }}>日记本还空着，等他落下第一笔 🌙</div>
+              )}
+              {diaries.map(diary => (
+                <div key={diary.id} className="memory-item" style={{ marginTop: '8px' }}>
+                  <div className="memory-item-header">
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, marginRight: '8px' }}>
+                      <span className="diary-page-no">{diaryPageNo[diary.id]}</span> · {getConvName(diary.conversation_id)} · {formatShortDate(diary.created_at)}
+                    </div>
+                    <div className="memory-actions">
+                      <button className="memory-delete" onClick={() => { if (confirm('确定撕去这页日记吗？撕去后无法找回。')) onDeleteDiary(diary.id) }} title="删除">×</button>
+                    </div>
+                  </div>
+                  {diary.moods && diary.moods.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '6px' }}>
+                      {diary.moods.map((mood, i) => <span key={i} className="mood-chip">{mood}</span>)}
+                    </div>
+                  )}
+                  <div className="favorite-preview" onClick={() => setSelectedDiary(diary)}>
+                    {previewText(diary.content)}
+                  </div>
+                </div>
+              ))}
+            </>
+          )}
+        </div>
 
         {/* 纸条匣 */}
         <div className="page-card">
@@ -195,6 +245,24 @@ export default function Moments({
             <div className="note-detail-date">来自「{getConvName(selectedFav.conversation_id)}」· {formatNoteDate(selectedFav.created_at)}</div>
             <button className="note-detail-close" onClick={() => setSelectedFav(null)}>收好了</button>
             <div className="note-detail-locate" onClick={() => { setSelectedFav(null); onLocateMessage?.(selectedFav.conversation_id, selectedFav.id) }}>前往对话 →</div>
+          </div>
+        </div>
+      )}
+
+      {selectedDiary && (
+        <div className="note-detail-overlay" onClick={() => setSelectedDiary(null)}>
+          <div className="note-detail-card" onClick={e => e.stopPropagation()}>
+            <div className="note-detail-accent"></div>
+            <div className="note-detail-frame"></div>
+            <div className="note-detail-icon">✎</div>
+            <div className="note-detail-content plain">{renderPopupText(selectedDiary.content)}</div>
+            {selectedDiary.moods && selectedDiary.moods.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', justifyContent: 'center', marginTop: '4px', flexShrink: 0 }}>
+                {selectedDiary.moods.map((mood, i) => <span key={i} className="mood-chip">{mood}</span>)}
+              </div>
+            )}
+            <div className="note-detail-date"><span className="diary-page-no">{diaryPageNo[selectedDiary.id]}</span> · 写于「{getConvName(selectedDiary.conversation_id)}」· {formatNoteDate(selectedDiary.created_at)}</div>
+            <button className="note-detail-close" onClick={() => setSelectedDiary(null)}>合上</button>
           </div>
         </div>
       )}
