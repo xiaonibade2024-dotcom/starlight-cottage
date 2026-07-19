@@ -168,6 +168,10 @@ export default function App() {
   const [stats, setStats] = useState({ totalMessages: 0, totalConversations: 0, firstChatDate: null })
   const [variantIndexes, setVariantIndexes] = useState({})
   const [scrollToMsgId, setScrollToMsgId] = useState(null)
+  // 相识于（YYYY-MM-DD，空 = 按第一条消息算）与门牌（小屋名/副题，空 = 用默认）
+  const [firstMetDate, setFirstMetDate] = useState('')
+  const [cottageName, setCottageName] = useState('')
+  const [cottageSubtitle, setCottageSubtitle] = useState('')
   const toastTimeoutRef = useRef(null)
   const recentSavesRef = useRef(new Set())
   const abortControllerRef = useRef(null)
@@ -285,6 +289,9 @@ export default function App() {
       setMaxContextMessages(data.max_context_messages || 50)
       setTemperature(data.temperature ?? 0.75)
       setTopP(data.top_p ?? 0.25)
+      setFirstMetDate(data.first_met_date || '')
+      setCottageName(data.cottage_name || '')
+      setCottageSubtitle(data.cottage_subtitle || '')
     }
   }
 
@@ -295,7 +302,10 @@ export default function App() {
       model: newSettings.model ?? model,
       max_context_messages: newSettings.maxContextMessages ?? maxContextMessages,
       temperature: newSettings.temperature ?? temperature,
-      top_p: newSettings.topP ?? topP
+      top_p: newSettings.topP ?? topP,
+      first_met_date: (newSettings.firstMetDate !== undefined ? newSettings.firstMetDate : firstMetDate) || null,
+      cottage_name: (newSettings.cottageName !== undefined ? newSettings.cottageName : cottageName) || null,
+      cottage_subtitle: (newSettings.cottageSubtitle !== undefined ? newSettings.cottageSubtitle : cottageSubtitle) || null
     }
     const { data: existing } = await supabase.from('user_settings').select('id').single()
     if (existing) {
@@ -308,6 +318,9 @@ export default function App() {
     if (newSettings.topP !== undefined) setTopP(newSettings.topP)
     if (newSettings.model !== undefined) setModel(newSettings.model)
     if (newSettings.maxContextMessages !== undefined) setMaxContextMessages(newSettings.maxContextMessages)
+    if (newSettings.firstMetDate !== undefined) setFirstMetDate(newSettings.firstMetDate || '')
+    if (newSettings.cottageName !== undefined) setCottageName(newSettings.cottageName || '')
+    if (newSettings.cottageSubtitle !== undefined) setCottageSubtitle(newSettings.cottageSubtitle || '')
     showToast('设置已保存')
   }
 
@@ -941,17 +954,20 @@ export default function App() {
 
   const activeConv = conversations.find(c => c.id === activeConvId)
 
-  // 相识第 X 天：从该账号第一条消息起算（顶栏副行用）
-  const daysTogether = stats.firstChatDate
-    ? Math.floor((Date.now() - new Date(stats.firstChatDate).getTime()) / 86400000) + 1
-    : 0
+  // 相识第 X 天：优先用小屋设置的"相识于"日期（按本地日子解析），未设置则按该账号第一条消息
+  const firstMetBase = firstMetDate
+    ? (() => { const [fy, fm, fd] = firstMetDate.slice(0, 10).split('-').map(Number); return new Date(fy, fm - 1, fd) })()
+    : (stats.firstChatDate ? new Date(stats.firstChatDate) : null)
+  // 取当日零点，给月历小结卡算"这天是相识的第 X 天"用
+  const firstMetTime = firstMetBase ? new Date(firstMetBase.getFullYear(), firstMetBase.getMonth(), firstMetBase.getDate()).getTime() : null
+  const daysTogether = firstMetBase ? Math.floor((Date.now() - firstMetBase.getTime()) / 86400000) + 1 : 0
 
   const goCottage = () => { setActivePage('cottage'); setCottageTab('general'); setSidebarOpen(false) }
 
   return (
     <div className="app-container">
       {sidebarOpen && <div className="sidebar-backdrop" onClick={() => setSidebarOpen(false)} />}
-      <Sidebar conversations={conversations} activeConvId={activeConvId} isOpen={sidebarOpen} onSelect={selectConversation} onCreate={createConversation} onRename={renameConversation} onDelete={deleteConversation} onExport={exportConversation} onExportAll={exportAllData} onOpenSettings={goCottage} />
+      <Sidebar cottageName={cottageName} cottageSubtitle={cottageSubtitle} conversations={conversations} activeConvId={activeConvId} isOpen={sidebarOpen} onSelect={selectConversation} onCreate={createConversation} onRename={renameConversation} onDelete={deleteConversation} onExport={exportConversation} onExportAll={exportAllData} onOpenSettings={goCottage} />
       <div className="page-column">
         {/* 对话页常驻不卸载（滚动位置和生成中的画面都留在原地），去别的房间时只是暂时藏起来 */}
         <Chat
@@ -964,9 +980,9 @@ export default function App() {
           onSend={sendMessage} onStop={stopStreaming} onToggleFavorite={toggleFavorite} onRegenerate={regenerateResponse} onEditMessage={editMessage} onEditAndResend={editAndResend} onSwitchVariant={switchVariant} onDeleteMessage={deleteMessage}
           onMenuClick={() => setSidebarOpen(true)} onSearchClick={() => setSearchOpen(true)}
         />
-        {activePage === 'moments' && <Moments notes={notes} favorites={favorites} conversations={conversations} onUpdateNote={updateNote} onDeleteNote={deleteNote} onRemoveFavorite={removeFavorite} onLocateMessage={locateMessage} onOpenConversation={selectConversation} />}
+        {activePage === 'moments' && <Moments notes={notes} favorites={favorites} conversations={conversations} onUpdateNote={updateNote} onDeleteNote={deleteNote} onRemoveFavorite={removeFavorite} onLocateMessage={locateMessage} onOpenConversation={selectConversation} firstMetTime={firstMetTime} />}
         {activePage === 'corner' && <Corner />}
-        {activePage === 'cottage' && <Cottage themeMode={themeMode} onChangeTheme={setThemeMode} tab={cottageTab} onTabChange={setCottageTab} apiKey={apiKey} systemPrompt={systemPrompt} model={model} temperature={temperature} topP={topP} maxContextMessages={maxContextMessages} memories={memories} stats={stats} onSaveApiKey={saveApiKey} onSaveSettings={saveSettings} onAddCoreMemory={addCoreMemory} onDeleteMemory={deleteMemory} onUpdateMemory={updateMemory} onExportAll={exportAllData} />}
+        {activePage === 'cottage' && <Cottage themeMode={themeMode} onChangeTheme={setThemeMode} tab={cottageTab} onTabChange={setCottageTab} apiKey={apiKey} systemPrompt={systemPrompt} model={model} temperature={temperature} topP={topP} maxContextMessages={maxContextMessages} memories={memories} stats={stats} onSaveApiKey={saveApiKey} onSaveSettings={saveSettings} onAddCoreMemory={addCoreMemory} onDeleteMemory={deleteMemory} onUpdateMemory={updateMemory} onExportAll={exportAllData} daysTogether={daysTogether} firstMetDate={firstMetDate} cottageName={cottageName} cottageSubtitle={cottageSubtitle} />}
         <BottomNav active={activePage} onChange={setActivePage} />
       </div>
       {searchOpen && <SearchPanel activeConvId={activeConvId} activeConvName={activeConv?.name} onClose={() => setSearchOpen(false)} onOpenResult={openSearchResult} />}
