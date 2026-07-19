@@ -83,8 +83,8 @@ export default function Moments({
 
   const renderNoteBody = (note) => {
     if (editingNoteId !== note.id) return (
-      <div style={{ whiteSpace: 'pre-wrap', cursor: 'pointer' }} onClick={() => setSelectedNote(note)}>
-        {note.content}
+      <div className="favorite-preview" onClick={() => setSelectedNote(note)}>
+        {previewText(note.content)}
       </div>
     )
     return (
@@ -125,7 +125,7 @@ export default function Moments({
         {/* 他的日记（改版第⑤步）：他提笔写下的独白，只在这里读到 */}
         <div className="page-card">
           <div className="section-toggle" onClick={() => setDiariesOpen(!diariesOpen)}>
-            <span>他的日记 📔{diaries.length > 0 ? `（${diaries.length} 页）` : ''}</span>
+            <span>他的日记 ✎{diaries.length > 0 ? `（${diaries.length} 页）` : ''}</span>
             <span className={`toggle-arrow${diariesOpen ? ' open' : ''}`}>▾</span>
           </div>
           <div className="settings-hint">在对话里点 ⊕ 邀请他写日记，每一页都会安静地收在这里</div>
@@ -162,7 +162,7 @@ export default function Moments({
         {/* 纸条匣 */}
         <div className="page-card">
           <div className="section-toggle" onClick={() => setNotesOpen(!notesOpen)}>
-            <span>纸条匣 💌{notes.length > 0 ? `（${notes.length} 张${unreadCount > 0 ? ` · ${unreadCount} 张未遇见` : ''}）` : ''}</span>
+            <span>纸条匣 ✦{notes.length > 0 ? `（${notes.length} 张${unreadCount > 0 ? ` · ${unreadCount} 张未遇见` : ''}）` : ''}</span>
             <span className={`toggle-arrow${notesOpen ? ' open' : ''}`}>▾</span>
           </div>
           <div className="settings-hint">他留过的每一张小纸条都收在这里，点击可以展开细看</div>
@@ -194,7 +194,7 @@ export default function Moments({
         {/* 回忆匣子 */}
         <div className="page-card">
           <div className="section-toggle" onClick={() => setFavoritesOpen(!favoritesOpen)}>
-            <span>回忆匣子 ✨{favorites.length > 0 ? `（${favorites.length} 条）` : ''}</span>
+            <span>回忆匣子 ♡{favorites.length > 0 ? `（${favorites.length} 条）` : ''}</span>
             <span className={`toggle-arrow${favoritesOpen ? ' open' : ''}`}>▾</span>
           </div>
           <div className="settings-hint">在对话中长按他说的话，点击 ♡ 可以收藏到这里</div>
