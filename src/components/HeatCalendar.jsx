@@ -14,7 +14,7 @@ const WEEKDAYS = ['一', '二', '三', '四', '五', '六', '日']
 // 把一个时刻归到"本地的哪一天"，得到 '2026-7-18' 这样的钥匙
 const dayKey = (d) => `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`
 
-export default function HeatCalendar({ conversations = [], notes = [], onOpenConversation }) {
+export default function HeatCalendar({ conversations = [], notes = [], onOpenConversation, firstMetTime = null }) {
   const now = new Date()
   // 月历翻到哪个月：锚在该月 1 号
   const [anchor, setAnchor] = useState(() => new Date(now.getFullYear(), now.getMonth(), 1))
@@ -111,6 +111,8 @@ export default function HeatCalendar({ conversations = [], notes = [], onOpenCon
   const fmtTokens = (n) => n >= 10000 ? (n / 10000).toFixed(1) + ' 万' : String(n)
 
   const sel = selected ? dayData[selected.key] : null
+  // 相识的第几天（firstMetTime 由 App 递来：设置的相识日或第一条消息，取当日零点）
+  const metDays = (selected && firstMetTime != null) ? Math.floor((selected.date.getTime() - firstMetTime) / 86400000) + 1 : 0
   const selConvs = sel ? Object.entries(sel.convs).sort((a, b) => b[1] - a[1]) : []
   const selNotes = selected ? (noteDays[selected.key] || 0) : 0
 
@@ -154,7 +156,7 @@ export default function HeatCalendar({ conversations = [], notes = [], onOpenCon
           <div className="day-card" onClick={e => e.stopPropagation()}>
             <div className="note-detail-frame"></div>
             <div className="day-card-date">
-              {selected.date.getMonth() + 1} 月 {selected.date.getDate()} 日 · 周{WEEKDAYS[(selected.date.getDay() + 6) % 7]}
+              {selected.date.getFullYear() !== now.getFullYear() ? selected.date.getFullYear() + ' 年 ' : ''}{selected.date.getMonth() + 1} 月 {selected.date.getDate()} 日 · 周{WEEKDAYS[(selected.date.getDay() + 6) % 7]}
             </div>
 
             {(!sel || sel.count === 0) ? (
@@ -177,6 +179,7 @@ export default function HeatCalendar({ conversations = [], notes = [], onOpenCon
             )}
 
             {selNotes > 0 && <div className="day-card-fact">💌 这天收到 {selNotes} 张纸条</div>}
+            {metDays >= 1 && <div className="day-card-fact">这天是相识的第 {metDays} 天 🌙</div>}
 
             <button className="note-detail-close" onClick={() => setSelected(null)}>收好了</button>
           </div>
