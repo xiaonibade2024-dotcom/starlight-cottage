@@ -33,8 +33,8 @@ export default function Cottage({
   const [localMaxCtx, setLocalMaxCtx] = useState(maxContextMessages)
   const [newMemory, setNewMemory] = useState('')
   const [addingCore, setAddingCore] = useState(false)
-  const [coreOpen, setCoreOpen] = useState(true)
-  const [autoOpen, setAutoOpen] = useState(true)
+  const [coreOpen, setCoreOpen] = useState(false)
+  const [autoOpen, setAutoOpen] = useState(false)
   const [editingMemId, setEditingMemId] = useState(null)
   const [editMemText, setEditMemText] = useState('')
   const [selectedMem, setSelectedMem] = useState(null)
@@ -50,6 +50,12 @@ export default function Cottage({
     }
     setEditingMemId(null)
     setEditMemText('')
+  }
+
+  const formatMemDate = (dateStr) => {
+    if (!dateStr) return ''
+    const d = new Date(dateStr)
+    return `记于 ${d.getMonth() + 1}月${d.getDate()}日`
   }
 
   const formatNoteDate = (dateStr) => {
@@ -80,7 +86,7 @@ export default function Cottage({
           style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', border: '1px solid var(--accent-soft)', borderRadius: '8px', background: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: '13px', lineHeight: '1.6', fontFamily: 'inherit', resize: 'vertical', outline: 'none' }}
         />
         <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
-          <button onClick={saveMemEdit} style={{ padding: '5px 18px', fontSize: '12px', border: 'none', borderRadius: '20px', background: 'var(--accent)', color: '#fff', cursor: 'pointer' }}>保存</button>
+          <button onClick={saveMemEdit} style={{ padding: '5px 18px', fontSize: '12px', border: '1px solid var(--wash-border)', borderRadius: '20px', background: 'var(--wash-bg)', color: 'var(--accent)', cursor: 'pointer' }}>保存</button>
           <button onClick={() => { setEditingMemId(null); setEditMemText('') }} style={{ padding: '5px 18px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: '20px', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer' }}>取消</button>
         </div>
       </div>
@@ -215,7 +221,7 @@ export default function Cottage({
                     <div style={{ marginBottom: '10px' }}>
                       <textarea className="settings-textarea" style={{ minHeight: '60px' }} placeholder="添加一条核心记忆..." value={newMemory} onChange={e => setNewMemory(e.target.value)} autoFocus />
                       <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
-                        <button onClick={handleAddMemory} disabled={!newMemory.trim()} style={{ padding: '5px 18px', fontSize: '12px', border: 'none', borderRadius: '20px', background: 'var(--accent)', color: '#fff', cursor: 'pointer', opacity: newMemory.trim() ? 1 : 0.4 }}>收进记忆</button>
+                        <button onClick={handleAddMemory} disabled={!newMemory.trim()} style={{ padding: '5px 18px', fontSize: '12px', border: '1px solid var(--wash-border)', borderRadius: '20px', background: 'var(--wash-bg)', color: 'var(--accent)', cursor: 'pointer', opacity: newMemory.trim() ? 1 : 0.4 }}>收进记忆</button>
                         <button onClick={() => { setAddingCore(false); setNewMemory('') }} style={{ padding: '5px 18px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: '20px', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer' }}>取消</button>
                       </div>
                     </div>
@@ -226,7 +232,7 @@ export default function Cottage({
                   {coreMemories.map(mem => (
                     <div key={mem.id} className="memory-item">
                       <div className="memory-item-header">
-                        <div style={{ flex: 1 }} />
+                        <div style={{ flex: 1, fontSize: '12px', color: 'var(--text-muted)', letterSpacing: '0.5px' }}>{formatMemDate(mem.created_at)}</div>
                         <div className="memory-actions">
                           <button className="memory-delete" onClick={() => startMemEdit(mem)} title="编辑">✎</button>
                           <button className="memory-delete" onClick={() => { if (confirm('确定删除这条记忆吗？')) onDeleteMemory(mem.id) }} title="删除">×</button>
