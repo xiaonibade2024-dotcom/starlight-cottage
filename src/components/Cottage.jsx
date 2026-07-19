@@ -18,6 +18,10 @@ export default function Cottage({
   maxContextMessages,
   memories,
   stats,
+  daysTogether = 0,
+  firstMetDate = '',
+  cottageName = '',
+  cottageSubtitle = '',
   onSaveApiKey,
   onSaveSettings,
   onAddCoreMemory,
@@ -31,6 +35,9 @@ export default function Cottage({
   const [localTemp, setLocalTemp] = useState(temperature)
   const [localTopP, setLocalTopP] = useState(topP)
   const [localMaxCtx, setLocalMaxCtx] = useState(maxContextMessages)
+  const [localFirstMet, setLocalFirstMet] = useState(firstMetDate)
+  const [localCName, setLocalCName] = useState(cottageName)
+  const [localCSub, setLocalCSub] = useState(cottageSubtitle)
   const [newMemory, setNewMemory] = useState('')
   const [addingCore, setAddingCore] = useState(false)
   const [coreOpen, setCoreOpen] = useState(false)
@@ -103,7 +110,10 @@ export default function Cottage({
       model: localModel,
       maxContextMessages: localMaxCtx,
       temperature: Math.min(1, Math.max(0, parseFloat(localTemp) || 0)),
-      topP: Math.min(1, Math.max(0.01, parseFloat(localTopP) || 0.01))
+      topP: Math.min(1, Math.max(0.01, parseFloat(localTopP) || 0.01)),
+      firstMetDate: localFirstMet,
+      cottageName: localCName.trim(),
+      cottageSubtitle: localCSub.trim()
     })
   }
 
@@ -118,9 +128,10 @@ export default function Cottage({
   const coreMemories = memories.filter(m => m.category === 'core').slice().sort(byNewest)
   const autoMemories = memories.filter(m => m.category === 'auto').slice().sort(byNewest)
 
-  const daysSinceFirst = stats.firstChatDate
-    ? Math.floor((Date.now() - new Date(stats.firstChatDate).getTime()) / 86400000) + 1
-    : 0
+  // 天数与初遇：优先用“相识于”设置（daysTogether 由 App 按同一口径算好递来）
+  const firstMetShown = firstMetDate
+    ? (() => { const [fy, fm, fd] = firstMetDate.slice(0, 10).split('-').map(Number); return `${fm}/${fd}` })()
+    : (stats.firstChatDate ? new Date(stats.firstChatDate).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' }) : '—')
 
   return (
     <div className="page page-cottage">
@@ -147,6 +158,19 @@ export default function Cottage({
                 ))}
               </div>
               <div className="settings-hint">点一下立刻换装，无需保存 · 跟随时辰：傍晚六点自动入夜，清晨六点回到白日</div>
+            </div>
+
+            <div className="settings-section">
+              <div className="settings-label">小屋门牌</div>
+              <input className="settings-input" placeholder="星月小屋" value={localCName} onChange={e => setLocalCName(e.target.value)} />
+              <input className="settings-input" style={{ marginTop: '8px' }} placeholder="under the same moon" value={localCSub} onChange={e => setLocalCSub(e.target.value)} />
+              <div className="settings-hint">小屋的名字和门上的小字，显示在侧边栏 · 留空就用默认的</div>
+            </div>
+
+            <div className="settings-section">
+              <div className="settings-label">相识于</div>
+              <input type="date" className="settings-input" value={localFirstMet} onChange={e => setLocalFirstMet(e.target.value)} />
+              <div className="settings-hint">你们真正认识的日子 · 顶栏的“相识第 X 天”、统计铭牌和月历小结都从这天起算 · 留空则按这个账号的第一条消息 · 每个账号各自独立</div>
             </div>
 
             <div className="settings-section">
@@ -279,10 +303,10 @@ export default function Cottage({
         {tab === 'stats' && (
           <>
             <div className="stats-plaque">
-              <div className="cell"><div className="v">{daysSinceFirst || '—'}</div><div className="l">天数</div></div>
+              <div className="cell"><div className="v">{daysTogether || '—'}</div><div className="l">天数</div></div>
               <div className="cell"><div className="v">{stats.totalConversations ?? '—'}</div><div className="l">对话</div></div>
               <div className="cell"><div className="v">{stats.totalMessages ?? '—'}</div><div className="l">消息</div></div>
-              <div className="cell"><div className="v">{stats.firstChatDate ? new Date(stats.firstChatDate).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' }) : '—'}</div><div className="l">初遇</div></div>
+              <div className="cell"><div className="v">{firstMetShown}</div><div className="l">初遇</div></div>
             </div>
 
             <div className="settings-section">
