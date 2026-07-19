@@ -276,6 +276,13 @@ export default function Chat({
     }
   }, [messages])
 
+  // 日记提示行出现/他提笔时，轻轻滚到底让那行小字被看见
+  useEffect(() => {
+    if (diaryWriting || showDiaryHint) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [diaryWriting, showDiaryHint])
+
   // 切换对话时，回到跟随模式并落到底部
   useEffect(() => {
     if (scrollToMsgId) return
