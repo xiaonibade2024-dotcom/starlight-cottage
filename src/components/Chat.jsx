@@ -141,7 +141,7 @@ const MessageItem = React.memo(function MessageItem({
               <button onClick={onCancelEdit} style={{ padding: '4px 14px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '16px', background: 'var(--bg-secondary)', color: 'var(--text-secondary)', cursor: 'pointer' }}>取消</button>
               <button onClick={onSaveEdit} style={{ padding: '4px 14px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '16px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', cursor: 'pointer' }}>保存</button>
               {msg.role === 'user' && (
-                <button onClick={onSaveAndResend} style={{ padding: '4px 14px', fontSize: '13px', border: 'none', borderRadius: '16px', background: 'var(--accent, #7c6ca8)', color: 'white', cursor: 'pointer' }}>保存并发送</button>
+                <button onClick={onSaveAndResend} style={{ padding: '4px 14px', fontSize: '13px', border: '1px solid var(--wash-border)', borderRadius: '16px', background: 'var(--wash-bg)', color: 'var(--accent)', cursor: 'pointer' }}>保存并发送</button>
               )}
             </div>
           </div>
