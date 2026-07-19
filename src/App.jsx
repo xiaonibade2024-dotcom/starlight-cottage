@@ -438,7 +438,7 @@ export default function App() {
       }
       setDiaries(prev => [savedDiary, ...prev])
       setDiaryHintConvId(convId)
-      showToast('📔 他写下了一页日记')
+      showToast('✎ 他写下了一页日记')
     } catch (e) {
       console.error('日记生成失败:', e)
       showToast('日记没能写成：' + e.message)
@@ -1071,7 +1071,7 @@ export default function App() {
           currentModel={activeConv?.model || model} onChangeModel={setConversationModel}
           daysTogether={daysTogether}
           diaryWriting={diaryWriting} showDiaryHint={diaryHintConvId != null && diaryHintConvId === activeConvId}
-          onInviteDiary={inviteDiary} onOpenDiaryBook={() => setActivePage('moments')}
+          onInviteDiary={inviteDiary} onOpenDiaryBook={() => { setDiaryHintConvId(null); setActivePage('moments') }}
           scrollToMsgId={scrollToMsgId} onScrollDone={() => setScrollToMsgId(null)}
           onSend={sendMessage} onStop={stopStreaming} onToggleFavorite={toggleFavorite} onRegenerate={regenerateResponse} onEditMessage={editMessage} onEditAndResend={editAndResend} onSwitchVariant={switchVariant} onDeleteMessage={deleteMessage}
           onMenuClick={() => setSidebarOpen(true)} onSearchClick={() => setSearchOpen(true)}
