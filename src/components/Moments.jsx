@@ -125,7 +125,7 @@ export default function Moments({
         {/* 他的日记（改版第⑤步）：他提笔写下的独白，只在这里读到 */}
         <div className="page-card">
           <div className="section-toggle" onClick={() => setDiariesOpen(!diariesOpen)}>
-            <span>他的日记 ✎{diaries.length > 0 ? `（${diaries.length} 页）` : ''}</span>
+            <span>他的日记 📔{diaries.length > 0 ? `（${diaries.length} 页）` : ''}</span>
             <span className={`toggle-arrow${diariesOpen ? ' open' : ''}`}>▾</span>
           </div>
           <div className="settings-hint">在对话里点 ⊕ 邀请他写日记，每一页都会安静地收在这里</div>
