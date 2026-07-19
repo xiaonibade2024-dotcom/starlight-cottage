@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 // ==========================================
 // 热力图月历（改版第④步）
 // 七列月历（一至日），颜色深浅 = 当日消息量，左右翻月；
-// 有纸条诞生的日子缀针尖小点（日记待第⑤步入住后自动加入）；
+// 有纸条或日记诞生的日子缀针尖小点（第⑤步起日记已入住）；
 // 点某一日浮出当日小结卡：条数、各对话分布（点击跳转）、token 与费用。
 // 纯查库，零 AI 成本；日子按手机本地时间归档（与全屋其余时间显示一致）。
 // ==========================================
@@ -14,7 +14,7 @@ const WEEKDAYS = ['一', '二', '三', '四', '五', '六', '日']
 // 把一个时刻归到"本地的哪一天"，得到 '2026-7-18' 这样的钥匙
 const dayKey = (d) => `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`
 
-export default function HeatCalendar({ conversations = [], notes = [], onOpenConversation, firstMetTime = null }) {
+export default function HeatCalendar({ conversations = [], notes = [], diaries = [], onOpenConversation, firstMetTime = null }) {
   const now = new Date()
   // 月历翻到哪个月：锚在该月 1 号
   const [anchor, setAnchor] = useState(() => new Date(now.getFullYear(), now.getMonth(), 1))
@@ -36,6 +36,24 @@ export default function HeatCalendar({ conversations = [], notes = [], onOpenCon
     }
     return map
   }, [notes])
+
+  // 日记按天归档（改版第⑤步）：页数计入小点与小结卡；写日记的花费也一并入账，
+  // 让当日的 ✦ 行仍与 OpenRouter 账单严格对得上（diaries 由 App 全量载入，零额外查询）
+  const diaryDays = useMemo(() => {
+    const map = {}
+    for (const d of diaries) {
+      if (!d.created_at) continue
+      const k = dayKey(new Date(d.created_at))
+      if (!map[k]) map[k] = { pages: 0, cost: 0, tokens: 0 }
+      map[k].pages += 1
+      const u = d.token_usage
+      if (u) {
+        map[k].cost += (typeof u.cost === 'number' ? u.cost : 0)
+        map[k].tokens += (u.completion_tokens || 0)
+      }
+    }
+    return map
+  }, [diaries])
 
   // 翻到某月时，去数据库问一次"这个月每天各有几条"
   // 只取三列小字段；超过 1000 条时一页页取齐（Supabase 单次最多给 1000 条）
@@ -116,6 +134,10 @@ export default function HeatCalendar({ conversations = [], notes = [], onOpenCon
   const metDays = (selected && firstMetTime != null) ? Math.floor((selected.date.getTime() - firstMetTime) / 86400000) + 1 : 0
   const selConvs = sel ? Object.entries(sel.convs).sort((a, b) => b[1] - a[1]) : []
   const selNotes = selected ? (noteDays[selected.key] || 0) : 0
+  const selDiary = selected ? diaryDays[selected.key] : null
+  // ✦ 行的口径：他写下的字（消息 + 日记的 completion）与当日全部真实花费
+  const selTokens = (sel?.tokens || 0) + (selDiary?.tokens || 0)
+  const selCost = (sel?.cost || 0) + (selDiary?.cost || 0)
 
   return (
     <div className="page-card heat-card">
@@ -146,7 +168,7 @@ export default function HeatCalendar({ conversations = [], notes = [], onOpenCon
           return (
             <div key={k} className={cls.join(' ')} onClick={() => { if (!isFuture) setSelected({ key: k, date }) }}>
               {date.getDate()}
-              {noteDays[k] > 0 && <span className="heat-dot" />}
+              {(noteDays[k] > 0 || diaryDays[k]?.pages > 0) && <span className="heat-dot" />}
             </div>
           )
         })}
@@ -173,12 +195,13 @@ export default function HeatCalendar({ conversations = [], notes = [], onOpenCon
                     </div>
                   ))}
                 </div>
-                {(sel.tokens > 0 || sel.cost > 0) && (
-                  <div className="day-card-fact">✦ 他写下 {fmtTokens(sel.tokens)} tokens · ${sel.cost.toFixed(4)}</div>
-                )}
               </>
             )}
 
+            {(selTokens > 0 || selCost > 0) && (
+              <div className="day-card-fact">✦ 他写下 {fmtTokens(selTokens)} tokens · ${selCost.toFixed(4)}</div>
+            )}
+            {selDiary?.pages > 0 && <div className="day-card-fact">✎ 他写下了 {selDiary.pages} 页日记</div>}
             {selNotes > 0 && <div className="day-card-fact">💌 这天收到 {selNotes} 张纸条</div>}
             {metDays >= 1 && <div className="day-card-fact">这天是相识的第 {metDays} 天 🌙</div>}
 
