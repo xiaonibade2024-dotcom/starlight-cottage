@@ -208,8 +208,8 @@ export default function HeatCalendar({ conversations = [], notes = [], diaries =
             {(selTokens > 0 || selCost > 0) && (
               <div className="day-card-fact">✦ 他写下 {fmtTokens(selTokens)} tokens · ${selCost.toFixed(4)}</div>
             )}
-            {selDiary?.pages > 0 && <div className="day-card-fact">他写下了 {selDiary.pages} 页日记</div>}
-            {selNotes > 0 && <div className="day-card-fact">这天收到 {selNotes} 张纸条</div>}
+            {selDiary?.pages > 0 && <div className="day-card-fact">✎ 他写下了 {selDiary.pages} 页日记</div>}
+            {selNotes > 0 && <div className="day-card-fact">💌 这天收到 {selNotes} 张纸条</div>}
             {metDays >= 1 && <div className="day-card-fact">这天是相识的第 {metDays} 天 🌙</div>}
 
             <button className="note-detail-close" onClick={() => setSelected(null)}>收好了</button>
