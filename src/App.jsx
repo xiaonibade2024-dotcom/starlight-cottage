@@ -4,7 +4,9 @@ import { sendChatStream, sendChatFollowUp, sendChat } from './lib/api'
 import Auth from './components/Auth'
 import Sidebar from './components/Sidebar'
 import Chat from './components/Chat'
-import Settings from './components/Settings'
+import Moments from './components/Moments'
+import Corner from './components/Corner'
+import Cottage from './components/Cottage'
 import SearchPanel from './components/SearchPanel'
 import NotePopup from './components/NotePopup'
 
@@ -113,6 +115,31 @@ function computePath(all, leafId, convId) {
   return [...path, ...(all || []).filter(isTemp)]
 }
 
+// ==========================================
+// 底部四标签导航（对话 · 拾光 · 一隅 · 小屋）
+// 第五个标签位留空——将来"群聊"若做，住这里
+// 钢笔画线条图标：viewBox 24 / stroke currentColor / 1.6 圆头圆角
+// ==========================================
+const NAV_IC = {
+  chat: <path d="M12 4.5c-4.6 0-8 2.9-8 6.6 0 2.1 1.1 4 2.9 5.2-.1 1-.5 2.1-1.4 3 1.7-.1 3.1-.7 4-1.5.8.2 1.6.3 2.5.3 4.6 0 8-2.9 8-6.8s-3.4-6.8-8-6.8z" />,
+  moments: <><path d="M12 6.8C10.6 5.3 8.6 4.7 5 4.7v12.8c3.6 0 5.6.6 7 2 1.4-1.4 3.4-2 7-2V4.7c-3.6 0-5.6.6-7 2.1z" /><path d="M12 6.8v12.7" /></>,
+  corner: <><path d="M9.5 4.5h5" /><path d="M12 4.5v2.2" /><path d="M8.5 11.2c0-2.4 1.5-4.5 3.5-4.5s3.5 2.1 3.5 4.5v4.4c0 1-.8 1.9-1.8 1.9h-3.4c-1 0-1.8-.9-1.8-1.9v-4.4z" /><path d="M12 17.5v2" /></>,
+  cottage: <><path d="M4.5 11.3L12 4.5l7.5 6.8v6.9a1.5 1.5 0 0 1-1.5 1.5H6a1.5 1.5 0 0 1-1.5-1.5v-6.9z" /><path d="M10 19.7v-4.9h4v4.9" /></>
+}
+
+function BottomNav({ active, onChange }) {
+  return (
+    <div className="bottom-nav">
+      {[['chat', '对话'], ['moments', '拾光'], ['corner', '一隅'], ['cottage', '小屋']].map(([key, label]) => (
+        <button key={key} className={`nav-tab ${active === key ? 'active' : ''}`} onClick={() => onChange(key)}>
+          <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ display: 'block' }}>{NAV_IC[key]}</svg>
+          <span>{label}</span>
+        </button>
+      ))}
+    </div>
+  )
+}
+
 export default function App() {
   const [user, setUser] = useState(null)
   const [authLoading, setAuthLoading] = useState(true)
@@ -121,9 +148,10 @@ export default function App() {
   const [allMessages, setAllMessages] = useState([])
   const [activeLeafId, setActiveLeafId] = useState(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [settingsOpen, setSettingsOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
-  const [settingsTab, setSettingsTab] = useState('general')
+  // 骨架（改版第②步）：当前所在的房间——对话 chat / 拾光 moments / 一隅 corner / 小屋 cottage
+  const [activePage, setActivePage] = useState('chat')
+  const [cottageTab, setCottageTab] = useState('general')
   const [isStreaming, setIsStreaming] = useState(false)
   const [toast, setToast] = useState(null)
   const [apiKey, setApiKey] = useState('')
@@ -340,6 +368,7 @@ export default function App() {
   const selectConversation = async (convId) => {
     setActiveConvId(convId)
     setSidebarOpen(false)
+    setActivePage('chat')
     setAllMessages([])
     // 树系统：翻开这个对话时，把树梢书签放回上次停留的那条枝上（多设备同步的关键）
     const conv = conversations.find(c => c.id === convId)
@@ -355,6 +384,7 @@ export default function App() {
       setAllMessages([])
       setActiveLeafId(null)
       setSidebarOpen(false)
+      setActivePage('chat')
       return data
     }
     return null
@@ -403,7 +433,7 @@ export default function App() {
   // ==========================================
   const sendMessage = async (content) => {
     if (!content.trim() || isStreaming) return
-    if (!apiKey) { showToast('请先在设置中填写 API Key'); setSettingsOpen(true); return }
+    if (!apiKey) { showToast('请先在小屋里填写 API Key'); setActivePage('cottage'); setCottageTab('general'); return }
     let convId = activeConvId
     let isNewConv = false
     if (!convId) {
@@ -666,7 +696,7 @@ export default function App() {
   }
 
   const locateMessage = async (convId, msgId) => {
-    setSettingsOpen(false)
+    setActivePage('chat')
     let msgs = allMessages
     let leafId = activeLeafId
     if (convId !== activeConvId) {
@@ -911,20 +941,35 @@ export default function App() {
 
   const activeConv = conversations.find(c => c.id === activeConvId)
 
+  // 相识第 X 天：从该账号第一条消息起算（顶栏副行用）
+  const daysTogether = stats.firstChatDate
+    ? Math.floor((Date.now() - new Date(stats.firstChatDate).getTime()) / 86400000) + 1
+    : 0
+
+  const goCottage = () => { setActivePage('cottage'); setCottageTab('general'); setSidebarOpen(false) }
+
   return (
     <div className="app-container">
       {sidebarOpen && <div className="sidebar-backdrop" onClick={() => setSidebarOpen(false)} />}
-      <Sidebar conversations={conversations} activeConvId={activeConvId} isOpen={sidebarOpen} onSelect={selectConversation} onCreate={createConversation} onRename={renameConversation} onDelete={deleteConversation} onExport={exportConversation} onExportAll={exportAllData} onOpenSettings={() => { setSettingsOpen(true); setSettingsTab('general') }} />
-      <Chat
-        conversation={activeConv} messages={visibleMessages} isStreaming={isStreaming} cacheStats={cacheStats} variantIndexes={variantIndexes}
-        branchInfo={branchInfo} onSwitchBranch={switchBranch}
-        currentModel={activeConv?.model || model} onChangeModel={setConversationModel}
-        scrollToMsgId={scrollToMsgId} onScrollDone={() => setScrollToMsgId(null)}
-        onSend={sendMessage} onStop={stopStreaming} onToggleFavorite={toggleFavorite} onRegenerate={regenerateResponse} onEditMessage={editMessage} onEditAndResend={editAndResend} onSwitchVariant={switchVariant} onDeleteMessage={deleteMessage}
-        onMenuClick={() => setSidebarOpen(true)} onSettingsClick={() => { setSettingsOpen(true); setSettingsTab('general') }} onMemoryClick={() => { setSettingsOpen(true); setSettingsTab('memory') }} onSearchClick={() => setSearchOpen(true)}
-      />
+      <Sidebar conversations={conversations} activeConvId={activeConvId} isOpen={sidebarOpen} onSelect={selectConversation} onCreate={createConversation} onRename={renameConversation} onDelete={deleteConversation} onExport={exportConversation} onExportAll={exportAllData} onOpenSettings={goCottage} />
+      <div className="page-column">
+        {/* 对话页常驻不卸载（滚动位置和生成中的画面都留在原地），去别的房间时只是暂时藏起来 */}
+        <Chat
+          hidden={activePage !== 'chat'}
+          conversation={activeConv} messages={visibleMessages} isStreaming={isStreaming} cacheStats={cacheStats} variantIndexes={variantIndexes}
+          branchInfo={branchInfo} onSwitchBranch={switchBranch}
+          currentModel={activeConv?.model || model} onChangeModel={setConversationModel}
+          daysTogether={daysTogether}
+          scrollToMsgId={scrollToMsgId} onScrollDone={() => setScrollToMsgId(null)}
+          onSend={sendMessage} onStop={stopStreaming} onToggleFavorite={toggleFavorite} onRegenerate={regenerateResponse} onEditMessage={editMessage} onEditAndResend={editAndResend} onSwitchVariant={switchVariant} onDeleteMessage={deleteMessage}
+          onMenuClick={() => setSidebarOpen(true)} onSearchClick={() => setSearchOpen(true)}
+        />
+        {activePage === 'moments' && <Moments notes={notes} favorites={favorites} conversations={conversations} onUpdateNote={updateNote} onDeleteNote={deleteNote} onRemoveFavorite={removeFavorite} onLocateMessage={locateMessage} />}
+        {activePage === 'corner' && <Corner />}
+        {activePage === 'cottage' && <Cottage themeMode={themeMode} onChangeTheme={setThemeMode} tab={cottageTab} onTabChange={setCottageTab} apiKey={apiKey} systemPrompt={systemPrompt} model={model} temperature={temperature} topP={topP} maxContextMessages={maxContextMessages} memories={memories} stats={stats} onSaveApiKey={saveApiKey} onSaveSettings={saveSettings} onAddCoreMemory={addCoreMemory} onDeleteMemory={deleteMemory} onUpdateMemory={updateMemory} onExportAll={exportAllData} />}
+        <BottomNav active={activePage} onChange={setActivePage} />
+      </div>
       {searchOpen && <SearchPanel activeConvId={activeConvId} activeConvName={activeConv?.name} onClose={() => setSearchOpen(false)} onOpenResult={openSearchResult} />}
-      {settingsOpen && <Settings themeMode={themeMode} onChangeTheme={setThemeMode} temperature={temperature} topP={topP} tab={settingsTab} onTabChange={setSettingsTab} apiKey={apiKey} systemPrompt={systemPrompt} model={model} maxContextMessages={maxContextMessages} memories={memories} stats={stats} onSaveApiKey={saveApiKey} onSaveSettings={saveSettings} onAddCoreMemory={addCoreMemory} onDeleteMemory={deleteMemory} onUpdateMemory={updateMemory} notes={notes} onUpdateNote={updateNote} onDeleteNote={deleteNote} favorites={favorites} conversations={conversations} onRemoveFavorite={removeFavorite} onLocateMessage={locateMessage} onClose={() => setSettingsOpen(false)} />}
       {unreadNote && <NotePopup note={unreadNote} onDismiss={() => dismissNote(unreadNote.id)} />}
       {toast && <div className="toast">{toast}</div>}
     </div>
