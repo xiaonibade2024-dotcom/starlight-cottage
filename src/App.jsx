@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react'
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { supabase } from './lib/supabase'
 import { sendChatStream, sendChatFollowUp, sendChat } from './lib/api'
 import Auth from './components/Auth'
@@ -23,12 +23,103 @@ function textSimilarity(a, b) {
   return inter / Math.min(A.size, B.size)
 }
 
+// ==========================================
+// 树系统工具箱（对话分支的核心算法，全部是纯函数）
+// 约定：parent_id 为空 = 直线时代的老消息（按时间串成树干）
+//       parent_id = 对话id = 挂在对话最开头的消息（树根的孩子）
+//       parent_id = 某条消息id = 那条消息的孩子
+// ==========================================
+const isTemp = (m) => String(m?.id || '').startsWith('streaming-')
+const byCreated = (a, b) => new Date(a.created_at) - new Date(b.created_at)
+
+// 给整棵树建立索引：谁是谁的孩子、直线时代的树干顺序
+function buildTreeIndex(all, convId) {
+  const persisted = (all || []).filter(m => !isTemp(m))
+  const byId = new Map(persisted.map(m => [m.id, m]))
+  const legacy = persisted.filter(m => !m.parent_id).sort(byCreated)
+  const legacyPos = new Map(legacy.map((m, i) => [m.id, i]))
+  const childMap = new Map()
+  for (const m of persisted) {
+    if (m.parent_id) {
+      if (!childMap.has(m.parent_id)) childMap.set(m.parent_id, [])
+      childMap.get(m.parent_id).push(m)
+    }
+  }
+  return { persisted, byId, legacy, legacyPos, childMap, convId }
+}
+
+// 某个节点的所有孩子（含直线时代的"隐形孩子"：树干上时间紧随其后的那条）
+function childrenOf(idx, parentNode) {
+  const pid = parentNode ? parentNode.id : idx.convId
+  const explicit = idx.childMap.get(pid) || []
+  let implicit = null
+  if (!parentNode) {
+    implicit = idx.legacy[0] || null
+  } else if (!parentNode.parent_id) {
+    const i = idx.legacyPos.get(parentNode.id)
+    if (i !== undefined && i + 1 < idx.legacy.length) implicit = idx.legacy[i + 1]
+  }
+  const list = implicit ? [implicit, ...explicit.filter(m => m.id !== implicit.id)] : [...explicit]
+  return list.sort(byCreated)
+}
+
+// 从某个节点出发，沿"最新的孩子"一路走到这条枝的末梢
+function deepestLeaf(idx, node) {
+  let cur = node
+  const seen = new Set()
+  while (cur && !seen.has(cur.id)) {
+    seen.add(cur.id)
+    const kids = childrenOf(idx, cur)
+    if (kids.length === 0) break
+    cur = kids.reduce((a, b) => (byCreated(a, b) >= 0 ? a : b))
+  }
+  return cur
+}
+
+// 核心：从树梢书签出发往回走，算出当前应该显示的一条时间线
+function computePath(all, leafId, convId) {
+  if (!all || all.length === 0) return []
+  const idx = buildTreeIndex(all, convId)
+  const { persisted, byId, legacy } = idx
+  if (persisted.length === 0) return (all || []).filter(isTemp)
+  // 书签失效（为空/指向已删除的消息）时，退回到全对话最新的一条
+  let leaf = (leafId && byId.get(leafId)) || null
+  if (!leaf) leaf = persisted.reduce((a, b) => (byCreated(a, b) >= 0 ? a : b))
+  const path = []
+  const seen = new Set()
+  let cur = leaf
+  while (cur && !seen.has(cur.id)) {
+    seen.add(cur.id)
+    path.unshift(cur)
+    const pid = cur.parent_id
+    if (!pid) {
+      // 走到直线时代：把树干上更早的老消息全部垫在前面
+      const t = new Date(cur.created_at)
+      path.unshift(...legacy.filter(m => m.id !== cur.id && new Date(m.created_at) < t))
+      cur = null
+    } else if (pid === convId) {
+      cur = null
+    } else {
+      const next = byId.get(pid) || null
+      if (!next) {
+        // 断链兜底（理论上不会发生）：把更早的树干消息垫在前面，尽量别让画面缺一截
+        const t = new Date(cur.created_at)
+        path.unshift(...legacy.filter(m => new Date(m.created_at) < t))
+      }
+      cur = next
+    }
+  }
+  // 正在生成中的临时气泡永远排在时间线末尾
+  return [...path, ...(all || []).filter(isTemp)]
+}
+
 export default function App() {
   const [user, setUser] = useState(null)
   const [authLoading, setAuthLoading] = useState(true)
   const [conversations, setConversations] = useState([])
   const [activeConvId, setActiveConvId] = useState(null)
-  const [messages, setMessages] = useState([])
+  const [allMessages, setAllMessages] = useState([])
+  const [activeLeafId, setActiveLeafId] = useState(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
@@ -55,6 +146,29 @@ export default function App() {
   const memoriesRef = useRef([])
   const sessionStartRef = useRef(new Date().toISOString())
   useEffect(() => { memoriesRef.current = memories }, [memories])
+
+  // 树系统：从全部消息里算出"当前时间线"（界面上看到的就是它）
+  const visibleMessages = useMemo(
+    () => computePath(allMessages, activeLeafId, activeConvId),
+    [allMessages, activeLeafId, activeConvId]
+  )
+
+  // 树系统：算出时间线上每个岔路口的位置（第几条枝/共几条枝），给 ◀ ▶ 箭头用
+  const branchInfo = useMemo(() => {
+    if (!activeConvId) return {}
+    const idx = buildTreeIndex(allMessages, activeConvId)
+    const path = visibleMessages.filter(m => !isTemp(m))
+    const info = {}
+    for (let i = 0; i < path.length; i++) {
+      const parent = i > 0 ? path[i - 1] : null
+      const sibs = childrenOf(idx, parent)
+      if (sibs.length > 1) {
+        const pos = sibs.findIndex(s => s.id === path[i].id)
+        if (pos >= 0) info[path[i].id] = { index: pos, total: sibs.length, siblings: sibs.map(s => s.id) }
+      }
+    }
+    return info
+  }, [allMessages, visibleMessages, activeConvId])
 
   const showToast = useCallback((msg) => {
     setToast(msg)
@@ -94,7 +208,7 @@ export default function App() {
   const loadMessages = async (convId) => {
     const { data, error } = await supabase.from('messages').select('*').eq('conversation_id', convId).order('created_at', { ascending: true })
     if (!error && data) {
-      setMessages(data)
+      setAllMessages(data)
       const indexes = {}
       data.forEach(m => {
         if (m.variants && m.variants.length > 0) {
@@ -103,7 +217,9 @@ export default function App() {
         }
       })
       setVariantIndexes(indexes)
+      return data
     }
+    return []
   }
 
   const loadMemories = async () => {
@@ -202,8 +318,11 @@ export default function App() {
   const selectConversation = async (convId) => {
     setActiveConvId(convId)
     setSidebarOpen(false)
-    setMessages([])
-    await loadMessages(convId)
+    setAllMessages([])
+    // 树系统：翻开这个对话时，把树梢书签放回上次停留的那条枝上（多设备同步的关键）
+    const conv = conversations.find(c => c.id === convId)
+    setActiveLeafId(conv?.active_leaf_id || null)
+    return await loadMessages(convId)
   }
 
   const createConversation = async (name = '新对话') => {
@@ -211,7 +330,8 @@ export default function App() {
     if (!error && data) {
       setConversations(prev => [data, ...prev])
       setActiveConvId(data.id)
-      setMessages([])
+      setAllMessages([])
+      setActiveLeafId(null)
       setSidebarOpen(false)
       return data
     }
@@ -226,7 +346,7 @@ export default function App() {
   const deleteConversation = async (convId) => {
     await supabase.from('conversations').delete().eq('id', convId)
     setConversations(prev => prev.filter(c => c.id !== convId))
-    if (activeConvId === convId) { setActiveConvId(null); setMessages([]) }
+    if (activeConvId === convId) { setActiveConvId(null); setAllMessages([]); setActiveLeafId(null) }
     showToast('对话已删除')
     loadStats()
   }
@@ -270,11 +390,14 @@ export default function App() {
       convId = conv.id
       isNewConv = true
     }
-    // 树系统：给新消息盖"上一条是谁"的印章（第一条消息认对话本身作根；老消息为空=直线时代，正常）
-    const parentId = (!isNewConv && messages.length > 0) ? messages[messages.length - 1].id : convId
+    // 树系统：新消息接在当前时间线的末梢上（第一条消息认对话本身作根）
+    const timeline = visibleMessages.filter(m => !isTemp(m))
+    const parentId = (!isNewConv && timeline.length > 0) ? timeline[timeline.length - 1].id : convId
     const { data: savedUserMsg } = await supabase.from('messages').insert({ conversation_id: convId, role: 'user', content: content.trim(), parent_id: parentId }).select().single()
     if (!savedUserMsg) return
-    setMessages(prev => [...prev, savedUserMsg])
+    setAllMessages(prev => [...prev, savedUserMsg])
+    setActiveLeafId(savedUserMsg.id)
+    setConversations(prev => prev.map(c => c.id === convId ? { ...c, active_leaf_id: savedUserMsg.id } : c))
     await supabase.from('conversations').update({ updated_at: new Date().toISOString(), active_leaf_id: savedUserMsg.id }).eq('id', convId)
 
     // 新对话：起名和对话并行（起名不阻塞聊天）
@@ -282,24 +405,27 @@ export default function App() {
       autoNameConversation(convId, content.trim())
     }
 
-    await streamAIResponse(convId, [...messages, savedUserMsg])
+    await streamAIResponse(convId, [...timeline, savedUserMsg], { parentId: savedUserMsg.id })
   }
 
-  const streamAIResponse = async (convId, allMessages, existingMsgId = null) => {
+  // opts.parentId：新回复要挂在哪条消息下面；opts.onFail：失败时把树梢书签放回原处
+  const streamAIResponse = async (convId, historyMessages, opts = {}) => {
     setIsStreaming(true)
     const abortController = new AbortController()
     abortControllerRef.current = abortController
     const useModel = conversations.find(c => c.id === convId)?.model || model
     let streamContent = ''
-    const tempId = existingMsgId || ('streaming-' + Date.now())
+    const tempId = 'streaming-' + Date.now()
 
-    if (!existingMsgId) {
-      setMessages(prev => [...prev, { id: tempId, conversation_id: convId, role: 'assistant', content: '', created_at: new Date().toISOString() }])
-    } else {
-      setMessages(prev => prev.map(m => m.id === existingMsgId ? { ...m, content: '' } : m))
+    setAllMessages(prev => [...prev, { id: tempId, conversation_id: convId, role: 'assistant', content: '', created_at: new Date().toISOString() }])
+
+    const recentMessages = historyMessages.slice(-maxContextMessages).map(m => ({ role: m.role, content: m.content, created_at: m.created_at }))
+
+    // 空手而归时的收拾：撤走临时气泡，需要的话把树梢书签放回原处
+    const cleanupFail = () => {
+      setAllMessages(prev => prev.filter(m => m.id !== tempId))
+      if (opts.onFail) opts.onFail()
     }
-
-    const recentMessages = allMessages.slice(-maxContextMessages).map(m => ({ role: m.role, content: m.content, created_at: m.created_at }))
 
     let displayContent = ''
     let rafId = null
@@ -308,7 +434,7 @@ export default function App() {
       if (!rafId) {
         rafId = requestAnimationFrame(() => {
           rafId = null
-          setMessages(prev => prev.map(m => m.id === tempId ? { ...m, content: displayContent } : m))
+          setAllMessages(prev => prev.map(m => m.id === tempId ? { ...m, content: displayContent } : m))
         })
       }
     }
@@ -336,7 +462,7 @@ export default function App() {
         onError: (error) => {
           if (rafId) { cancelAnimationFrame(rafId); rafId = null }
           showToast('发送失败: ' + error.message)
-          if (!existingMsgId) setMessages(prev => prev.filter(m => m.id !== tempId))
+          cleanupFail()
         },
         onDone: async (finalContent, toolCalls) => {
           if (rafId) { cancelAnimationFrame(rafId); rafId = null }
@@ -351,23 +477,15 @@ export default function App() {
           }
 
           const persistContent = async (content) => {
-            if (existingMsgId) {
-              const msg = allMessages.find(m => m.id === existingMsgId) || messages.find(m => m.id === existingMsgId)
-              let variants = msg?.variants || []
-              if (variants.length === 0 && msg) variants = [{ content: msg.content, created_at: msg.created_at }]
-              variants.push({ content, created_at: new Date().toISOString() })
-              await supabase.from('messages').update({ content, variants }).eq('id', existingMsgId)
-              setMessages(prev => prev.map(m => m.id === existingMsgId ? { ...m, content, variants } : m))
-              setVariantIndexes(prev => ({ ...prev, [existingMsgId]: variants.length - 1 }))
-            } else {
-              setMessages(prev => prev.map(m => m.id === tempId ? { ...m, content } : m))
-              // 树系统：他的回复认最后那条用户消息作为上一条
-              const parentForAssistant = allMessages.length > 0 ? allMessages[allMessages.length - 1].id : convId
-              const { data: savedMsg } = await supabase.from('messages').insert({ conversation_id: convId, role: 'assistant', content, parent_id: parentForAssistant }).select().single()
-              if (savedMsg) {
-                setMessages(prev => prev.map(m => m.id === tempId ? savedMsg : m))
-                await supabase.from('conversations').update({ active_leaf_id: savedMsg.id }).eq('id', convId)
-              }
+            setAllMessages(prev => prev.map(m => m.id === tempId ? { ...m, content } : m))
+            // 树系统：新回复挂到指定的枝头上，并把树梢书签移过去
+            const parentForAssistant = opts.parentId || (historyMessages.length > 0 ? historyMessages[historyMessages.length - 1].id : convId)
+            const { data: savedMsg } = await supabase.from('messages').insert({ conversation_id: convId, role: 'assistant', content, parent_id: parentForAssistant }).select().single()
+            if (savedMsg) {
+              setAllMessages(prev => prev.map(m => m.id === tempId ? savedMsg : m))
+              setActiveLeafId(savedMsg.id)
+              setConversations(prev => prev.map(c => c.id === convId ? { ...c, active_leaf_id: savedMsg.id } : c))
+              await supabase.from('conversations').update({ active_leaf_id: savedMsg.id }).eq('id', convId)
             }
           }
 
@@ -434,7 +552,7 @@ export default function App() {
               if (finalText) {
                 await persistContent(finalText)
               } else {
-                if (!existingMsgId) setMessages(prev => prev.filter(m => m.id !== tempId))
+                cleanupFail()
                 showToast('💬 他似乎欲言又止，再试一次吧')
               }
             } catch (e) {
@@ -444,11 +562,11 @@ export default function App() {
                 try { await persistContent(followUpStream) } catch (saveErr) { console.error('抢救保存失败:', saveErr) }
                 if (e.name !== 'AbortError') showToast('⚠️ 回复可能不完整')
               } else {
-                if (!existingMsgId) setMessages(prev => prev.filter(m => m.id !== tempId))
+                cleanupFail()
                 if (e.name !== 'AbortError') showToast('获取回复失败: ' + e.message)
               }
             }
-          } else { if (!existingMsgId) setMessages(prev => prev.filter(m => m.id !== tempId)) }
+          } else { cleanupFail() }
 
           setIsStreaming(false)
           abortControllerRef.current = null
@@ -460,7 +578,7 @@ export default function App() {
       if (rafId) { cancelAnimationFrame(rafId); rafId = null }
       setIsStreaming(false)
       abortControllerRef.current = null
-      if (!existingMsgId) setMessages(prev => prev.filter(m => m.id !== tempId))
+      cleanupFail()
       showToast('发送失败: ' + error.message)
     }
   }
@@ -476,76 +594,130 @@ export default function App() {
     await supabase.from('conversations').update({ model: value }).eq('id', activeConvId)
   }
 
+  // 树系统：定位到的消息如果不在当前时间线上，先把书签切到它所在的那条枝
+  const revealMessage = (convId, msgId, msgs, leafId) => {
+    const rows = msgs || []
+    const target = rows.find(m => m.id === msgId)
+    if (!target) return
+    const path = computePath(rows, leafId, convId)
+    if (path.some(m => m.id === msgId)) return
+    const idx = buildTreeIndex(rows, convId)
+    const leaf = deepestLeaf(idx, target)
+    if (!leaf) return
+    setActiveLeafId(leaf.id)
+    setConversations(prev => prev.map(c => c.id === convId ? { ...c, active_leaf_id: leaf.id } : c))
+    supabase.from('conversations').update({ active_leaf_id: leaf.id }).eq('id', convId)
+  }
+
   const openSearchResult = async (convId, msgId) => {
     setSearchOpen(false)
+    let msgs = allMessages
+    let leafId = activeLeafId
     if (convId !== activeConvId) {
-      await selectConversation(convId)
+      msgs = await selectConversation(convId)
+      leafId = conversations.find(c => c.id === convId)?.active_leaf_id || null
     }
-    if (msgId) setScrollToMsgId(msgId)
+    if (msgId) {
+      revealMessage(convId, msgId, msgs, leafId)
+      setScrollToMsgId(msgId)
+    }
   }
 
   const locateMessage = async (convId, msgId) => {
     setSettingsOpen(false)
+    let msgs = allMessages
+    let leafId = activeLeafId
     if (convId !== activeConvId) {
-      await selectConversation(convId)
+      msgs = await selectConversation(convId)
+      leafId = conversations.find(c => c.id === convId)?.active_leaf_id || null
     }
-    if (msgId) setScrollToMsgId(msgId)
+    if (msgId) {
+      revealMessage(convId, msgId, msgs, leafId)
+      setScrollToMsgId(msgId)
+    }
   }
 
+  // 树系统：重新生成 = 在同一个位置长出一条新枝（旧回复和它后面的剧情完整保留）
   const regenerateResponse = async (msgId) => {
     if (isStreaming || !apiKey) return
-    const msgIndex = messages.findIndex(m => m.id === msgId)
-    if (msgIndex < 0) return
-    const historyMessages = messages.slice(0, msgIndex)
-    const convId = messages[msgIndex].conversation_id
-    await streamAIResponse(convId, historyMessages, msgId)
+    const idx = visibleMessages.findIndex(m => m.id === msgId)
+    if (idx < 0) return
+    const target = visibleMessages[idx]
+    if (isTemp(target)) return
+    const convId = target.conversation_id
+    const history = visibleMessages.slice(0, idx).filter(m => !isTemp(m))
+    const parentId = history.length > 0 ? history[history.length - 1].id : convId
+    // 长新枝前记住原来的书签位置，万一失败要把视线放回去
+    const prevLeaf = activeLeafId
+    setActiveLeafId(parentId === convId ? null : parentId)
+    await streamAIResponse(convId, history, { parentId, onFail: () => setActiveLeafId(prevLeaf) })
   }
 
   const switchVariant = async (msgId, newIndex) => {
-    const msg = messages.find(m => m.id === msgId)
+    const msg = allMessages.find(m => m.id === msgId)
     if (!msg || !msg.variants || msg.variants.length === 0) return
     const variant = msg.variants[newIndex]
     if (!variant) return
     await supabase.from('messages').update({ content: variant.content }).eq('id', msgId)
-    setMessages(prev => prev.map(m => m.id === msgId ? { ...m, content: variant.content } : m))
+    setAllMessages(prev => prev.map(m => m.id === msgId ? { ...m, content: variant.content } : m))
     setVariantIndexes(prev => ({ ...prev, [msgId]: newIndex }))
+  }
+
+  // 树系统：在岔路口切换分支——书签跳到目标枝的末梢，整条时间线跟着换
+  const switchBranch = (msgId, newIndex) => {
+    if (isStreaming) return
+    const info = branchInfo[msgId]
+    if (!info) return
+    const targetId = info.siblings[newIndex]
+    if (!targetId || targetId === msgId) return
+    const idx = buildTreeIndex(allMessages, activeConvId)
+    const target = idx.byId.get(targetId)
+    if (!target) return
+    const leaf = deepestLeaf(idx, target)
+    if (!leaf) return
+    setActiveLeafId(leaf.id)
+    setConversations(prev => prev.map(c => c.id === activeConvId ? { ...c, active_leaf_id: leaf.id } : c))
+    supabase.from('conversations').update({ active_leaf_id: leaf.id }).eq('id', activeConvId)
   }
 
   const editMessage = async (msgId, newContent) => {
     if (!newContent.trim()) return
     await supabase.from('messages').update({ content: newContent.trim() }).eq('id', msgId)
-    setMessages(prev => prev.map(m => m.id === msgId ? { ...m, content: newContent.trim() } : m))
+    setAllMessages(prev => prev.map(m => m.id === msgId ? { ...m, content: newContent.trim() } : m))
     showToast('消息已保存')
   }
 
+  // 树系统：编辑并发送 = 长出一条兄弟消息作为新枝（原消息和它后面的剧情完整保留）
   const editAndResend = async (msgId, newContent) => {
     if (!newContent.trim() || isStreaming || !apiKey) return
-    await supabase.from('messages').update({ content: newContent.trim() }).eq('id', msgId)
-    const updatedMessages = messages.map(m => m.id === msgId ? { ...m, content: newContent.trim() } : m)
-    setMessages(updatedMessages)
-    const msgIndex = updatedMessages.findIndex(m => m.id === msgId)
-    if (msgIndex < 0) return
-    const convId = updatedMessages[msgIndex].conversation_id
-    const nextAssistantIndex = updatedMessages.findIndex((m, i) => i > msgIndex && m.role === 'assistant')
-    if (nextAssistantIndex >= 0) {
-      const historyUpToUser = updatedMessages.slice(0, msgIndex + 1)
-      await streamAIResponse(convId, historyUpToUser, updatedMessages[nextAssistantIndex].id)
-    } else {
-      const historyUpToUser = updatedMessages.slice(0, msgIndex + 1)
-      await streamAIResponse(convId, historyUpToUser)
-    }
+    const idx = visibleMessages.findIndex(m => m.id === msgId)
+    if (idx < 0) return
+    const original = visibleMessages[idx]
+    const convId = original.conversation_id
+    const parentId = idx > 0 ? visibleMessages[idx - 1].id : convId
+    const { data: newUserMsg } = await supabase.from('messages').insert({ conversation_id: convId, role: 'user', content: newContent.trim(), parent_id: parentId }).select().single()
+    if (!newUserMsg) { showToast('保存失败，请重试'); return }
+    setAllMessages(prev => [...prev, newUserMsg])
+    setActiveLeafId(newUserMsg.id)
+    setConversations(prev => prev.map(c => c.id === convId ? { ...c, active_leaf_id: newUserMsg.id } : c))
+    await supabase.from('conversations').update({ updated_at: new Date().toISOString(), active_leaf_id: newUserMsg.id }).eq('id', convId)
+    const history = [...visibleMessages.slice(0, idx).filter(m => !isTemp(m)), newUserMsg]
+    await streamAIResponse(convId, history, { parentId: newUserMsg.id })
   }
 
   const deleteMessage = async (msgId) => {
-    const target = messages.find(m => m.id === msgId)
+    const target = allMessages.find(m => m.id === msgId)
     // 树系统：删除前把它的"孩子们"过继给它的上一条，树梢书签若指着它也一并挪走，避免断链
     if (target) {
-      await supabase.from('messages').update({ parent_id: target.parent_id || null }).eq('parent_id', msgId)
-      await supabase.from('conversations').update({ active_leaf_id: target.parent_id || null }).eq('id', target.conversation_id).eq('active_leaf_id', msgId)
-      setMessages(prev => prev.map(m => m.parent_id === msgId ? { ...m, parent_id: target.parent_id || null } : m))
+      const newParent = target.parent_id || null
+      const newLeaf = (newParent && newParent !== target.conversation_id) ? newParent : null
+      await supabase.from('messages').update({ parent_id: newParent }).eq('parent_id', msgId)
+      await supabase.from('conversations').update({ active_leaf_id: newLeaf }).eq('id', target.conversation_id).eq('active_leaf_id', msgId)
+      setAllMessages(prev => prev.map(m => m.parent_id === msgId ? { ...m, parent_id: newParent } : m))
+      if (activeLeafId === msgId) setActiveLeafId(newLeaf)
     }
     await supabase.from('messages').delete().eq('id', msgId)
-    setMessages(prev => prev.filter(m => m.id !== msgId))
+    setAllMessages(prev => prev.filter(m => m.id !== msgId))
     if (target?.is_favorited) setFavorites(prev => prev.filter(f => f.id !== msgId))
     showToast('已删除这条消息')
     loadStats()
@@ -605,11 +777,11 @@ export default function App() {
   }
 
   const toggleFavorite = async (msgId) => {
-    const msg = messages.find(m => m.id === msgId)
+    const msg = allMessages.find(m => m.id === msgId)
     if (!msg) return
     const newFav = !msg.is_favorited
     await supabase.from('messages').update({ is_favorited: newFav }).eq('id', msgId)
-    setMessages(prev => prev.map(m => m.id === msgId ? { ...m, is_favorited: newFav } : m))
+    setAllMessages(prev => prev.map(m => m.id === msgId ? { ...m, is_favorited: newFav } : m))
     if (newFav) {
       setFavorites(prev => [{ ...msg, is_favorited: true }, ...prev])
     } else {
@@ -621,7 +793,7 @@ export default function App() {
   const removeFavorite = async (msgId) => {
     await supabase.from('messages').update({ is_favorited: false }).eq('id', msgId)
     setFavorites(prev => prev.filter(f => f.id !== msgId))
-    setMessages(prev => prev.map(m => m.id === msgId ? { ...m, is_favorited: false } : m))
+    setAllMessages(prev => prev.map(m => m.id === msgId ? { ...m, is_favorited: false } : m))
     showToast('已取消收藏')
   }
 
@@ -650,11 +822,13 @@ export default function App() {
     const conv = conversations.find(c => c.id === convId)
     if (!conv) return
     const { data: msgs } = await supabase.from('messages').select('*').eq('conversation_id', convId).order('created_at', { ascending: true })
-    const messages = msgs || []
+    const rows = msgs || []
+    // MD 导出跟随当前时间线（读起来是一条完整的故事线）；JSON 导出保留全部分支（完整备份）
+    const ordered = format === 'md' ? computePath(rows, conv.active_leaf_id || null, convId).filter(m => !isTemp(m)) : rows
     let blob, filename
     if (format === 'md') {
       const lines = [`# ${conv.name}`, '', `> 导出自星月小屋 · ${new Date().toLocaleString('zh-CN')}`, '']
-      for (const m of messages) {
+      for (const m of ordered) {
         let text = m.content || ''
         let imageNote = ''
         try { const parsed = JSON.parse(m.content); if (parsed.images) { text = parsed.text || ''; imageNote = `（附 ${parsed.images.length} 张图片）` } } catch (e) {}
@@ -665,7 +839,7 @@ export default function App() {
       blob = new Blob([lines.join('\n')], { type: 'text/markdown' })
       filename = `${conv.name}_${new Date().toLocaleDateString()}.md`
     } else {
-      const exportData = { conversation: conv, messages, exportedAt: new Date().toISOString() }
+      const exportData = { conversation: conv, messages: rows, exportedAt: new Date().toISOString() }
       blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' })
       filename = `${conv.name}_${new Date().toLocaleDateString()}.json`
     }
@@ -700,7 +874,8 @@ export default function App() {
       {sidebarOpen && <div className="sidebar-backdrop" onClick={() => setSidebarOpen(false)} />}
       <Sidebar conversations={conversations} activeConvId={activeConvId} isOpen={sidebarOpen} onSelect={selectConversation} onCreate={createConversation} onRename={renameConversation} onDelete={deleteConversation} onExport={exportConversation} onExportAll={exportAllData} onOpenSettings={() => { setSettingsOpen(true); setSettingsTab('general') }} />
       <Chat
-        conversation={activeConv} messages={messages} isStreaming={isStreaming} cacheStats={cacheStats} variantIndexes={variantIndexes}
+        conversation={activeConv} messages={visibleMessages} isStreaming={isStreaming} cacheStats={cacheStats} variantIndexes={variantIndexes}
+        branchInfo={branchInfo} onSwitchBranch={switchBranch}
         currentModel={activeConv?.model || model} onChangeModel={setConversationModel}
         scrollToMsgId={scrollToMsgId} onScrollDone={() => setScrollToMsgId(null)}
         onSend={sendMessage} onStop={stopStreaming} onToggleFavorite={toggleFavorite} onRegenerate={regenerateResponse} onEditMessage={editMessage} onEditAndResend={editAndResend} onSwitchVariant={switchVariant} onDeleteMessage={deleteMessage}
