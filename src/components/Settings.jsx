@@ -1,6 +1,8 @@
 import React, { useState } from 'react'
 
 export default function Settings({
+  themeMode,
+  onChangeTheme,
   tab,
   onTabChange,
   apiKey,
@@ -192,6 +194,16 @@ export default function Settings({
           {tab === 'general' && (
             <>
               <div className="settings-section">
+                <div className="settings-label">小屋主题</div>
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '4px' }}>
+                  {[['day', '日 · 藕粉雾紫'], ['night', '夜 · 暮色星屋'], ['auto', '跟随时辰']].map(([v, label]) => (
+                    <button key={v} onClick={() => onChangeTheme(v)} style={{ padding: '6px 14px', fontSize: '12px', fontFamily: 'var(--font-main)', border: themeMode === v ? '1px solid var(--accent)' : '1px solid var(--border)', borderRadius: '20px', background: themeMode === v ? 'var(--accent)' : 'var(--bg-primary)', color: themeMode === v ? 'var(--text-inverse)' : 'var(--text-secondary)', cursor: 'pointer', transition: 'all 0.3s' }}>{label}</button>
+                  ))}
+                </div>
+                <div className="settings-hint">点一下立刻换装，无需保存 · 跟随时辰：傍晚六点自动入夜，清晨六点回到白日</div>
+              </div>
+
+              <div className="settings-section">
                 <div className="settings-label">API Key</div>
                 <input type="password" className="settings-input" placeholder="sk-or-..." value={localApiKey} onChange={e => setLocalApiKey(e.target.value)} />
                 <div className="settings-hint">OpenRouter API Key，仅保存在你的浏览器本地</div>
@@ -227,9 +239,9 @@ export default function Settings({
                 </div>
                 <div style={{ display: 'flex', gap: '6px', marginTop: '8px', flexWrap: 'wrap' }}>
                   {[10, 30, 50, 80, 100, 200, 500].map(v => (
-                    <button key={v} onClick={() => setLocalMaxCtx(v)} style={{ padding: '5px 14px', fontSize: '12px', border: localMaxCtx === v ? '1px solid var(--accent)' : '1px solid var(--border)', borderRadius: '20px', background: localMaxCtx === v ? 'var(--accent)' : 'var(--bg-primary)', color: localMaxCtx === v ? 'white' : 'var(--text-secondary)', cursor: 'pointer' }}>{v}</button>
+                    <button key={v} onClick={() => setLocalMaxCtx(v)} style={{ padding: '5px 14px', fontSize: '12px', border: localMaxCtx === v ? '1px solid var(--accent)' : '1px solid var(--border)', borderRadius: '20px', background: localMaxCtx === v ? 'var(--accent)' : 'var(--bg-primary)', color: localMaxCtx === v ? 'var(--text-inverse)' : 'var(--text-secondary)', cursor: 'pointer' }}>{v}</button>
                   ))}
-                  <button onClick={() => setLocalMaxCtx(99999)} style={{ padding: '5px 14px', fontSize: '12px', border: isUnlimited ? '1px solid var(--accent)' : '1px solid var(--border)', borderRadius: '20px', background: isUnlimited ? 'var(--accent)' : 'var(--bg-primary)', color: isUnlimited ? 'white' : 'var(--text-secondary)', cursor: 'pointer' }}>无上限</button>
+                  <button onClick={() => setLocalMaxCtx(99999)} style={{ padding: '5px 14px', fontSize: '12px', border: isUnlimited ? '1px solid var(--accent)' : '1px solid var(--border)', borderRadius: '20px', background: isUnlimited ? 'var(--accent)' : 'var(--bg-primary)', color: isUnlimited ? 'var(--text-inverse)' : 'var(--text-secondary)', cursor: 'pointer' }}>无上限</button>
                 </div>
                 <div className="settings-hint">每次发送时携带的最近消息数量。越多上下文越完整，但消耗也越大。建议 30-60。选择"无上限"会发送当前对话的全部历史消息。</div>
               </div>
