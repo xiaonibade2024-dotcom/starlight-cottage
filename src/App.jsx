@@ -143,6 +143,28 @@ export default function App() {
   const toastTimeoutRef = useRef(null)
   const recentSavesRef = useRef(new Set())
   const abortControllerRef = useRef(null)
+
+  // 日夜主题：day（藕粉雾紫）/ night（暮色星屋）/ auto（跟随时辰：傍晚六点入夜、清晨六点回日）
+  // 只存浏览器本地，立即生效，不进数据库
+  const [themeMode, setThemeMode] = useState(() => localStorage.getItem('starlight_theme') || 'day')
+  useEffect(() => {
+    localStorage.setItem('starlight_theme', themeMode)
+    const applyTheme = () => {
+      let t = themeMode
+      if (t === 'auto') {
+        const h = new Date().getHours()
+        t = (h >= 18 || h < 6) ? 'night' : 'day'
+      }
+      document.documentElement.setAttribute('data-theme', t)
+      // 手机状态栏颜色跟着换（PWA 顶部那一条）
+      const meta = document.querySelector('meta[name="theme-color"]')
+      if (meta) meta.setAttribute('content', t === 'night' ? '#2E2830' : '#FAF3F6')
+    }
+    applyTheme()
+    if (themeMode !== 'auto') return
+    const timer = setInterval(applyTheme, 60000)
+    return () => clearInterval(timer)
+  }, [themeMode])
   const memoriesRef = useRef([])
   const sessionStartRef = useRef(new Date().toISOString())
   useEffect(() => { memoriesRef.current = memories }, [memories])
@@ -417,6 +439,17 @@ export default function App() {
     let streamContent = ''
     const tempId = 'streaming-' + Date.now()
 
+    // 费用记账：接住 OpenRouter 每一笔账单小票（主请求+追加请求都算），随这条回复一起存库
+    const billTally = { cost: 0, prompt: 0, completion: 0, cached: 0, bills: 0 }
+    const tallyUsage = (u) => {
+      if (!u) return
+      billTally.bills += 1
+      billTally.cost += (typeof u.cost === 'number' ? u.cost : 0)
+      billTally.prompt += (u.prompt_tokens || 0)
+      billTally.completion += (u.completion_tokens || 0)
+      billTally.cached += (u.prompt_tokens_details?.cached_tokens || u.cached_tokens || 0)
+    }
+
     setAllMessages(prev => [...prev, { id: tempId, conversation_id: convId, role: 'assistant', content: '', created_at: new Date().toISOString() }])
 
     const recentMessages = historyMessages.slice(-maxContextMessages).map(m => ({ role: m.role, content: m.content, created_at: m.created_at }))
@@ -448,6 +481,7 @@ export default function App() {
         },
         onToolCall: async () => {},
         onUsage: (usage) => {
+          tallyUsage(usage)
           const cachedTokens = usage.prompt_tokens_details?.cached_tokens || usage.cached_tokens || 0
           const cacheWrite = usage.prompt_tokens_details?.cache_write_tokens || 0
           setCacheStats(prev => ({
@@ -480,7 +514,15 @@ export default function App() {
             setAllMessages(prev => prev.map(m => m.id === tempId ? { ...m, content } : m))
             // 树系统：新回复挂到指定的枝头上，并把树梢书签移过去
             const parentForAssistant = opts.parentId || (historyMessages.length > 0 ? historyMessages[historyMessages.length - 1].id : convId)
-            const { data: savedMsg } = await supabase.from('messages').insert({ conversation_id: convId, role: 'assistant', content, parent_id: parentForAssistant }).select().single()
+            // 费用记账：小票汇总（cost 单位是美元；bills = 这条回复背后一共几笔账单）
+            const tokenUsage = billTally.bills > 0 ? {
+              cost: Number(billTally.cost.toFixed(6)),
+              prompt_tokens: billTally.prompt,
+              completion_tokens: billTally.completion,
+              cached_tokens: billTally.cached,
+              bills: billTally.bills
+            } : null
+            const { data: savedMsg } = await supabase.from('messages').insert({ conversation_id: convId, role: 'assistant', content, parent_id: parentForAssistant, token_usage: tokenUsage }).select().single()
             if (savedMsg) {
               setAllMessages(prev => prev.map(m => m.id === tempId ? savedMsg : m))
               setActiveLeafId(savedMsg.id)
@@ -519,7 +561,7 @@ export default function App() {
                   }
                 })
 
-                if (res.usage) followUpUsage = res.usage
+                if (res.usage) { followUpUsage = res.usage; tallyUsage(res.usage) }
                 followUpContent = res.content || ''
 
                 if (res.toolCalls && res.toolCalls.length > 0) {
@@ -882,7 +924,7 @@ export default function App() {
         onMenuClick={() => setSidebarOpen(true)} onSettingsClick={() => { setSettingsOpen(true); setSettingsTab('general') }} onMemoryClick={() => { setSettingsOpen(true); setSettingsTab('memory') }} onSearchClick={() => setSearchOpen(true)}
       />
       {searchOpen && <SearchPanel activeConvId={activeConvId} activeConvName={activeConv?.name} onClose={() => setSearchOpen(false)} onOpenResult={openSearchResult} />}
-      {settingsOpen && <Settings temperature={temperature} topP={topP} tab={settingsTab} onTabChange={setSettingsTab} apiKey={apiKey} systemPrompt={systemPrompt} model={model} maxContextMessages={maxContextMessages} memories={memories} stats={stats} onSaveApiKey={saveApiKey} onSaveSettings={saveSettings} onAddCoreMemory={addCoreMemory} onDeleteMemory={deleteMemory} onUpdateMemory={updateMemory} notes={notes} onUpdateNote={updateNote} onDeleteNote={deleteNote} favorites={favorites} conversations={conversations} onRemoveFavorite={removeFavorite} onLocateMessage={locateMessage} onClose={() => setSettingsOpen(false)} />}
+      {settingsOpen && <Settings themeMode={themeMode} onChangeTheme={setThemeMode} temperature={temperature} topP={topP} tab={settingsTab} onTabChange={setSettingsTab} apiKey={apiKey} systemPrompt={systemPrompt} model={model} maxContextMessages={maxContextMessages} memories={memories} stats={stats} onSaveApiKey={saveApiKey} onSaveSettings={saveSettings} onAddCoreMemory={addCoreMemory} onDeleteMemory={deleteMemory} onUpdateMemory={updateMemory} notes={notes} onUpdateNote={updateNote} onDeleteNote={deleteNote} favorites={favorites} conversations={conversations} onRemoveFavorite={removeFavorite} onLocateMessage={locateMessage} onClose={() => setSettingsOpen(false)} />}
       {unreadNote && <NotePopup note={unreadNote} onDismiss={() => dismissNote(unreadNote.id)} />}
       {toast && <div className="toast">{toast}</div>}
     </div>
