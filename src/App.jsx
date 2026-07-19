@@ -964,7 +964,7 @@ export default function App() {
           onSend={sendMessage} onStop={stopStreaming} onToggleFavorite={toggleFavorite} onRegenerate={regenerateResponse} onEditMessage={editMessage} onEditAndResend={editAndResend} onSwitchVariant={switchVariant} onDeleteMessage={deleteMessage}
           onMenuClick={() => setSidebarOpen(true)} onSearchClick={() => setSearchOpen(true)}
         />
-        {activePage === 'moments' && <Moments notes={notes} favorites={favorites} conversations={conversations} onUpdateNote={updateNote} onDeleteNote={deleteNote} onRemoveFavorite={removeFavorite} onLocateMessage={locateMessage} />}
+        {activePage === 'moments' && <Moments notes={notes} favorites={favorites} conversations={conversations} onUpdateNote={updateNote} onDeleteNote={deleteNote} onRemoveFavorite={removeFavorite} onLocateMessage={locateMessage} onOpenConversation={selectConversation} />}
         {activePage === 'corner' && <Corner />}
         {activePage === 'cottage' && <Cottage themeMode={themeMode} onChangeTheme={setThemeMode} tab={cottageTab} onTabChange={setCottageTab} apiKey={apiKey} systemPrompt={systemPrompt} model={model} temperature={temperature} topP={topP} maxContextMessages={maxContextMessages} memories={memories} stats={stats} onSaveApiKey={saveApiKey} onSaveSettings={saveSettings} onAddCoreMemory={addCoreMemory} onDeleteMemory={deleteMemory} onUpdateMemory={updateMemory} onExportAll={exportAllData} />}
         <BottomNav active={activePage} onChange={setActivePage} />
