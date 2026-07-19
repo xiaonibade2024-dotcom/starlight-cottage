@@ -79,7 +79,7 @@ export default function Moments({
           style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', border: '1px solid var(--accent-soft)', borderRadius: '8px', background: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: '13px', lineHeight: '1.6', fontFamily: 'inherit', resize: 'vertical', outline: 'none' }}
         />
         <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
-          <button onClick={saveNoteEdit} style={{ padding: '5px 18px', fontSize: '12px', border: 'none', borderRadius: '20px', background: 'var(--accent)', color: '#fff', cursor: 'pointer' }}>保存</button>
+          <button onClick={saveNoteEdit} style={{ padding: '5px 18px', fontSize: '12px', border: '1px solid var(--wash-border)', borderRadius: '20px', background: 'var(--wash-bg)', color: 'var(--accent)', cursor: 'pointer' }}>保存</button>
           <button onClick={() => { setEditingNoteId(null); setEditNoteText('') }} style={{ padding: '5px 18px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: '20px', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer' }}>取消</button>
         </div>
       </div>
