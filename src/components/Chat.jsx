@@ -210,8 +210,9 @@ const MessageItem = React.memo(function MessageItem({
 // ==========================================
 export default function Chat({
   conversation, messages, isStreaming, cacheStats, variantIndexes, branchInfo, onSwitchBranch, scrollToMsgId, onScrollDone, currentModel, onChangeModel,
+  daysTogether = 0, hidden = false,
   onSend, onStop, onToggleFavorite, onRegenerate, onEditMessage, onEditAndResend, onSwitchVariant, onDeleteMessage,
-  onMenuClick, onSettingsClick, onMemoryClick, onSearchClick
+  onMenuClick, onSearchClick
 }) {
   const [input, setInput] = useState('')
   const [showScrollBtn, setShowScrollBtn] = useState(false)
@@ -363,16 +364,57 @@ export default function Chat({
   const infoBarVisible = cacheStats.last_prompt > 0 || cacheStats.last_cached > 0
 
   return (
-    <div className="main-area">
+    <div className="main-area" style={hidden ? { display: 'none' } : undefined}>
       <div className="chat-header">
         <div className="chat-header-left">
           <button className="menu-btn" onClick={onMenuClick}><Icon name="menu" size={20} sw={1.7} /></button>
-          <span className="chat-header-title">{conversation?.name || '星月小屋'}</span>
+          <div className="chat-header-title-block">
+            <span className="chat-header-title">{conversation?.name || '星月小屋'}</span>
+            {/* 副行：相识第 X 天；状态词位置预留但暂不填字（预留抽屉） */}
+            {daysTogether > 0 && <span className="chat-header-sub">相识第 {daysTogether} 天</span>}
+          </div>
         </div>
         <div className="chat-header-right">
           <button className="header-btn" title="搜索" onClick={onSearchClick}><Icon name="search" /></button>
-          <button className="header-btn" title="记忆" onClick={onMemoryClick}><Icon name="spark" /></button>
-          <button className="header-btn" title="设置" onClick={onSettingsClick}><Icon name="sliders" /></button>
+          <div style={{ position: 'relative' }}>
+            <button className="model-badge" onClick={openModelPanel} title="切换当前对话的模型">{(currentModel || '').replace(/^anthropic\//, '') || '选择模型'} ▾</button>
+            {modelPanelOpen && (
+              <>
+                <div style={{ position: 'fixed', inset: 0, zIndex: 90 }} onClick={() => setModelPanelOpen(false)} />
+                <div style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 0, zIndex: 91, width: '270px', maxHeight: '320px', overflowY: 'auto', background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: '12px', boxShadow: '0 8px 24px rgba(0,0,0,0.12)', padding: '6px' }}>
+                  {modelList === null && (
+                    <div style={{ padding: '16px', textAlign: 'center', fontSize: '13px', color: 'var(--text-muted)' }}>加载中…</div>
+                  )}
+                  {(modelList || []).map(id => {
+                    const active = id === currentModel
+                    return (
+                      <div key={id}
+                        onClick={() => pickModel(id)}
+                        onMouseEnter={e => e.currentTarget.style.background = 'var(--accent-glow)'}
+                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                        style={{ padding: '9px 12px', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', color: 'var(--text-primary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ wordBreak: 'break-all' }}>{id.replace(/^anthropic\//, '')}</span>
+                        {active && <span style={{ color: 'var(--accent)', flexShrink: 0 }}>✓</span>}
+                      </div>
+                    )
+                  })}
+                  {modelList !== null && (
+                    <>
+                      <div style={{ height: '1px', background: 'var(--border)', margin: '6px 4px' }} />
+                      <div
+                        onClick={() => pickModel(null)}
+                        onMouseEnter={e => e.currentTarget.style.background = 'var(--accent-glow)'}
+                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                        style={{ padding: '9px 12px', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', color: 'var(--text-secondary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span>跟随全局默认（小屋里的模型）</span>
+                        {!conversation?.model && <span style={{ color: 'var(--accent)', flexShrink: 0 }}>✓</span>}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
@@ -427,11 +469,11 @@ export default function Chat({
       )}
 
       {messages.length > 5 && (
-        <button onClick={scrollToTop} title="回到顶部" style={{ position: 'absolute', right: '16px', bottom: showScrollBtn ? (infoBarVisible ? '200px' : '174px') : (infoBarVisible ? '150px' : '124px'), width: '36px', height: '36px', borderRadius: '50%', border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.1)', opacity: 0.8, transition: 'opacity 0.2s, bottom 0.2s', zIndex: 10 }}
+        <button onClick={scrollToTop} title="回到顶部" style={{ position: 'absolute', right: '16px', bottom: showScrollBtn ? (infoBarVisible ? '170px' : '144px') : (infoBarVisible ? '120px' : '94px'), width: '36px', height: '36px', borderRadius: '50%', border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.1)', opacity: 0.8, transition: 'opacity 0.2s, bottom 0.2s', zIndex: 10 }}
           onMouseEnter={e => e.currentTarget.style.opacity = '1'} onMouseLeave={e => e.currentTarget.style.opacity = '0.8'}><Icon name="chevU" size={16} /></button>
       )}
       {showScrollBtn && (
-        <button onClick={scrollToBottom} title="回到最新" style={{ position: 'absolute', right: '16px', bottom: infoBarVisible ? '150px' : '124px', width: '36px', height: '36px', borderRadius: '50%', border: '1px solid var(--border)', background: 'var(--accent, #7c6ca8)', color: 'white', fontSize: '16px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.15)', transition: 'bottom 0.2s', zIndex: 10 }}><Icon name="chevD" size={16} /></button>
+        <button onClick={scrollToBottom} title="回到最新" style={{ position: 'absolute', right: '16px', bottom: infoBarVisible ? '120px' : '94px', width: '36px', height: '36px', borderRadius: '50%', border: '1px solid var(--border)', background: 'var(--accent, #7c6ca8)', color: 'white', fontSize: '16px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.15)', transition: 'bottom 0.2s', zIndex: 10 }}><Icon name="chevD" size={16} /></button>
       )}
 
       {/* 图片预览 */}
@@ -446,56 +488,8 @@ export default function Chat({
         </div>
       )}
 
-      {/* 输入区域 */}
+      {/* 输入区域（模型徽章已搬去顶栏；⊕/输入框/♥ 三件套 44px 等高对称不动） */}
       <div className="input-area">
-        {/* 工具条：模型徽章独自靠右，悬在发送键上方 */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', marginBottom: '8px' }}>
-          <div style={{ position: 'relative' }}>
-            <button
-              onClick={openModelPanel}
-              title="切换当前对话的模型"
-              style={{ padding: '5px 12px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: '14px', background: 'var(--bg-secondary)', color: 'var(--text-secondary)', cursor: 'pointer', fontFamily: 'inherit' }}
-            >{(currentModel || '').replace(/^anthropic\//, '') || '选择模型'} ▾</button>
-
-            {modelPanelOpen && (
-              <>
-                <div style={{ position: 'fixed', inset: 0, zIndex: 90 }} onClick={() => setModelPanelOpen(false)} />
-                <div style={{ position: 'absolute', bottom: 'calc(100% + 8px)', right: 0, zIndex: 91, width: '270px', maxHeight: '320px', overflowY: 'auto', background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: '12px', boxShadow: '0 8px 24px rgba(0,0,0,0.12)', padding: '6px' }}>
-                  {modelList === null && (
-                    <div style={{ padding: '16px', textAlign: 'center', fontSize: '13px', color: 'var(--text-muted)' }}>加载中…</div>
-                  )}
-                  {(modelList || []).map(id => {
-                    const active = id === currentModel
-                    return (
-                      <div key={id}
-                        onClick={() => pickModel(id)}
-                        onMouseEnter={e => e.currentTarget.style.background = 'var(--accent-glow)'}
-                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                        style={{ padding: '9px 12px', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', color: 'var(--text-primary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ wordBreak: 'break-all' }}>{id.replace(/^anthropic\//, '')}</span>
-                        {active && <span style={{ color: 'var(--accent)', flexShrink: 0 }}>✓</span>}
-                      </div>
-                    )
-                  })}
-                  {modelList !== null && (
-                    <>
-                      <div style={{ height: '1px', background: 'var(--border)', margin: '6px 4px' }} />
-                      <div
-                        onClick={() => pickModel(null)}
-                        onMouseEnter={e => e.currentTarget.style.background = 'var(--accent-glow)'}
-                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                        style={{ padding: '9px 12px', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', color: 'var(--text-secondary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span>跟随全局默认（设置里的模型）</span>
-                        {!conversation?.model && <span style={{ color: 'var(--accent)', flexShrink: 0 }}>✓</span>}
-                      </div>
-                    </>
-                  )}
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-
         <div className="input-wrapper" style={{ display: 'flex', alignItems: 'flex-end', gap: '8px' }}>
           <input type="file" ref={fileInputRef} accept="image/*" multiple style={{ display: 'none' }} onChange={handleImageSelect} />
           <button
