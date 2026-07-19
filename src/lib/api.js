@@ -163,7 +163,8 @@ export async function sendChatStream({
     ...(temperature !== undefined && temperature !== null ? { temperature } : {}),
     ...(topP !== undefined && topP !== null ? { top_p: topP } : {}),
     cache_control: { type: 'ephemeral', ttl: '1h' },
-    stream_options: { include_usage: true }
+    stream_options: { include_usage: true },
+    usage: { include: true }
   }
 
   if (enableTools) {
@@ -310,7 +311,8 @@ export async function sendChatFollowUp({
     ...(temperature !== undefined && temperature !== null ? { temperature } : {}),
     ...(topP !== undefined && topP !== null ? { top_p: topP } : {}),
     cache_control: { type: 'ephemeral', ttl: '1h' },
-    stream_options: { include_usage: true }
+    stream_options: { include_usage: true },
+    usage: { include: true }
   }
 
   if (enableTools) {
