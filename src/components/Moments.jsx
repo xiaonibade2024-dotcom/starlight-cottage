@@ -17,8 +17,8 @@ export default function Moments({
   const [editNoteText, setEditNoteText] = useState('')
   const [selectedNote, setSelectedNote] = useState(null)
   const [selectedFav, setSelectedFav] = useState(null)
-  const [favoritesOpen, setFavoritesOpen] = useState(true)
-  const [notesOpen, setNotesOpen] = useState(true)
+  const [favoritesOpen, setFavoritesOpen] = useState(false)
+  const [notesOpen, setNotesOpen] = useState(false)
 
   const saveNoteEdit = () => {
     if (editNoteText.trim() && editingNoteId) {
