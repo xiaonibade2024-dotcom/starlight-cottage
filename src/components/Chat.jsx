@@ -112,6 +112,7 @@ function renderMessageContent(content) {
 const MessageItem = React.memo(function MessageItem({
   msg, isEditing, editContent, onEditContentChange,
   isActive, isLastAssistant, variantIndex, isStreaming,
+  branchIndex, branchTotal, onSwitchBranch,
   onMessageClick, onStartEdit, onSaveEdit, onSaveAndResend, onCancelEdit,
   onRegenerate, onCopyMessage, onToggleFavorite, onSwitchVariant, onDeleteMessage
 }) {
@@ -156,7 +157,14 @@ const MessageItem = React.memo(function MessageItem({
 
       <div className="message-meta">
         <span className="message-time">{formatTime(msg.created_at)}</span>
-        {hasVariants && !isEditing && (
+        {branchTotal > 1 && !isEditing && !isStreaming && (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '2px', marginLeft: '4px' }}>
+            <button className="msg-action" style={{ padding: '3px 4px' }} onClick={(e) => { e.stopPropagation(); if (branchIndex > 0) onSwitchBranch(msg.id, branchIndex - 1) }} disabled={branchIndex <= 0}><Icon name="chevL" size={13} /></button>
+            <span style={{ fontSize: '11px', color: 'var(--text-muted)', minWidth: '28px', textAlign: 'center' }}>{branchIndex + 1}/{branchTotal}</span>
+            <button className="msg-action" style={{ padding: '3px 4px' }} onClick={(e) => { e.stopPropagation(); if (branchIndex < branchTotal - 1) onSwitchBranch(msg.id, branchIndex + 1) }} disabled={branchIndex >= branchTotal - 1}><Icon name="chevR" size={13} /></button>
+          </span>
+        )}
+        {hasVariants && !isEditing && !(branchTotal > 1) && (
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '2px', marginLeft: '4px' }}>
             <button className="msg-action" style={{ padding: '3px 4px' }} onClick={(e) => { e.stopPropagation(); if (variantIndex > 0) onSwitchVariant(msg.id, variantIndex - 1) }} disabled={variantIndex <= 0}><Icon name="chevL" size={13} /></button>
             <span style={{ fontSize: '11px', color: 'var(--text-muted)', minWidth: '28px', textAlign: 'center' }}>{variantIndex + 1}/{variants.length}</span>
@@ -191,7 +199,9 @@ const MessageItem = React.memo(function MessageItem({
     prev.isActive === next.isActive &&
     prev.isLastAssistant === next.isLastAssistant &&
     prev.variantIndex === next.variantIndex &&
-    prev.isStreaming === next.isStreaming
+    prev.isStreaming === next.isStreaming &&
+    prev.branchIndex === next.branchIndex &&
+    prev.branchTotal === next.branchTotal
   )
 })
 
@@ -199,7 +209,7 @@ const MessageItem = React.memo(function MessageItem({
 // 主聊天组件
 // ==========================================
 export default function Chat({
-  conversation, messages, isStreaming, cacheStats, variantIndexes, scrollToMsgId, onScrollDone, currentModel, onChangeModel,
+  conversation, messages, isStreaming, cacheStats, variantIndexes, branchInfo, onSwitchBranch, scrollToMsgId, onScrollDone, currentModel, onChangeModel,
   onSend, onStop, onToggleFavorite, onRegenerate, onEditMessage, onEditAndResend, onSwitchVariant, onDeleteMessage,
   onMenuClick, onSettingsClick, onMemoryClick, onSearchClick
 }) {
@@ -388,6 +398,9 @@ export default function Chat({
             isLastAssistant={msg.id === lastAssistantId}
             variantIndex={variantIndexes[msg.id] ?? 0}
             isStreaming={isStreaming}
+            branchIndex={branchInfo?.[msg.id]?.index ?? 0}
+            branchTotal={branchInfo?.[msg.id]?.total ?? 0}
+            onSwitchBranch={onSwitchBranch}
             onMessageClick={handleMessageClick}
             onStartEdit={startEdit}
             onSaveEdit={saveEdit}
