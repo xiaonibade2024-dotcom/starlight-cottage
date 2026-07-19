@@ -438,7 +438,7 @@ export default function App() {
       }
       setDiaries(prev => [savedDiary, ...prev])
       setDiaryHintConvId(convId)
-      showToast('✎ 他写下了一页日记')
+      showToast('📔 他写下了一页日记')
     } catch (e) {
       console.error('日记生成失败:', e)
       showToast('日记没能写成：' + e.message)
@@ -537,6 +537,8 @@ export default function App() {
   // ==========================================
   const sendMessage = async (content) => {
     if (!content.trim() || isStreaming) return
+    // 日记的一次性提示行：她再次开口时轻轻退场（本就只属于写完的那一刻）
+    setDiaryHintConvId(null)
     if (!apiKey) { showToast('请先在小屋里填写 API Key'); setActivePage('cottage'); setCottageTab('general'); return }
     let convId = activeConvId
     let isNewConv = false
