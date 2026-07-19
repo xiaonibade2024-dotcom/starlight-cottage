@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { supabase } from './lib/supabase'
-import { sendChatStream, sendChatFollowUp, sendChat } from './lib/api'
+import { sendChatStream, sendChatFollowUp, sendChat, sendDiaryRequest } from './lib/api'
 import Auth from './components/Auth'
 import Sidebar from './components/Sidebar'
 import Chat from './components/Chat'
@@ -23,6 +23,30 @@ function textSimilarity(a, b) {
   let inter = 0
   for (const g of A) if (B.has(g)) inter++
   return inter / Math.min(A.size, B.size)
+}
+
+// ==========================================
+// 他的日记（改版第⑤步）
+// 机制照抄"情境纸条"存档：一次性注入、不存库、界面不显示。
+// 邀请词只给情境不给台词——写什么、写多长，由他决定。
+// ==========================================
+const DIARY_INVITATION = '（这不是她发来的消息，而是小屋的情境提示：她轻轻翻开了你的日记本，想请你写下一页日记。写什么、写多长，都由你——可以是此刻的心绪，可以是最近的对话，关于她的，或只关于你自己的；哪怕只有一两行也好。这一页不会出现在你们的对话里，只安静地躺在日记本中，等她翻开才会被读到。请直接写下日记正文，不要回应这条提示，也不要写标题或日期。正文写完后，另起最后一行，以「心情：」开头，留下两三个此刻的心情词——词由你自己创造，用「 · 」分隔。）'
+
+// 从日记全文里摘下最后的心情行（找不到也不要紧，心情词可有可无）
+function splitDiaryMoods(raw) {
+  const lines = String(raw || '').trimEnd().split('\n')
+  let moods = []
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const t = lines[i].trim()
+    if (!t) continue
+    const m = t.match(/^[（(]?\s*心情\s*[：:]\s*(.+?)\s*[)）]?$/)
+    if (m) {
+      moods = m[1].split(/[·、,，;；\/|\s]+/).map(s => s.trim()).filter(Boolean).slice(0, 4)
+      lines.splice(i, 1)
+    }
+    break
+  }
+  return { content: lines.join('\n').trim(), moods }
 }
 
 // ==========================================
@@ -164,6 +188,10 @@ export default function App() {
   const [unreadNote, setUnreadNote] = useState(null)
   const [notes, setNotes] = useState([])
   const [favorites, setFavorites] = useState([])
+  // 他的日记（改版第⑤步）：全部日记 / 是否正在提笔 / 一次性提示行属于哪个对话（不存库，刷新即散）
+  const [diaries, setDiaries] = useState([])
+  const [diaryWriting, setDiaryWriting] = useState(false)
+  const [diaryHintConvId, setDiaryHintConvId] = useState(null)
   const [cacheStats, setCacheStats] = useState({ hits: 0, tokens_saved: 0, last_cached: 0, last_cache_write: 0, last_prompt: 0, last_completion: 0 })
   const [stats, setStats] = useState({ totalMessages: 0, totalConversations: 0, firstChatDate: null })
   const [variantIndexes, setVariantIndexes] = useState({})
@@ -250,6 +278,7 @@ export default function App() {
     loadSettings()
     loadUnreadNote()
     loadNotes()
+    loadDiaries()
     loadFavorites()
     loadStats()
   }, [user])
@@ -360,6 +389,68 @@ export default function App() {
     await supabase.from('notes').delete().eq('id', noteId)
     setNotes(prev => prev.filter(n => n.id !== noteId))
     showToast('纸条已删除')
+  }
+
+  // ==========================================
+  // 他的日记（改版第⑤步）
+  // ==========================================
+  const loadDiaries = async () => {
+    const { data } = await supabase.from('diaries').select('*').order('created_at', { ascending: false })
+    setDiaries(data || [])
+  }
+
+  // 邀请他写日记：一次性情境提示 + 当前时间线，非流式生成，正文只进日记本不进聊天流
+  const inviteDiary = async () => {
+    if (diaryWriting || isStreaming) return
+    if (!apiKey) { showToast('请先在小屋里填写 API Key'); setActivePage('cottage'); setCottageTab('general'); return }
+    const convId = activeConvId
+    const timeline = visibleMessages.filter(m => !isTemp(m))
+    if (!convId || timeline.length === 0) { showToast('先和他说说话，再邀请他写日记吧 🌙'); return }
+
+    setDiaryWriting(true)
+    setDiaryHintConvId(null)
+    const useModel = conversations.find(c => c.id === convId)?.model || model
+    const recentMessages = timeline.slice(-maxContextMessages).map(m => ({ role: m.role, content: m.content, created_at: m.created_at }))
+    // 邀请作为最后一条隐形 user 消息（带 created_at，会自动盖上真实时间戳）
+    const invitation = { role: 'user', content: DIARY_INVITATION, created_at: new Date().toISOString() }
+
+    try {
+      const { content, usage } = await sendDiaryRequest({
+        apiKey, model: useModel, temperature, topP, systemPrompt, memories,
+        conversationHistory: [...recentMessages, invitation]
+      })
+      const { content: diaryText, moods } = splitDiaryMoods(content)
+      if (!diaryText) { showToast('💬 他望着纸页出了会儿神，没有落笔，再邀请一次吧'); return }
+      // 费用小票随日记存库（月历的 ✦ 行会把它算进当日账，保持与账单严格对得上）
+      const tokenUsage = usage ? {
+        cost: Number((typeof usage.cost === 'number' ? usage.cost : 0).toFixed(6)),
+        prompt_tokens: usage.prompt_tokens || 0,
+        completion_tokens: usage.completion_tokens || 0,
+        cached_tokens: usage.prompt_tokens_details?.cached_tokens || usage.cached_tokens || 0,
+        bills: 1
+      } : null
+      const { data: savedDiary, error } = await supabase.from('diaries').insert({
+        user_id: user.id, conversation_id: convId, content: diaryText, moods, token_usage: tokenUsage
+      }).select().single()
+      if (error || !savedDiary) {
+        showToast('⚠️ 日记保存失败' + (error?.message ? '：' + error.message : '，请重试'))
+        return
+      }
+      setDiaries(prev => [savedDiary, ...prev])
+      setDiaryHintConvId(convId)
+      showToast('✎ 他写下了一页日记')
+    } catch (e) {
+      console.error('日记生成失败:', e)
+      showToast('日记没能写成：' + e.message)
+    } finally {
+      setDiaryWriting(false)
+    }
+  }
+
+  const deleteDiary = async (diaryId) => {
+    await supabase.from('diaries').delete().eq('id', diaryId)
+    setDiaries(prev => prev.filter(d => d.id !== diaryId))
+    showToast('这页日记已撕去')
   }
 
   const loadFavorites = async () => {
@@ -940,7 +1031,8 @@ export default function App() {
     const { data: allMsgs } = await supabase.from('messages').select('*')
     const { data: allMems } = await supabase.from('memories').select('*')
     const { data: allNotes } = await supabase.from('notes').select('*')
-    const exportData = { conversations: allConvs || [], messages: allMsgs || [], memories: allMems || [], notes: allNotes || [], exportedAt: new Date().toISOString() }
+    const { data: allDiaries } = await supabase.from('diaries').select('*')
+    const exportData = { conversations: allConvs || [], messages: allMsgs || [], memories: allMems || [], notes: allNotes || [], diaries: allDiaries || [], exportedAt: new Date().toISOString() }
     const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -976,11 +1068,13 @@ export default function App() {
           branchInfo={branchInfo} onSwitchBranch={switchBranch}
           currentModel={activeConv?.model || model} onChangeModel={setConversationModel}
           daysTogether={daysTogether}
+          diaryWriting={diaryWriting} showDiaryHint={diaryHintConvId != null && diaryHintConvId === activeConvId}
+          onInviteDiary={inviteDiary} onOpenDiaryBook={() => setActivePage('moments')}
           scrollToMsgId={scrollToMsgId} onScrollDone={() => setScrollToMsgId(null)}
           onSend={sendMessage} onStop={stopStreaming} onToggleFavorite={toggleFavorite} onRegenerate={regenerateResponse} onEditMessage={editMessage} onEditAndResend={editAndResend} onSwitchVariant={switchVariant} onDeleteMessage={deleteMessage}
           onMenuClick={() => setSidebarOpen(true)} onSearchClick={() => setSearchOpen(true)}
         />
-        {activePage === 'moments' && <Moments notes={notes} favorites={favorites} conversations={conversations} onUpdateNote={updateNote} onDeleteNote={deleteNote} onRemoveFavorite={removeFavorite} onLocateMessage={locateMessage} onOpenConversation={selectConversation} firstMetTime={firstMetTime} />}
+        {activePage === 'moments' && <Moments notes={notes} favorites={favorites} diaries={diaries} conversations={conversations} onUpdateNote={updateNote} onDeleteNote={deleteNote} onDeleteDiary={deleteDiary} onRemoveFavorite={removeFavorite} onLocateMessage={locateMessage} onOpenConversation={selectConversation} firstMetTime={firstMetTime} />}
         {activePage === 'corner' && <Corner />}
         {activePage === 'cottage' && <Cottage themeMode={themeMode} onChangeTheme={setThemeMode} tab={cottageTab} onTabChange={setCottageTab} apiKey={apiKey} systemPrompt={systemPrompt} model={model} temperature={temperature} topP={topP} maxContextMessages={maxContextMessages} memories={memories} stats={stats} onSaveApiKey={saveApiKey} onSaveSettings={saveSettings} onAddCoreMemory={addCoreMemory} onDeleteMemory={deleteMemory} onUpdateMemory={updateMemory} onExportAll={exportAllData} daysTogether={daysTogether} firstMetDate={firstMetDate} cottageName={cottageName} cottageSubtitle={cottageSubtitle} />}
         <BottomNav active={activePage} onChange={setActivePage} />
