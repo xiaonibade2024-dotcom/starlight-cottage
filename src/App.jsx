@@ -595,7 +595,7 @@ export default function App() {
   }
 
   // 树系统：定位到的消息如果不在当前时间线上，先把书签切到它所在的那条枝
-  const revealMessage = (convId, msgId, msgs, leafId) => {
+  const revealMessage = async (convId, msgId, msgs, leafId) => {
     const rows = msgs || []
     const target = rows.find(m => m.id === msgId)
     if (!target) return
@@ -606,7 +606,7 @@ export default function App() {
     if (!leaf) return
     setActiveLeafId(leaf.id)
     setConversations(prev => prev.map(c => c.id === convId ? { ...c, active_leaf_id: leaf.id } : c))
-    supabase.from('conversations').update({ active_leaf_id: leaf.id }).eq('id', convId)
+    await supabase.from('conversations').update({ active_leaf_id: leaf.id }).eq('id', convId)
   }
 
   const openSearchResult = async (convId, msgId) => {
@@ -618,7 +618,7 @@ export default function App() {
       leafId = conversations.find(c => c.id === convId)?.active_leaf_id || null
     }
     if (msgId) {
-      revealMessage(convId, msgId, msgs, leafId)
+      await revealMessage(convId, msgId, msgs, leafId)
       setScrollToMsgId(msgId)
     }
   }
@@ -632,7 +632,7 @@ export default function App() {
       leafId = conversations.find(c => c.id === convId)?.active_leaf_id || null
     }
     if (msgId) {
-      revealMessage(convId, msgId, msgs, leafId)
+      await revealMessage(convId, msgId, msgs, leafId)
       setScrollToMsgId(msgId)
     }
   }
@@ -664,7 +664,7 @@ export default function App() {
   }
 
   // 树系统：在岔路口切换分支——书签跳到目标枝的末梢，整条时间线跟着换
-  const switchBranch = (msgId, newIndex) => {
+  const switchBranch = async (msgId, newIndex) => {
     if (isStreaming) return
     const info = branchInfo[msgId]
     if (!info) return
@@ -677,7 +677,7 @@ export default function App() {
     if (!leaf) return
     setActiveLeafId(leaf.id)
     setConversations(prev => prev.map(c => c.id === activeConvId ? { ...c, active_leaf_id: leaf.id } : c))
-    supabase.from('conversations').update({ active_leaf_id: leaf.id }).eq('id', activeConvId)
+    await supabase.from('conversations').update({ active_leaf_id: leaf.id }).eq('id', activeConvId)
   }
 
   const editMessage = async (msgId, newContent) => {
