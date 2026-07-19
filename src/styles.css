@@ -522,3 +522,67 @@ body {
 @media (hover: hover) { .memory-add-btn:hover { color: var(--accent-hover); background: var(--accent-glow); } }
 
 .settings-save:disabled { opacity: 0.45; cursor: default; border-color: var(--wash-border); color: var(--accent); }
+
+/* ==========================================
+   热力图月历（改版第④步）
+   日主题色阶为图纸定稿（浅→深五档）；
+   夜主题色阶为本步新调：暮色里的五档玫瑰，由暗向亮渐次点起
+   ========================================== */
+
+:root { --heat-1: #F8E9F0; --heat-2: #EFCEDF; --heat-3: #E0A9C6; --heat-4: #CD82AB; --heat-5: #B25E90; }
+[data-theme="night"] { --heat-1: #443843; --heat-2: #58414F; --heat-3: #714B60; --heat-4: #8D5674; --heat-5: #AC6489; }
+
+/* 月历卡头部：‹ 2026 年 7 月 › + 本月总条数小字 */
+.heat-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.heat-title { font-family: var(--font-accent); font-size: 15px; letter-spacing: 1px; color: var(--text-primary); display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.heat-total { font-size: 11px; color: var(--text-muted); letter-spacing: 0.5px; white-space: nowrap; }
+.heat-nav { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; background: none; border: none; border-radius: 8px; color: var(--text-secondary); font-size: 18px; cursor: pointer; padding: 0; transition: all var(--transition); }
+@media (hover: hover) { .heat-nav:hover { color: var(--accent-hover); background: var(--accent-glow); } }
+.heat-nav:active { transform: scale(0.92); }
+.heat-nav:disabled { opacity: 0.25; cursor: default; background: none; transform: none; }
+
+/* 星期表头（一至日）与七列格子 */
+.heat-week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; margin-bottom: 6px; }
+.heat-week span { text-align: center; font-size: 10px; color: var(--text-muted); letter-spacing: 1px; }
+.heat-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; transition: opacity var(--transition); }
+.heat-grid.loading { opacity: 0.45; }
+
+.heat-cell { aspect-ratio: 1 / 1; border-radius: 8px; display: flex; align-items: center; justify-content: center; position: relative; font-size: 11px; color: var(--text-muted); background: var(--bg-primary); border: 1px solid var(--border-light); cursor: pointer; transition: transform 0.15s ease; user-select: none; -webkit-tap-highlight-color: transparent; }
+.heat-cell:active { transform: scale(0.9); }
+.heat-cell.lit { border-color: transparent; color: #7A4E68; }
+.heat-cell.l1 { background: var(--heat-1); }
+.heat-cell.l2 { background: var(--heat-2); }
+.heat-cell.l3 { background: var(--heat-3); }
+.heat-cell.l4 { background: var(--heat-4); }
+.heat-cell.l5 { background: var(--heat-5); }
+.heat-cell.l4, .heat-cell.l5 { color: #FDF6FA; }
+[data-theme="night"] .heat-cell { border-color: var(--border); }
+[data-theme="night"] .heat-cell.lit { color: #F0DEE9; border-color: transparent; }
+
+/* 今天：一圈细细的玫瑰描边 */
+.heat-cell.today { box-shadow: 0 0 0 1.5px var(--accent); }
+/* 还没来到的日子：淡去，不可点 */
+.heat-cell.future { opacity: 0.35; cursor: default; }
+.heat-cell.future:active { transform: none; }
+/* 针尖小点：这天有纸条诞生（颜色跟随格上的字色，深格浅格都看得清） */
+.heat-dot { position: absolute; top: 4px; right: 4px; width: 4px; height: 4px; border-radius: 50%; background: currentColor; opacity: 0.8; }
+
+/* ==========================================
+   当日小结卡（点某一日浮出）
+   ========================================== */
+
+.day-card { background: linear-gradient(160deg, var(--card-g1) 0%, var(--card-g2) 50%, var(--card-g3) 100%); border-radius: var(--radius-xl); padding: 30px 26px 26px; max-width: 340px; width: 88%; max-height: 76vh; overflow-y: auto; position: relative; text-align: center; box-shadow: var(--card-shadow); animation: noteDetailIn 0.45s cubic-bezier(0.16, 1, 0.3, 1); }
+.day-card::-webkit-scrollbar { width: 3px; }
+.day-card::-webkit-scrollbar-thumb { background: var(--accent-soft); border-radius: 3px; }
+.day-card-date { font-size: 12px; color: var(--text-muted); letter-spacing: 2px; margin-bottom: 10px; }
+.day-card-count { font-family: var(--font-accent); font-size: 34px; font-weight: 300; color: var(--accent); margin-bottom: 14px; }
+.day-card-count span { font-size: 12px; color: var(--text-muted); letter-spacing: 2px; margin-left: 6px; }
+.day-card-empty { font-size: 13px; color: var(--text-muted); padding: 16px 0 20px; }
+.day-conv-list { margin-bottom: 14px; }
+.day-conv { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border-radius: 10px; cursor: pointer; font-size: 13px; color: var(--text-primary); transition: background var(--transition); }
+@media (hover: hover) { .day-conv:hover { background: var(--accent-glow); } }
+.day-conv:active { background: var(--accent-glow); }
+.day-conv-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
+.day-conv-count { flex-shrink: 0; font-size: 12px; color: var(--text-secondary); }
+.day-card-fact { font-size: 12px; color: var(--text-muted); letter-spacing: 0.5px; margin-bottom: 8px; }
+.day-card .note-detail-close { margin-top: 12px; }
