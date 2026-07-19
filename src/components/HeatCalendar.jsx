@@ -70,7 +70,8 @@ export default function HeatCalendar({ conversations = [], notes = [], onOpenCon
         const u = r.token_usage
         if (u) {
           d.cost += (typeof u.cost === 'number' ? u.cost : 0)
-          d.tokens += (u.prompt_tokens || 0) + (u.completion_tokens || 0)
+          // 只累计他新写出来的字（completion），不含重复携带的上下文行李
+          d.tokens += (u.completion_tokens || 0)
         }
       }
       setDayData(map)
@@ -173,7 +174,7 @@ export default function HeatCalendar({ conversations = [], notes = [], onOpenCon
                   ))}
                 </div>
                 {(sel.tokens > 0 || sel.cost > 0) && (
-                  <div className="day-card-fact">✦ {fmtTokens(sel.tokens)} tokens · ${sel.cost.toFixed(4)}</div>
+                  <div className="day-card-fact">✦ 他写下 {fmtTokens(sel.tokens)} tokens · ${sel.cost.toFixed(4)}</div>
                 )}
               </>
             )}
