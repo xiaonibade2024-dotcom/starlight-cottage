@@ -45,7 +45,7 @@
   --shadow-md: 0 4px 12px rgba(180, 140, 165, 0.12);
   --shadow-lg: 0 8px 24px rgba(180, 140, 165, 0.16);
   --font-main: 'LXGW WenKai', 'Noto Serif SC', Georgia, serif;
-  --font-accent: 'Crimson Pro', 'LXGW WenKai', serif;
+  --font-accent: 'Crimson Pro', Georgia, 'LXGW WenKai', serif;
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 18px;
