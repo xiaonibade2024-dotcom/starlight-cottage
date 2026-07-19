@@ -31,7 +31,9 @@ export default function Sidebar({
   onDelete,
   onExport,
   onExportAll,
-  onOpenSettings
+  onOpenSettings,
+  cottageName,
+  cottageSubtitle
 }) {
   const [editingId, setEditingId] = useState(null)
   const [editName, setEditName] = useState('')
@@ -92,9 +94,9 @@ export default function Sidebar({
       <div className="sidebar-header">
         <div className="sidebar-title">
           <span className="star">✦</span>
-          星月小屋
+          {cottageName || '星月小屋'}
         </div>
-        <div className="sidebar-subtitle">a place to call home</div>
+        <div className="sidebar-subtitle">{cottageSubtitle || 'under the same moon'}</div>
         <button className="new-chat-btn" onClick={() => onCreate()}>
           ＋ 新对话
         </button>
