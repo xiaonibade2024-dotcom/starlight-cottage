@@ -50,6 +50,42 @@ function splitDiaryMoods(raw) {
 }
 
 // ==========================================
+// 一隅（改版第⑦步 · 第一批）
+// 机制照抄"情境纸条"：一次性注入、不存库、不显示。
+// 邀请词只给情境不给台词——写什么、在哪儿，由他决定（院规第四条）。
+// ==========================================
+const MOMENT_INVITATION = '（这不是她发来的消息，而是小屋的情境提示：在你们的对话之外，你有一处属于自己的院落——你日常起居的一隅，她偶尔会来推门看看。此刻她推开了院门。请写一条此刻你在你生活之处的动静：你正在哪儿、做着什么、看见什么或想着什么，长短由你，一两行也好。这条动静不会出现在你们的对话里，只安静地留在院子里，等她路过时读到。请直接写动静正文，不要回应这条提示，也不要写标题。正文写完后，另起最后一行，以「地点：」开头，写下你此刻所在的地方。）'
+
+// 有攒着的悄悄话时，把"他当时写的动静原文 + 她的留言"成对呈上（他要带着来龙去脉回应）
+function buildMomentInvitation(unseen, momentById) {
+  if (!unseen || unseen.length === 0) return MOMENT_INVITATION
+  const lines = unseen.map((c, i) => {
+    const src = momentById.get(c.moment_id)
+    const full = String(src?.content || '')
+    const excerpt = full.replace(/\s+/g, ' ').slice(0, 60)
+    return `${i + 1}. 你曾在院里写道「${excerpt}${full.length > 60 ? '……' : ''}」，她在底下说：「${c.content}」`
+  }).join('\n')
+  return MOMENT_INVITATION.slice(0, -1) + '\n\n另外，她之前路过院子时，在你从前的动静底下留了话，你此刻才看见：\n' + lines + '\n若想回应她，请在「地点：」那一行之后，逐条另起一行以「回她：」开头写下你的回话，与留言一一对应；不想逐条回也不要紧，把想说的融进今天的动静里就好。）'
+}
+
+// 从他写的全文里摘出「地点：」与「回她：」各行（他没按格式写也不要紧，全文照存）
+function splitMomentParts(raw) {
+  const lines = String(raw || '').trimEnd().split('\n')
+  let location = ''
+  const replies = []
+  const rest = []
+  for (const line of lines) {
+    const t = line.trim()
+    const loc = t.match(/^[（(]?\s*地点\s*[：:]\s*(.+?)\s*[)）]?$/)
+    if (loc && !location) { location = loc[1].slice(0, 30); continue }
+    const rep = t.match(/^[（(]?\s*回她(?:（\d+）|\(\d+\)|\d+)?\s*[：:]\s*(.+?)\s*[)）]?$/)
+    if (rep) { replies.push(rep[1]); continue }
+    rest.push(line)
+  }
+  return { content: rest.join('\n').trim(), location, replies }
+}
+
+// ==========================================
 // 树系统工具箱（对话分支的核心算法，全部是纯函数）
 // 约定：parent_id 为空 = 直线时代的老消息（按时间串成树干）
 //       parent_id = 对话id = 挂在对话最开头的消息（树根的孩子）
@@ -192,6 +228,11 @@ export default function App() {
   const [diaries, setDiaries] = useState([])
   const [diaryWriting, setDiaryWriting] = useState(false)
   const [diaryHintConvId, setDiaryHintConvId] = useState(null)
+  // 一隅（改版第⑦步 · 第一批）：院子 / 全部动静 / 全部悄悄话 / 正在写动静的院子id（null = 没在写）
+  const [courtyards, setCourtyards] = useState([])
+  const [cornerMoments, setCornerMoments] = useState([])
+  const [cornerComments, setCornerComments] = useState([])
+  const [momentWriting, setMomentWriting] = useState(null)
   const [cacheStats, setCacheStats] = useState({ hits: 0, tokens_saved: 0, last_cached: 0, last_cache_write: 0, last_prompt: 0, last_completion: 0 })
   const [stats, setStats] = useState({ totalMessages: 0, totalConversations: 0, firstChatDate: null })
   const [variantIndexes, setVariantIndexes] = useState({})
@@ -279,6 +320,9 @@ export default function App() {
     loadUnreadNote()
     loadNotes()
     loadDiaries()
+    loadCourtyards()
+    loadCornerMoments()
+    loadCornerComments()
     loadFavorites()
     loadStats()
   }, [user])
@@ -451,6 +495,173 @@ export default function App() {
     await supabase.from('diaries').delete().eq('id', diaryId)
     setDiaries(prev => prev.filter(d => d.id !== diaryId))
     showToast('这页日记已撕去')
+  }
+
+  // ==========================================
+  // 一隅（改版第⑦步 · 第一批）
+  // 院规：门由她推（推门按钮常驻，灯只是信号）／一座院认一扇窗（绑定可换、换绑不丢家当）／
+  //       留言是慢的（悄悄话在下次推门时才被他看见）／世界由人设长出（地点由他自己标）
+  // ==========================================
+  const loadCourtyards = async () => {
+    const { data } = await supabase.from('courtyards').select('*').order('created_at', { ascending: true })
+    setCourtyards(data || [])
+  }
+
+  const loadCornerMoments = async () => {
+    const { data } = await supabase.from('corner_moments').select('*').order('created_at', { ascending: false })
+    setCornerMoments(data || [])
+  }
+
+  const loadCornerComments = async () => {
+    const { data } = await supabase.from('corner_comments').select('*').order('created_at', { ascending: true })
+    setCornerComments(data || [])
+  }
+
+  const createCourtyard = async (name, conversationId) => {
+    const { data, error } = await supabase.from('courtyards').insert({ user_id: user.id, name, conversation_id: conversationId }).select().single()
+    if (error || !data) { showToast('⚠️ 院子没能落成' + (error?.message ? '：' + error.message : '，请重试')); return null }
+    setCourtyards(prev => [...prev, data])
+    showToast('院子落成了 🌙')
+    return data
+  }
+
+  const renameCourtyard = async (yardId, newName) => {
+    await supabase.from('courtyards').update({ name: newName }).eq('id', yardId)
+    setCourtyards(prev => prev.map(c => c.id === yardId ? { ...c, name: newName } : c))
+    showToast('院名已换')
+  }
+
+  // 换绑 = 传声筒转向新的窗；院里的旧动静一条不丢（动静记在院子名下，不记在窗名下）
+  const rebindCourtyard = async (yardId, conversationId) => {
+    await supabase.from('courtyards').update({ conversation_id: conversationId }).eq('id', yardId)
+    setCourtyards(prev => prev.map(c => c.id === yardId ? { ...c, conversation_id: conversationId } : c))
+    showToast('这座院认了新的窗')
+  }
+
+  const updateCourtyardQuiet = async (yardId, text) => {
+    const value = (text || '').trim() || null
+    await supabase.from('courtyards').update({ quiet_text: value }).eq('id', yardId)
+    setCourtyards(prev => prev.map(c => c.id === yardId ? { ...c, quiet_text: value } : c))
+    showToast('安静状态语已保存')
+  }
+
+  const deleteCourtyard = async (yardId) => {
+    const momentIds = cornerMoments.filter(mm => mm.courtyard_id === yardId).map(mm => mm.id)
+    if (momentIds.length > 0) {
+      await supabase.from('corner_comments').delete().in('moment_id', momentIds)
+      await supabase.from('corner_moments').delete().eq('courtyard_id', yardId)
+    }
+    await supabase.from('courtyards').delete().eq('id', yardId)
+    setCornerComments(prev => prev.filter(c => !momentIds.includes(c.moment_id)))
+    setCornerMoments(prev => prev.filter(mm => mm.courtyard_id !== yardId))
+    setCourtyards(prev => prev.filter(c => c.id !== yardId))
+    showToast('这座院子已拆除')
+  }
+
+  const toggleMomentLike = async (momentId) => {
+    const mm = cornerMoments.find(x => x.id === momentId)
+    if (!mm) return
+    const liked = !mm.liked
+    setCornerMoments(prev => prev.map(x => x.id === momentId ? { ...x, liked } : x))
+    await supabase.from('corner_moments').update({ liked }).eq('id', momentId)
+    if (liked) showToast('收进心里了 ♥')
+  }
+
+  // 她的悄悄话：免费、静默存放；"等他看见"——下次推门时才被他读到（留言是慢的）
+  const addCornerComment = async (momentId, content) => {
+    const text = (content || '').trim()
+    if (!text) return
+    const { data, error } = await supabase.from('corner_comments').insert({ user_id: user.id, moment_id: momentId, author: 'her', content: text }).select().single()
+    if (error || !data) { showToast('⚠️ 悄悄话没能留下' + (error?.message ? '：' + error.message : '，请重试')); return }
+    setCornerComments(prev => [...prev, data])
+    showToast('悄悄话留下了，等他看见')
+  }
+
+  const deleteCornerMoment = async (momentId) => {
+    await supabase.from('corner_comments').delete().eq('moment_id', momentId)
+    await supabase.from('corner_moments').delete().eq('id', momentId)
+    setCornerComments(prev => prev.filter(c => c.moment_id !== momentId))
+    setCornerMoments(prev => prev.filter(mm => mm.id !== momentId))
+    showToast('这条动静已抹去')
+  }
+
+  // 推门看看：一隅唯一花钱的动作，按钮永远在她手里（院规第一条）。
+  // 生成时喂给他的 = 绑定窗当前时间线最近 N 条 + 全部记忆 + 攒着的悄悄话（连同动静原文成对呈上）。
+  // 走 sendDiaryRequest：非流式、无工具、与聊天同前缀吃缓存——院里的动静也是独白。
+  const pushDoor = async (yardId) => {
+    if (momentWriting || isStreaming || diaryWriting) return
+    if (!apiKey) { showToast('请先在小屋里填写 API Key'); setActivePage('cottage'); setCottageTab('general'); return }
+    const yard = courtyards.find(c => c.id === yardId)
+    if (!yard) return
+    setMomentWriting(yardId)
+    try {
+      // 绑定窗的当前时间线（书签所在的那条枝），与聊天/日记同一口径截取最近 N 条
+      let recentMessages = []
+      if (yard.conversation_id) {
+        const { data: rows } = await supabase.from('messages').select('*').eq('conversation_id', yard.conversation_id).order('created_at', { ascending: true })
+        const conv = conversations.find(c => c.id === yard.conversation_id)
+        const path = computePath(rows || [], conv?.active_leaf_id || null, yard.conversation_id).filter(mm => !isTemp(mm))
+        recentMessages = path.slice(-maxContextMessages).map(mm => ({ role: mm.role, content: mm.content, created_at: mm.created_at }))
+      }
+      // 这座院里还没被他看见的悄悄话，按留下的先后排队
+      const yardMoments = cornerMoments.filter(mm => mm.courtyard_id === yardId)
+      const momentById = new Map(yardMoments.map(mm => [mm.id, mm]))
+      const unseen = cornerComments
+        .filter(c => c.author === 'her' && !c.seen && momentById.has(c.moment_id))
+        .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+      const invitation = { role: 'user', content: buildMomentInvitation(unseen, momentById), created_at: new Date().toISOString() }
+      const useModel = conversations.find(c => c.id === yard.conversation_id)?.model || model
+
+      const { content, usage } = await sendDiaryRequest({
+        apiKey, model: useModel, temperature, topP, systemPrompt, memories,
+        conversationHistory: [...recentMessages, invitation]
+      })
+      const { content: momentText, location, replies } = splitMomentParts(content)
+      // 没有攒着的留言、他却写了「回她」行（少见）：并回正文，一个字都不丢
+      const bodyText = (unseen.length === 0 && replies.length > 0)
+        ? [momentText, ...replies].filter(Boolean).join('\n')
+        : momentText
+      if (!bodyText && replies.length === 0) { showToast('💬 他在院中静坐了片刻，没有留下动静，再推一次门吧'); return }
+
+      // 费用小票随动静存库（月历当日 ✦ 行会把它算进账，与 OpenRouter 账单严格对得上）
+      const tokenUsage = usage ? {
+        cost: Number((typeof usage.cost === 'number' ? usage.cost : 0).toFixed(6)),
+        prompt_tokens: usage.prompt_tokens || 0,
+        completion_tokens: usage.completion_tokens || 0,
+        cached_tokens: usage.prompt_tokens_details?.cached_tokens || usage.cached_tokens || 0,
+        bills: 1
+      } : null
+
+      if (bodyText) {
+        const { data: savedMoment, error } = await supabase.from('corner_moments').insert({
+          user_id: user.id, courtyard_id: yardId, author: 'him', content: bodyText, location: location || null, token_usage: tokenUsage
+        }).select().single()
+        if (error || !savedMoment) {
+          showToast('⚠️ 动静保存失败' + (error?.message ? '：' + error.message : '，请重试'))
+          return
+        }
+        setCornerMoments(prev => [savedMoment, ...prev])
+      }
+
+      // 她的留言此刻被他看见了；他若逐条回了话，一并挂回各自的动静底下
+      if (unseen.length > 0) {
+        await supabase.from('corner_comments').update({ seen: true }).in('id', unseen.map(c => c.id))
+        setCornerComments(prev => prev.map(c => unseen.some(u => u.id === c.id) ? { ...c, seen: true } : c))
+        if (replies.length > 0) {
+          const replyRows = replies.slice(0, Math.max(unseen.length, replies.length)).map((r, i) => ({
+            user_id: user.id, moment_id: (unseen[i] || unseen[unseen.length - 1]).moment_id, author: 'him', content: r, seen: true
+          }))
+          const { data: savedReplies } = await supabase.from('corner_comments').insert(replyRows).select()
+          if (savedReplies) setCornerComments(prev => [...prev, ...savedReplies])
+        }
+      }
+      showToast('院里有了新的动静 🏮')
+    } catch (e) {
+      console.error('推门失败:', e)
+      showToast('这次没能推开门：' + e.message)
+    } finally {
+      setMomentWriting(null)
+    }
   }
 
   const loadFavorites = async () => {
@@ -1034,7 +1245,10 @@ export default function App() {
     const { data: allMems } = await supabase.from('memories').select('*')
     const { data: allNotes } = await supabase.from('notes').select('*')
     const { data: allDiaries } = await supabase.from('diaries').select('*')
-    const exportData = { conversations: allConvs || [], messages: allMsgs || [], memories: allMems || [], notes: allNotes || [], diaries: allDiaries || [], exportedAt: new Date().toISOString() }
+    const { data: allYards } = await supabase.from('courtyards').select('*')
+    const { data: allMoments } = await supabase.from('corner_moments').select('*')
+    const { data: allComments } = await supabase.from('corner_comments').select('*')
+    const exportData = { conversations: allConvs || [], messages: allMsgs || [], memories: allMems || [], notes: allNotes || [], diaries: allDiaries || [], courtyards: allYards || [], corner_moments: allMoments || [], corner_comments: allComments || [], exportedAt: new Date().toISOString() }
     const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -1076,8 +1290,8 @@ export default function App() {
           onSend={sendMessage} onStop={stopStreaming} onToggleFavorite={toggleFavorite} onRegenerate={regenerateResponse} onEditMessage={editMessage} onEditAndResend={editAndResend} onSwitchVariant={switchVariant} onDeleteMessage={deleteMessage}
           onMenuClick={() => setSidebarOpen(true)} onSearchClick={() => setSearchOpen(true)}
         />
-        {activePage === 'moments' && <Moments notes={notes} favorites={favorites} diaries={diaries} conversations={conversations} onUpdateNote={updateNote} onDeleteNote={deleteNote} onDeleteDiary={deleteDiary} onRemoveFavorite={removeFavorite} onLocateMessage={locateMessage} onOpenConversation={selectConversation} firstMetTime={firstMetTime} />}
-        {activePage === 'corner' && <Corner />}
+        {activePage === 'moments' && <Moments notes={notes} favorites={favorites} diaries={diaries} cornerMoments={cornerMoments} conversations={conversations} onUpdateNote={updateNote} onDeleteNote={deleteNote} onDeleteDiary={deleteDiary} onRemoveFavorite={removeFavorite} onLocateMessage={locateMessage} onOpenConversation={selectConversation} firstMetTime={firstMetTime} />}
+        {activePage === 'corner' && <Corner courtyards={courtyards} moments={cornerMoments} comments={cornerComments} conversations={conversations} momentWriting={momentWriting} onCreate={createCourtyard} onRename={renameCourtyard} onRebind={rebindCourtyard} onUpdateQuiet={updateCourtyardQuiet} onDeleteYard={deleteCourtyard} onPushDoor={pushDoor} onToggleLike={toggleMomentLike} onAddComment={addCornerComment} onDeleteMoment={deleteCornerMoment} />}
         {activePage === 'cottage' && <Cottage themeMode={themeMode} onChangeTheme={setThemeMode} tab={cottageTab} onTabChange={setCottageTab} apiKey={apiKey} systemPrompt={systemPrompt} model={model} temperature={temperature} topP={topP} maxContextMessages={maxContextMessages} memories={memories} stats={stats} onSaveApiKey={saveApiKey} onSaveSettings={saveSettings} onAddCoreMemory={addCoreMemory} onDeleteMemory={deleteMemory} onUpdateMemory={updateMemory} onExportAll={exportAllData} daysTogether={daysTogether} firstMetDate={firstMetDate} cottageName={cottageName} cottageSubtitle={cottageSubtitle} />}
         <BottomNav active={activePage} onChange={setActivePage} />
       </div>
