@@ -17,7 +17,7 @@ const dayKey = (d) => `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`
 // 月度小抄：这次会话里看过的月份先亮旧账、后台悄悄对新账（去东京问一趟要一两秒，别让她干等）
 const monthCache = {}
 
-export default function HeatCalendar({ conversations = [], notes = [], diaries = [], onOpenConversation, firstMetTime = null }) {
+export default function HeatCalendar({ conversations = [], notes = [], diaries = [], cornerMoments = [], onOpenConversation, firstMetTime = null }) {
   const now = new Date()
   // 月历翻到哪个月：锚在该月 1 号
   const [anchor, setAnchor] = useState(() => new Date(now.getFullYear(), now.getMonth(), 1))
@@ -57,6 +57,24 @@ export default function HeatCalendar({ conversations = [], notes = [], diaries =
     }
     return map
   }, [diaries])
+
+  // 院子动静按天归档（改版第⑦步第一批）：推门的花费也入当日账，✦ 行三处合计（消息+日记+动静），
+  // 与账单严格对得上（cornerMoments 由 App 全量载入，零额外查询；月历格子不加新记号——一个巧思只出现一次）
+  const momentDays = useMemo(() => {
+    const map = {}
+    for (const m of cornerMoments) {
+      if (!m.created_at) continue
+      const k = dayKey(new Date(m.created_at))
+      if (!map[k]) map[k] = { count: 0, cost: 0, tokens: 0 }
+      map[k].count += 1
+      const u = m.token_usage
+      if (u) {
+        map[k].cost += (typeof u.cost === 'number' ? u.cost : 0)
+        map[k].tokens += (u.completion_tokens || 0)
+      }
+    }
+    return map
+  }, [cornerMoments])
 
   // 翻到某月时，去数据库问一次"这个月每天各有几条"
   // 只取三列小字段；超过 1000 条时一页页取齐（Supabase 单次最多给 1000 条）
@@ -141,9 +159,10 @@ export default function HeatCalendar({ conversations = [], notes = [], diaries =
   const selConvs = sel ? Object.entries(sel.convs).sort((a, b) => b[1] - a[1]) : []
   const selNotes = selected ? (noteDays[selected.key] || 0) : 0
   const selDiary = selected ? diaryDays[selected.key] : null
-  // ✦ 行的口径：他写下的字（消息 + 日记的 completion）与当日全部真实花费
-  const selTokens = (sel?.tokens || 0) + (selDiary?.tokens || 0)
-  const selCost = (sel?.cost || 0) + (selDiary?.cost || 0)
+  const selMoments = selected ? momentDays[selected.key] : null
+  // ✦ 行的口径：他写下的字（消息 + 日记 + 院子动静的 completion）与当日全部真实花费
+  const selTokens = (sel?.tokens || 0) + (selDiary?.tokens || 0) + (selMoments?.tokens || 0)
+  const selCost = (sel?.cost || 0) + (selDiary?.cost || 0) + (selMoments?.cost || 0)
 
   return (
     <div className="page-card heat-card">
@@ -209,6 +228,7 @@ export default function HeatCalendar({ conversations = [], notes = [], diaries =
               <div className="day-card-fact">✦ 他写下 {fmtTokens(selTokens)} tokens · ${selCost.toFixed(4)}</div>
             )}
             {selDiary?.pages > 0 && <div className="day-card-fact">✎ 他写下了 {selDiary.pages} 页日记</div>}
+            {selMoments?.count > 0 && <div className="day-card-fact">🏮 院里添了 {selMoments.count} 条动静</div>}
             {selNotes > 0 && <div className="day-card-fact">💌 这天收到 {selNotes} 张纸条</div>}
             {metDays >= 1 && <div className="day-card-fact">这天是相识的第 {metDays} 天 🌙</div>}
 
