@@ -11,6 +11,7 @@ export default function Moments({
   notes = [],
   favorites = [],
   diaries = [],
+  cornerMoments = [],
   conversations = [],
   onUpdateNote,
   onDeleteNote,
@@ -118,6 +119,7 @@ export default function Moments({
           conversations={conversations}
           notes={notes}
           diaries={diaries}
+          cornerMoments={cornerMoments}
           onOpenConversation={onOpenConversation}
           firstMetTime={firstMetTime}
         />
