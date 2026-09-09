@@ -189,7 +189,7 @@ const MessageItem = React.memo(function MessageItem({
               <button className="msg-action" onClick={(e) => { e.stopPropagation(); onRegenerate(msg.id) }} title="重新生成"><Icon name="refresh" size={15} /></button>
             )}
             <button className="msg-action" onClick={(e) => { e.stopPropagation(); onCopyMessage(msg.content) }} title="复制"><Icon name="copy" size={15} /></button>
-            <button className="msg-action" onClick={(e) => { e.stopPropagation(); onFork(msg.id) }} title="从这里分叉（免费长新枝）"><Icon name="fork" size={15} /></button>
+            <button className="msg-action" onClick={(e) => { e.stopPropagation(); onFork(msg.id) }} title={msg.role === 'user' ? '换一句重说（免费分叉）' : '从这里分叉（免费长新枝）'}><Icon name="fork" size={15} /></button>
             <button className="msg-action danger" onClick={(e) => { e.stopPropagation(); if (confirm('确定删除这条消息吗？删除后他也看不到这条了。')) onDeleteMessage(msg.id) }} title="删除"><Icon name="trash" size={15} /></button>
             {msg.role === 'assistant' && (
               <button className={msg.is_favorited ? 'msg-action fav-on' : 'msg-action'} style={{ fontSize: '14px' }} onClick={(e) => { e.stopPropagation(); onToggleFavorite(msg.id) }} title={msg.is_favorited ? '取消收藏' : '收藏'}>
