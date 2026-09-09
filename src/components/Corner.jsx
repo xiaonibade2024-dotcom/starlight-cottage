@@ -119,10 +119,12 @@ export default function Corner({
   }, [latestHim?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const getConvName = (convId) => conversations.find(c => c.id === convId)?.name || '不在的窗'
+  // 动静时间改现代数字（2026.9 杂修·她拍板）：跨年自动带上年份；时辰（shichenOf）退休留档
   const fmtMomentTime = (dateStr) => {
     const d = new Date(dateStr)
+    const pad = (n) => String(n).padStart(2, '0')
     const yearPart = d.getFullYear() !== new Date().getFullYear() ? `${d.getFullYear()}年` : ''
-    return `${yearPart}${d.getMonth() + 1}月${d.getDate()}日 · ${shichenOf(d)}`
+    return `${yearPart}${d.getMonth() + 1}月${d.getDate()}日 ${pad(d.getHours())}:${pad(d.getMinutes())}`
   }
 
   const startCreate = () => {
