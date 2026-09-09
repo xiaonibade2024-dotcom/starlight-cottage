@@ -222,7 +222,7 @@ const MessageItem = React.memo(function MessageItem({
 // ==========================================
 export default function Chat({
   conversation, messages, isStreaming, cacheStats, variantIndexes, branchInfo, onSwitchBranch, scrollToMsgId, onScrollDone, currentModel, onChangeModel,
-  daysTogether = 0, hidden = false, headerNote = '',
+  daysTogether = 0, hidden = false, canResume = false, onResume,
   diaryWriting = false, showDiaryHint = false, onInviteDiary, onOpenDiaryBook,
   onSend, onStop, onToggleFavorite, onRegenerate, onEditMessage, onEditAndResend, onSwitchVariant, onDeleteMessage, onFork,
   onMenuClick, onSearchClick
@@ -402,8 +402,8 @@ export default function Chat({
         <div className="chat-header-left">
           <button className="menu-btn" onClick={onMenuClick}><Icon name="menu" size={20} sw={1.7} /></button>
           <div className="chat-header-title-block">
-            {/* 顶栏（2026.9 杂修·她拍板）：兜底"星月小屋"退休——没打开对话时，标题位显示她的签名（没填就空着，只留天数细字） */}
-            {(conversation?.name || headerNote) && <span className="chat-header-title">{conversation?.name || headerNote}</span>}
+            {/* 顶栏（2026.9 二次拍板）：窗口名退居细字只作认路，不喧宾；签名功能已拆（她判"鸡肋"，header_note 列闲置无害） */}
+            {conversation?.name && <span className="chat-header-name">{conversation.name}</span>}
             {/* 副行：相识第 X 天；状态词位置预留但暂不填字（预留抽屉） */}
             {daysTogether > 0 && <span className="chat-header-sub">相识第 {daysTogether} 天</span>}
           </div>
@@ -483,6 +483,10 @@ export default function Chat({
             onFork={onFork}
           />
         ))}
+        {/* 回到枝头（2026.9 补针）：停在半山腰时的免费回程票 */}
+        {canResume && !isStreaming && (
+          <div className="resume-branch" onClick={() => onResume?.()}>这条枝往后还有故事 · 回到枝头 ▾</div>
+        )}
         {/* 日记提示行（改版第⑤步）：他提笔时轻轻说一声；写好后浮现一次，不存库、刷新即散 */}
         {(diaryWriting || showDiaryHint) && (
           <div
