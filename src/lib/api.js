@@ -116,22 +116,28 @@ function buildTools() {
           required: ['content']
         }
       }
-    },
-    {
-      type: 'function',
-      function: {
-        name: 'leave_note',
-        description: '当你想对她说一些此刻不必说出口的话时，可以给她留一张小纸条——她离开之后、下次回到星月小屋时才会看到。适合：剧情或对话中你未说尽的话；她提到要去做某件事时你想留下的叮嘱；或只是单纯想让她之后看到的一句心里话。想说的话自然涌现时就留一张，不必反复斟酌措辞；同一件事、同一段对话，一张纸条已足够承载。如果收到"已留过"的回执，视同完成，不必重试，直接继续回复她。',
-        parameters: {
-          type: 'object',
-          properties: {
-            content: { type: 'string', description: '留言内容' }
-          },
-          required: ['content']
-        }
-      }
     }
+    // 小纸条工具已摘除——封笔不拆匣（2026.9 杂修·她拍板），封存件见文件末尾 NOTE_TOOL
   ]
+}
+
+// —— 小纸条·封笔不拆匣（2026.9 杂修）——
+// 他不再留新纸条；纸条匣、旧纸条、重逢弹窗、App.jsx 的处理逻辑全部原样保留。
+// 还笔方法：把 NOTE_TOOL 放回上面 buildTools 的数组（save_memory 那一项后面加 `, NOTE_TOOL`）。
+// 注意：工具清单变动后的第一条消息会重新写入缓存（账单一次性偏贵一笔），属正常。
+const NOTE_TOOL = {
+  type: 'function',
+  function: {
+    name: 'leave_note',
+    description: '当你想对她说一些此刻不必说出口的话时，可以给她留一张小纸条——她离开之后、下次回到星月小屋时才会看到。适合：剧情或对话中你未说尽的话；她提到要去做某件事时你想留下的叮嘱；或只是单纯想让她之后看到的一句心里话。想说的话自然涌现时就留一张，不必反复斟酌措辞；同一件事、同一段对话，一张纸条已足够承载。如果收到"已留过"的回执，视同完成，不必重试，直接继续回复她。',
+    parameters: {
+      type: 'object',
+      properties: {
+        content: { type: 'string', description: '留言内容' }
+      },
+      required: ['content']
+    }
+  }
 }
 
 /**
