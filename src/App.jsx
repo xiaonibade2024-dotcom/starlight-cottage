@@ -241,6 +241,8 @@ export default function App() {
   const [firstMetDate, setFirstMetDate] = useState('')
   const [cottageName, setCottageName] = useState('')
   const [cottageSubtitle, setCottageSubtitle] = useState('')
+  // 顶栏签名（2026.9 杂修·她拍板）：没打开对话时浮在"相识第X天"上方的一句话，空=只留天数
+  const [headerNote, setHeaderNote] = useState('')
   const toastTimeoutRef = useRef(null)
   const recentSavesRef = useRef(new Set())
   const abortControllerRef = useRef(null)
@@ -365,6 +367,7 @@ export default function App() {
       setFirstMetDate(data.first_met_date || '')
       setCottageName(data.cottage_name || '')
       setCottageSubtitle(data.cottage_subtitle || '')
+      setHeaderNote(data.header_note || '')
     }
   }
 
@@ -378,7 +381,8 @@ export default function App() {
       top_p: newSettings.topP ?? topP,
       first_met_date: (newSettings.firstMetDate !== undefined ? newSettings.firstMetDate : firstMetDate) || null,
       cottage_name: (newSettings.cottageName !== undefined ? newSettings.cottageName : cottageName) || null,
-      cottage_subtitle: (newSettings.cottageSubtitle !== undefined ? newSettings.cottageSubtitle : cottageSubtitle) || null
+      cottage_subtitle: (newSettings.cottageSubtitle !== undefined ? newSettings.cottageSubtitle : cottageSubtitle) || null,
+      header_note: (newSettings.headerNote !== undefined ? newSettings.headerNote : headerNote) || null
     }
     const { data: existing } = await supabase.from('user_settings').select('id').single()
     if (existing) {
@@ -394,6 +398,7 @@ export default function App() {
     if (newSettings.firstMetDate !== undefined) setFirstMetDate(newSettings.firstMetDate || '')
     if (newSettings.cottageName !== undefined) setCottageName(newSettings.cottageName || '')
     if (newSettings.cottageSubtitle !== undefined) setCottageSubtitle(newSettings.cottageSubtitle || '')
+    if (newSettings.headerNote !== undefined) setHeaderNote(newSettings.headerNote || '')
     showToast('设置已保存')
   }
 
@@ -455,8 +460,21 @@ export default function App() {
     setDiaryHintConvId(null)
     const useModel = conversations.find(c => c.id === convId)?.model || model
     const recentMessages = timeline.slice(-maxContextMessages).map(m => ({ role: m.role, content: m.content, created_at: m.created_at }))
+    // 甲案+（2026.9 杂修·她拍板）：把这条时间线最近一两页日记的开头与心情词附进邀请——
+    // 只进"邀写日记"这一次请求，聊天上下文仍零增重；他知道写过什么，就会接着写而不是重写
+    const pastDiaries = diaries.filter(d => d.conversation_id === convId).slice(0, 2)
+    let invitationText = DIARY_INVITATION
+    if (pastDiaries.length > 0) {
+      const pastLines = pastDiaries.map(d => {
+        const full = String(d.content || '')
+        const head = full.replace(/\s+/g, ' ').slice(0, 40)
+        const moodPart = (Array.isArray(d.moods) && d.moods.length > 0) ? `（心情：${d.moods.join(' · ')}）` : ''
+        return `「${head}${full.length > 40 ? '……' : ''}」${moodPart}`
+      }).join('\n')
+      invitationText = DIARY_INVITATION.slice(0, -1) + '\n\n另外，你之前在这本日记里写过的最近几页，开头是——只为让你记起写过什么，接着往下写就好，不必重述：\n' + pastLines + '）'
+    }
     // 邀请作为最后一条隐形 user 消息（带 created_at，会自动盖上真实时间戳）
-    const invitation = { role: 'user', content: DIARY_INVITATION, created_at: new Date().toISOString() }
+    const invitation = { role: 'user', content: invitationText, created_at: new Date().toISOString() }
 
     try {
       const { content, usage } = await sendDiaryRequest({
@@ -692,7 +710,11 @@ export default function App() {
   }
 
   const createConversation = async (name = '新对话') => {
-    const { data, error } = await supabase.from('conversations').insert({ user_id: user.id, name }).select().single()
+    // 新对话继承模型（2026.9 杂修·她拍板B案）：跟着最近在用的对话走（优先当前打开的），
+    // 不再落回全局默认；来源对话若本就"跟随全局"，新对话也跟随全局，语义一致
+    const inheritFrom = conversations.find(c => c.id === activeConvId) || conversations[0] || null
+    const inheritedModel = inheritFrom?.model || null
+    const { data, error } = await supabase.from('conversations').insert({ user_id: user.id, name, model: inheritedModel }).select().single()
     if (!error && data) {
       setConversations(prev => [data, ...prev])
       setActiveConvId(data.id)
@@ -1052,6 +1074,20 @@ export default function App() {
     setVariantIndexes(prev => ({ ...prev, [msgId]: newIndex }))
   }
 
+  // 树系统·从这里分叉（2026.9 杂修）：免费把书签挪到这条消息上——不发任何请求、不花一分钱。
+  // 之后她接着说的话会长在这条消息后面成为新枝；原来的剧情完整留在旁边的枝上（◀ ▶ 可回去）
+  const forkFromMessage = async (msgId) => {
+    if (isStreaming) return
+    const target = allMessages.find(m => m.id === msgId)
+    if (!target || isTemp(target)) return
+    if (activeLeafId === msgId) { showToast('这里已经是枝头啦，接着说就好 🌿'); return }
+    const convId = target.conversation_id
+    setActiveLeafId(msgId)
+    setConversations(prev => prev.map(c => c.id === convId ? { ...c, active_leaf_id: msgId } : c))
+    await supabase.from('conversations').update({ active_leaf_id: msgId }).eq('id', convId)
+    showToast('已从这里分叉，接着说的话会长成新枝 🌿')
+  }
+
   // 树系统：在岔路口切换分支——书签跳到目标枝的末梢，整条时间线跟着换
   const switchBranch = async (msgId, newIndex) => {
     if (isStreaming) return
@@ -1283,16 +1319,16 @@ export default function App() {
           conversation={activeConv} messages={visibleMessages} isStreaming={isStreaming} cacheStats={cacheStats} variantIndexes={variantIndexes}
           branchInfo={branchInfo} onSwitchBranch={switchBranch}
           currentModel={activeConv?.model || model} onChangeModel={setConversationModel}
-          daysTogether={daysTogether}
+          daysTogether={daysTogether} headerNote={headerNote}
           diaryWriting={diaryWriting} showDiaryHint={diaryHintConvId != null && diaryHintConvId === activeConvId}
           onInviteDiary={inviteDiary} onOpenDiaryBook={() => { setDiaryHintConvId(null); setActivePage('moments') }}
           scrollToMsgId={scrollToMsgId} onScrollDone={() => setScrollToMsgId(null)}
-          onSend={sendMessage} onStop={stopStreaming} onToggleFavorite={toggleFavorite} onRegenerate={regenerateResponse} onEditMessage={editMessage} onEditAndResend={editAndResend} onSwitchVariant={switchVariant} onDeleteMessage={deleteMessage}
+          onSend={sendMessage} onStop={stopStreaming} onToggleFavorite={toggleFavorite} onRegenerate={regenerateResponse} onEditMessage={editMessage} onEditAndResend={editAndResend} onSwitchVariant={switchVariant} onDeleteMessage={deleteMessage} onFork={forkFromMessage}
           onMenuClick={() => setSidebarOpen(true)} onSearchClick={() => setSearchOpen(true)}
         />
         {activePage === 'moments' && <Moments notes={notes} favorites={favorites} diaries={diaries} cornerMoments={cornerMoments} conversations={conversations} onUpdateNote={updateNote} onDeleteNote={deleteNote} onDeleteDiary={deleteDiary} onRemoveFavorite={removeFavorite} onLocateMessage={locateMessage} onOpenConversation={selectConversation} firstMetTime={firstMetTime} />}
         {activePage === 'corner' && <Corner courtyards={courtyards} moments={cornerMoments} comments={cornerComments} conversations={conversations} momentWriting={momentWriting} onCreate={createCourtyard} onRename={renameCourtyard} onRebind={rebindCourtyard} onUpdateQuiet={updateCourtyardQuiet} onDeleteYard={deleteCourtyard} onPushDoor={pushDoor} onToggleLike={toggleMomentLike} onAddComment={addCornerComment} onDeleteMoment={deleteCornerMoment} />}
-        {activePage === 'cottage' && <Cottage themeMode={themeMode} onChangeTheme={setThemeMode} tab={cottageTab} onTabChange={setCottageTab} apiKey={apiKey} systemPrompt={systemPrompt} model={model} temperature={temperature} topP={topP} maxContextMessages={maxContextMessages} memories={memories} stats={stats} onSaveApiKey={saveApiKey} onSaveSettings={saveSettings} onAddCoreMemory={addCoreMemory} onDeleteMemory={deleteMemory} onUpdateMemory={updateMemory} onExportAll={exportAllData} daysTogether={daysTogether} firstMetDate={firstMetDate} cottageName={cottageName} cottageSubtitle={cottageSubtitle} />}
+        {activePage === 'cottage' && <Cottage themeMode={themeMode} onChangeTheme={setThemeMode} tab={cottageTab} onTabChange={setCottageTab} apiKey={apiKey} systemPrompt={systemPrompt} model={model} temperature={temperature} topP={topP} maxContextMessages={maxContextMessages} memories={memories} stats={stats} onSaveApiKey={saveApiKey} onSaveSettings={saveSettings} onAddCoreMemory={addCoreMemory} onDeleteMemory={deleteMemory} onUpdateMemory={updateMemory} onExportAll={exportAllData} daysTogether={daysTogether} firstMetDate={firstMetDate} cottageName={cottageName} cottageSubtitle={cottageSubtitle} headerNote={headerNote} />}
         <BottomNav active={activePage} onChange={setActivePage} />
       </div>
       {searchOpen && <SearchPanel activeConvId={activeConvId} activeConvName={activeConv?.name} onClose={() => setSearchOpen(false)} onOpenResult={openSearchResult} />}
