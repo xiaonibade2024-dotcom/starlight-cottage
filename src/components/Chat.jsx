@@ -21,7 +21,8 @@ const IC = {
   chevU: <path d="M6 14.5l6-6 6 6" />,
   chevD: <path d="M6 9.5l6 6 6-6" />,
   plus: <><path d="M12 5v14" /><path d="M5 12h14" /></>,
-  image: <><rect x="4" y="5" width="16" height="14" rx="2" /><circle cx="9" cy="10" r="1.6" /><path d="M4.5 16.5l4.5-4 3.5 3 3-2.5 4 3.5" /></>
+  image: <><rect x="4" y="5" width="16" height="14" rx="2" /><circle cx="9" cy="10" r="1.6" /><path d="M4.5 16.5l4.5-4 3.5 3 3-2.5 4 3.5" /></>,
+  fork: <><circle cx="7" cy="5.5" r="2" /><circle cx="7" cy="18.5" r="2" /><circle cx="17" cy="8.5" r="2" /><path d="M7 7.5v9" /><path d="M17 10.5c0 3.4-3.8 4.2-10 4.4" /></>
 }
 
 function Icon({ name, size = 17, sw = 1.6 }) {
@@ -78,7 +79,7 @@ function formatTime(dateStr) {
   return d.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }) + ' ' + time
 }
 
-// 开屏候语：按时辰换一句（纯前端词库，预留抽屉的第一格）
+// 开屏候语词库（2026.9 杂修：界面已全撤，此处退休存档；想请回来时直接调用）
 function timeGreeting() {
   const h = new Date().getHours()
   if (h >= 5 && h < 11) return '早安，小屋的窗子刚刚亮起来'
@@ -124,7 +125,7 @@ const MessageItem = React.memo(function MessageItem({
   isActive, isLastAssistant, variantIndex, isStreaming,
   branchIndex, branchTotal, onSwitchBranch,
   onMessageClick, onStartEdit, onSaveEdit, onSaveAndResend, onCancelEdit,
-  onRegenerate, onCopyMessage, onToggleFavorite, onSwitchVariant, onDeleteMessage
+  onRegenerate, onCopyMessage, onToggleFavorite, onSwitchVariant, onDeleteMessage, onFork
 }) {
   const editRef = useRef(null)
 
@@ -188,6 +189,7 @@ const MessageItem = React.memo(function MessageItem({
               <button className="msg-action" onClick={(e) => { e.stopPropagation(); onRegenerate(msg.id) }} title="重新生成"><Icon name="refresh" size={15} /></button>
             )}
             <button className="msg-action" onClick={(e) => { e.stopPropagation(); onCopyMessage(msg.content) }} title="复制"><Icon name="copy" size={15} /></button>
+            <button className="msg-action" onClick={(e) => { e.stopPropagation(); onFork(msg.id) }} title="从这里分叉（免费长新枝）"><Icon name="fork" size={15} /></button>
             <button className="msg-action danger" onClick={(e) => { e.stopPropagation(); if (confirm('确定删除这条消息吗？删除后他也看不到这条了。')) onDeleteMessage(msg.id) }} title="删除"><Icon name="trash" size={15} /></button>
             {msg.role === 'assistant' && (
               <button className={msg.is_favorited ? 'msg-action fav-on' : 'msg-action'} style={{ fontSize: '14px' }} onClick={(e) => { e.stopPropagation(); onToggleFavorite(msg.id) }} title={msg.is_favorited ? '取消收藏' : '收藏'}>
@@ -220,9 +222,9 @@ const MessageItem = React.memo(function MessageItem({
 // ==========================================
 export default function Chat({
   conversation, messages, isStreaming, cacheStats, variantIndexes, branchInfo, onSwitchBranch, scrollToMsgId, onScrollDone, currentModel, onChangeModel,
-  daysTogether = 0, hidden = false,
+  daysTogether = 0, hidden = false, headerNote = '',
   diaryWriting = false, showDiaryHint = false, onInviteDiary, onOpenDiaryBook,
-  onSend, onStop, onToggleFavorite, onRegenerate, onEditMessage, onEditAndResend, onSwitchVariant, onDeleteMessage,
+  onSend, onStop, onToggleFavorite, onRegenerate, onEditMessage, onEditAndResend, onSwitchVariant, onDeleteMessage, onFork,
   onMenuClick, onSearchClick
 }) {
   const [input, setInput] = useState('')
@@ -235,6 +237,18 @@ export default function Chat({
   const messagesEndRef = useRef(null)
   const messagesAreaRef = useRef(null)
   const textareaRef = useRef(null)
+  // 键盘药方（坑#24 v12 改判）：iOS 把 PWA 当独立 App 冷启动后，第一次聚焦输入框时
+  // 键盘会"接线不上"（弹出但打不进字）。自愈：本次启动的第一次聚焦时悄悄松手再握一次
+  //（blur → 稍候 focus），只做一次，之后不再打扰；电脑上同样无感。
+  const firstFocusHealedRef = useRef(false)
+  const healFirstFocus = () => {
+    if (firstFocusHealedRef.current) return
+    firstFocusHealedRef.current = true
+    const el = textareaRef.current
+    if (!el) return
+    el.blur()
+    setTimeout(() => { try { el.focus() } catch (e) {} }, 120)
+  }
   const fileInputRef = useRef(null)
   const isNearBottomRef = useRef(true)
   const [modelPanelOpen, setModelPanelOpen] = useState(false)
@@ -388,7 +402,8 @@ export default function Chat({
         <div className="chat-header-left">
           <button className="menu-btn" onClick={onMenuClick}><Icon name="menu" size={20} sw={1.7} /></button>
           <div className="chat-header-title-block">
-            <span className="chat-header-title">{conversation?.name || '星月小屋'}</span>
+            {/* 顶栏（2026.9 杂修·她拍板）：兜底"星月小屋"退休——没打开对话时，标题位显示她的签名（没填就空着，只留天数细字） */}
+            {(conversation?.name || headerNote) && <span className="chat-header-title">{conversation?.name || headerNote}</span>}
             {/* 副行：相识第 X 天；状态词位置预留但暂不填字（预留抽屉） */}
             {daysTogether > 0 && <span className="chat-header-sub">相识第 {daysTogether} 天</span>}
           </div>
@@ -438,15 +453,8 @@ export default function Chat({
       </div>
 
       <div className="messages-area" ref={messagesAreaRef} onScroll={handleScroll} onClick={handleAreaClick}>
-        {messages.length === 0 && !conversation && (
-          <div className="empty-state">
-            <div className="empty-state-icon">🌙</div>
-            <div className="empty-state-text">{timeGreeting()}<br />{daysTogether > 0 ? `相识第 ${daysTogether} 天，每一句对话都会被温柔地记住` : '在这里，每一句对话都会被温柔地记住'}</div>
-          </div>
-        )}
-        {messages.length === 0 && conversation && (
-          <div className="empty-state"><div className="empty-state-text" style={{ color: 'var(--text-muted)' }}>新的对话，新的开始</div></div>
-        )}
+        {/* 开屏候语与空状态提示已退休（2026.9 杂修·她拍板"全撤，干干净净"）
+            —— timeGreeting 词库留在文件上方存档，想请回来时取用 */}
 
         {messages.map(msg => (
           <MessageItem
@@ -472,6 +480,7 @@ export default function Chat({
             onToggleFavorite={onToggleFavorite}
             onSwitchVariant={onSwitchVariant}
             onDeleteMessage={onDeleteMessage}
+            onFork={onFork}
           />
         ))}
         {/* 日记提示行（改版第⑤步）：他提笔时轻轻说一声；写好后浮现一次，不存库、刷新即散 */}
@@ -542,7 +551,7 @@ export default function Chat({
               </>
             )}
           </div>
-          <textarea ref={textareaRef} className="input-box" placeholder="" value={input} onChange={e => setInput(e.target.value)} rows={1} />
+          <textarea ref={textareaRef} className="input-box" placeholder="" value={input} onChange={e => setInput(e.target.value)} onFocus={healFirstFocus} rows={1} />
           <button className="send-btn" onClick={isStreaming ? onStop : handleSend} disabled={!isStreaming && !input.trim() && pendingImages.length === 0} title={isStreaming ? '停止生成' : '发送'}>{isStreaming ? '■' : '♥'}</button>
         </div>
       </div>
