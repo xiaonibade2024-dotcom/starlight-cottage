@@ -1079,18 +1079,36 @@ export default function App() {
     setVariantIndexes(prev => ({ ...prev, [msgId]: newIndex }))
   }
 
-  // 树系统·从这里分叉（2026.9 杂修）：免费把书签挪到这条消息上——不发任何请求、不花一分钱。
-  // 之后她接着说的话会长在这条消息后面成为新枝；原来的剧情完整留在旁边的枝上（◀ ▶ 可回去）
+  // 树系统·从这里分叉（2026.9 补针二·按角色读心）：免费、不发任何请求。
+  // 点他的消息 = 在他说完之后岔开（他这句保留，后文收进旁边的枝）；
+  // 点她自己的消息 = 这句连同后文一起收进旁边的枝，原位重说一句——免费版"编辑重发"。
+  // 两种情况原剧情都完整保留（◀ ▶ / 回到枝头 可回去）
   const forkFromMessage = async (msgId) => {
     if (isStreaming) return
     const target = allMessages.find(m => m.id === msgId)
     if (!target || isTemp(target)) return
-    if (activeLeafId === msgId) { showToast('这里已经是枝头啦，接着说就好 🌿'); return }
     const convId = target.conversation_id
-    setActiveLeafId(msgId)
-    setConversations(prev => prev.map(c => c.id === convId ? { ...c, active_leaf_id: msgId } : c))
-    await supabase.from('conversations').update({ active_leaf_id: msgId }).eq('id', convId)
-    showToast('已从这里分叉，接着说的话会长成新枝 🌿')
+    const idx = buildTreeIndex(allMessages, convId)
+    let newLeafId
+    if (target.role === 'user') {
+      // 找她这句的"上一句"：显式 parent_id，或直线时代按顺序数；到头了=故事开头
+      let parentNode = null
+      if (target.parent_id && target.parent_id !== convId) {
+        parentNode = idx.byId.get(target.parent_id) || null
+      } else if (!target.parent_id) {
+        const i = idx.legacyPos.get(target.id)
+        parentNode = (i !== undefined && i > 0) ? idx.legacy[i - 1] : null
+      }
+      if (!parentNode) { showToast('这已经是故事的开头啦，用编辑 ✎ 换一句吧'); return }
+      newLeafId = parentNode.id
+    } else {
+      newLeafId = msgId
+    }
+    if (activeLeafId === newLeafId) { showToast('已经站在分叉口了，直接说点什么吧 🌿'); return }
+    setActiveLeafId(newLeafId)
+    setConversations(prev => prev.map(c => c.id === convId ? { ...c, active_leaf_id: newLeafId } : c))
+    await supabase.from('conversations').update({ active_leaf_id: newLeafId }).eq('id', convId)
+    showToast(target.role === 'user' ? '这句收进旁边的枝里了，重新说点什么吧 🌿' : '已从这里分叉，接着说的话会长成新枝 🌿')
   }
 
   // 回到枝头：沿"最新的孩子"一路滑回这条枝的末梢，免费
