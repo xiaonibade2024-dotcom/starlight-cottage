@@ -22,7 +22,6 @@ export default function Cottage({
   firstMetDate = '',
   cottageName = '',
   cottageSubtitle = '',
-  headerNote = '',
   onSaveApiKey,
   onSaveSettings,
   onAddCoreMemory,
@@ -39,7 +38,6 @@ export default function Cottage({
   const [localFirstMet, setLocalFirstMet] = useState(firstMetDate)
   const [localCName, setLocalCName] = useState(cottageName)
   const [localCSub, setLocalCSub] = useState(cottageSubtitle)
-  const [localHeaderNote, setLocalHeaderNote] = useState(headerNote)
   const [newMemory, setNewMemory] = useState('')
   const [addingCore, setAddingCore] = useState(false)
   const [coreOpen, setCoreOpen] = useState(false)
@@ -115,8 +113,7 @@ export default function Cottage({
       topP: Math.min(1, Math.max(0.01, parseFloat(localTopP) || 0.01)),
       firstMetDate: localFirstMet,
       cottageName: localCName.trim(),
-      cottageSubtitle: localCSub.trim(),
-      headerNote: localHeaderNote.trim()
+      cottageSubtitle: localCSub.trim()
     })
   }
 
@@ -168,12 +165,6 @@ export default function Cottage({
               <input className="settings-input" placeholder="星月小屋" value={localCName} onChange={e => setLocalCName(e.target.value)} />
               <input className="settings-input" style={{ marginTop: '8px' }} placeholder="under the same moon" value={localCSub} onChange={e => setLocalCSub(e.target.value)} />
               <div className="settings-hint">小屋的名字和门上的小字，显示在侧边栏 · 留空就用默认的</div>
-            </div>
-
-            <div className="settings-section">
-              <div className="settings-label">顶栏签名</div>
-              <input className="settings-input" placeholder="留空 = 只显示相识天数" value={localHeaderNote} onChange={e => setLocalHeaderNote(e.target.value)} />
-              <div className="settings-hint">没打开对话时，顶栏浮在"相识第 X 天"上方的一句话 · 想写什么都可以，删掉保存就回到素净</div>
             </div>
 
             <div className="settings-section">
