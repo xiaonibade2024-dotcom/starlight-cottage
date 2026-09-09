@@ -241,8 +241,6 @@ export default function App() {
   const [firstMetDate, setFirstMetDate] = useState('')
   const [cottageName, setCottageName] = useState('')
   const [cottageSubtitle, setCottageSubtitle] = useState('')
-  // 顶栏签名（2026.9 杂修·她拍板）：没打开对话时浮在"相识第X天"上方的一句话，空=只留天数
-  const [headerNote, setHeaderNote] = useState('')
   const toastTimeoutRef = useRef(null)
   const recentSavesRef = useRef(new Set())
   const abortControllerRef = useRef(null)
@@ -293,6 +291,16 @@ export default function App() {
       }
     }
     return info
+  }, [allMessages, visibleMessages, activeConvId])
+
+  // 回到枝头（2026.9 补针·她指出的缺口）：当前停的位置若不是枝头（末梢后面还有收起的剧情），
+  // 消息列表末尾亮一条免费回去的路——救刚分叉的她，也救任何停在半山腰的时刻
+  const canResume = useMemo(() => {
+    if (!activeConvId) return false
+    const path = visibleMessages.filter(m => !isTemp(m))
+    if (path.length === 0) return false
+    const idx = buildTreeIndex(allMessages, activeConvId)
+    return childrenOf(idx, path[path.length - 1]).length > 0
   }, [allMessages, visibleMessages, activeConvId])
 
   const showToast = useCallback((msg) => {
@@ -367,7 +375,6 @@ export default function App() {
       setFirstMetDate(data.first_met_date || '')
       setCottageName(data.cottage_name || '')
       setCottageSubtitle(data.cottage_subtitle || '')
-      setHeaderNote(data.header_note || '')
     }
   }
 
@@ -381,8 +388,7 @@ export default function App() {
       top_p: newSettings.topP ?? topP,
       first_met_date: (newSettings.firstMetDate !== undefined ? newSettings.firstMetDate : firstMetDate) || null,
       cottage_name: (newSettings.cottageName !== undefined ? newSettings.cottageName : cottageName) || null,
-      cottage_subtitle: (newSettings.cottageSubtitle !== undefined ? newSettings.cottageSubtitle : cottageSubtitle) || null,
-      header_note: (newSettings.headerNote !== undefined ? newSettings.headerNote : headerNote) || null
+      cottage_subtitle: (newSettings.cottageSubtitle !== undefined ? newSettings.cottageSubtitle : cottageSubtitle) || null
     }
     const { data: existing } = await supabase.from('user_settings').select('id').single()
     if (existing) {
@@ -398,7 +404,6 @@ export default function App() {
     if (newSettings.firstMetDate !== undefined) setFirstMetDate(newSettings.firstMetDate || '')
     if (newSettings.cottageName !== undefined) setCottageName(newSettings.cottageName || '')
     if (newSettings.cottageSubtitle !== undefined) setCottageSubtitle(newSettings.cottageSubtitle || '')
-    if (newSettings.headerNote !== undefined) setHeaderNote(newSettings.headerNote || '')
     showToast('设置已保存')
   }
 
@@ -1088,6 +1093,20 @@ export default function App() {
     showToast('已从这里分叉，接着说的话会长成新枝 🌿')
   }
 
+  // 回到枝头：沿"最新的孩子"一路滑回这条枝的末梢，免费
+  const resumeToLeaf = async () => {
+    if (isStreaming || !activeConvId) return
+    const path = visibleMessages.filter(m => !isTemp(m))
+    const last = path[path.length - 1]
+    if (!last) return
+    const idx = buildTreeIndex(allMessages, activeConvId)
+    const leaf = deepestLeaf(idx, last)
+    if (!leaf || leaf.id === last.id) return
+    setActiveLeafId(leaf.id)
+    setConversations(prev => prev.map(c => c.id === activeConvId ? { ...c, active_leaf_id: leaf.id } : c))
+    await supabase.from('conversations').update({ active_leaf_id: leaf.id }).eq('id', activeConvId)
+  }
+
   // 树系统：在岔路口切换分支——书签跳到目标枝的末梢，整条时间线跟着换
   const switchBranch = async (msgId, newIndex) => {
     if (isStreaming) return
@@ -1319,7 +1338,7 @@ export default function App() {
           conversation={activeConv} messages={visibleMessages} isStreaming={isStreaming} cacheStats={cacheStats} variantIndexes={variantIndexes}
           branchInfo={branchInfo} onSwitchBranch={switchBranch}
           currentModel={activeConv?.model || model} onChangeModel={setConversationModel}
-          daysTogether={daysTogether} headerNote={headerNote}
+          daysTogether={daysTogether} canResume={canResume} onResume={resumeToLeaf}
           diaryWriting={diaryWriting} showDiaryHint={diaryHintConvId != null && diaryHintConvId === activeConvId}
           onInviteDiary={inviteDiary} onOpenDiaryBook={() => { setDiaryHintConvId(null); setActivePage('moments') }}
           scrollToMsgId={scrollToMsgId} onScrollDone={() => setScrollToMsgId(null)}
@@ -1328,7 +1347,7 @@ export default function App() {
         />
         {activePage === 'moments' && <Moments notes={notes} favorites={favorites} diaries={diaries} cornerMoments={cornerMoments} conversations={conversations} onUpdateNote={updateNote} onDeleteNote={deleteNote} onDeleteDiary={deleteDiary} onRemoveFavorite={removeFavorite} onLocateMessage={locateMessage} onOpenConversation={selectConversation} firstMetTime={firstMetTime} />}
         {activePage === 'corner' && <Corner courtyards={courtyards} moments={cornerMoments} comments={cornerComments} conversations={conversations} momentWriting={momentWriting} onCreate={createCourtyard} onRename={renameCourtyard} onRebind={rebindCourtyard} onUpdateQuiet={updateCourtyardQuiet} onDeleteYard={deleteCourtyard} onPushDoor={pushDoor} onToggleLike={toggleMomentLike} onAddComment={addCornerComment} onDeleteMoment={deleteCornerMoment} />}
-        {activePage === 'cottage' && <Cottage themeMode={themeMode} onChangeTheme={setThemeMode} tab={cottageTab} onTabChange={setCottageTab} apiKey={apiKey} systemPrompt={systemPrompt} model={model} temperature={temperature} topP={topP} maxContextMessages={maxContextMessages} memories={memories} stats={stats} onSaveApiKey={saveApiKey} onSaveSettings={saveSettings} onAddCoreMemory={addCoreMemory} onDeleteMemory={deleteMemory} onUpdateMemory={updateMemory} onExportAll={exportAllData} daysTogether={daysTogether} firstMetDate={firstMetDate} cottageName={cottageName} cottageSubtitle={cottageSubtitle} headerNote={headerNote} />}
+        {activePage === 'cottage' && <Cottage themeMode={themeMode} onChangeTheme={setThemeMode} tab={cottageTab} onTabChange={setCottageTab} apiKey={apiKey} systemPrompt={systemPrompt} model={model} temperature={temperature} topP={topP} maxContextMessages={maxContextMessages} memories={memories} stats={stats} onSaveApiKey={saveApiKey} onSaveSettings={saveSettings} onAddCoreMemory={addCoreMemory} onDeleteMemory={deleteMemory} onUpdateMemory={updateMemory} onExportAll={exportAllData} daysTogether={daysTogether} firstMetDate={firstMetDate} cottageName={cottageName} cottageSubtitle={cottageSubtitle} />}
         <BottomNav active={activePage} onChange={setActivePage} />
       </div>
       {searchOpen && <SearchPanel activeConvId={activeConvId} activeConvName={activeConv?.name} onClose={() => setSearchOpen(false)} onOpenResult={openSearchResult} />}
