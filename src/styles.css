@@ -224,7 +224,7 @@ body {
 
 .input-area { padding: 16px 24px 20px; border-top: 1px solid var(--border-light); background: var(--bg-surface); }
 .input-wrapper { display: flex; align-items: flex-end; gap: 12px; max-width: 800px; margin: 0 auto; }
-.input-box { flex: 1; min-height: 44px; max-height: 160px; padding: 12px 16px; background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius-lg); font-family: var(--font-main); font-size: 16px; color: var(--text-primary); resize: none; outline: none; line-height: 1.6; transition: border-color var(--transition), box-shadow var(--transition); overflow-y: auto; }
+.input-box { flex: 1; min-height: 44px; max-height: 160px; padding: 12px 16px; background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius-lg); font-family: var(--font-main); font-size: 15px; /* 坑#24 v12改判：字号非凶手，退回15px；键盘药方在 Chat.jsx 首次聚焦自愈 */ color: var(--text-primary); resize: none; outline: none; line-height: 1.6; transition: border-color var(--transition), box-shadow var(--transition); overflow-y: auto; }
 .input-box:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
 .input-box::placeholder { color: var(--text-muted); }
 .send-btn { width: 44px; height: 44px; border-radius: 50%; background: var(--send-bg); border: 1px solid var(--send-border); color: var(--send-icon); font-size: 18px; cursor: pointer; transition: all var(--transition); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
@@ -652,7 +652,7 @@ body {
 .corner-comments { margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--border); display: flex; flex-direction: column; gap: 6px; }
 .corner-comment { font-size: 12.5px; line-height: 1.6; color: var(--text-secondary); display: flex; gap: 8px; align-items: baseline; }
 .corner-comment-who { flex-shrink: 0; font-size: 11px; color: var(--text-muted); letter-spacing: 1px; }
-.corner-comment.him .corner-comment-who, .corner-comment.him .corner-comment-text { color: var(--accent); }
+/* 他的回话字色已与她的留言一致（2026.9 杂修·她拍板）——谁在说话由行首「他/我」小签分辨 */
 .corner-comment-text { white-space: pre-wrap; word-break: break-word; min-width: 0; }
 .corner-wait { flex-shrink: 0; font-size: 10px; padding: 0 7px; border-radius: 20px; background: var(--wash-bg); border: 1px solid var(--wash-border); color: var(--accent); letter-spacing: 1px; }
 
@@ -667,3 +667,7 @@ body {
 .corner-input, .corner-select { font-size: 16px; }
 .corner-demolish { display: block; margin: 18px auto 2px; background: none; border: none; color: var(--text-muted); font-family: var(--font-main); font-size: 12px; letter-spacing: 1px; cursor: pointer; transition: color var(--transition); }
 @media (hover: hover) { .corner-demolish:hover { color: var(--danger); } }
+/* ==========================================
+   清扫杂修批次（2026.9）：版本小印章
+   ========================================== */
+.build-stamp { text-align: center; font-size: 11px; color: var(--text-muted); letter-spacing: 2px; text-indent: 2px; padding: 20px 0 10px; font-family: var(--font-accent); opacity: 0.8; }
