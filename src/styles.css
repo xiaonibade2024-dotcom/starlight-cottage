@@ -670,4 +670,7 @@ body {
 /* ==========================================
    清扫杂修批次（2026.9）：版本小印章
    ========================================== */
+.chat-header-name { font-size: 12.5px; color: var(--text-secondary); letter-spacing: 0.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } /* 窗口名细字（2026.9 二次拍板）：认路用，不喧宾 */
+.resume-branch { text-align: center; font-size: 12px; color: var(--text-muted); letter-spacing: 1px; padding: 12px 16px 4px; cursor: pointer; user-select: none; transition: color var(--transition); }
+@media (hover: hover) { .resume-branch:hover { color: var(--accent) } }
 .build-stamp { text-align: center; font-size: 11px; color: var(--text-muted); letter-spacing: 2px; text-indent: 2px; padding: 20px 0 10px; font-family: var(--font-accent); opacity: 0.8; }
