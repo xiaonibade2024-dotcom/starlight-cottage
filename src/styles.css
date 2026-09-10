@@ -228,6 +228,12 @@ body {
 .chat-item-name { font-size: 14px; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
 .chat-item-name input { background: transparent; border: none; border-bottom: 1px solid var(--accent); font-family: var(--font-main); font-size: 14px; color: var(--text-primary); width: 100%; outline: none; padding: 0; }
 .chat-item-time { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+/* 夜里侧边栏退光：大字与窗口名从白纸退到月光纸（与夜间气泡同一克制度，日间不受影响） */
+[data-theme="night"] .sidebar-title { color: #D6C8D2; }
+[data-theme="night"] .chat-item-name { color: #CBBCC8; }
+[data-theme="taro-night"] .sidebar-title { color: #D9CFE7; }
+[data-theme="taro-night"] .chat-item-name { color: #CDC2DC; }
 .chat-item-actions { display: flex; gap: 4px; opacity: 0; transition: opacity var(--transition); }
 @media (hover: hover) { .chat-item:hover .chat-item-actions { opacity: 1; } }
 .chat-item-actions button { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 2px 4px; font-size: 14px; border-radius: 4px; transition: all var(--transition); }
