@@ -245,27 +245,32 @@ export default function App() {
   const recentSavesRef = useRef(new Set())
   const abortControllerRef = useRef(null)
 
-  // 日夜主题：day（藕粉雾紫）/ night（暮色星屋）/ auto（跟随时辰：傍晚六点入夜、清晨六点回日）
-  // 只存浏览器本地，立即生效，不进数据库
+  // 主题双旋钮：套装（rose 藕粉雾紫 / taro 香芋奶芙）× 时辰（day / night / auto 傍晚六点入夜、清晨六点回日）
+  // 只存浏览器本地，立即生效，不进数据库；老用户默认 rose，行为与从前一模一样
   const [themeMode, setThemeMode] = useState(() => localStorage.getItem('starlight_theme') || 'day')
+  const [themeSuite, setThemeSuite] = useState(() => localStorage.getItem('starlight_suite') || 'rose')
   useEffect(() => {
     localStorage.setItem('starlight_theme', themeMode)
+    localStorage.setItem('starlight_suite', themeSuite)
     const applyTheme = () => {
-      let t = themeMode
-      if (t === 'auto') {
+      let phase = themeMode
+      if (phase === 'auto') {
         const h = new Date().getHours()
-        t = (h >= 18 || h < 6) ? 'night' : 'day'
+        phase = (h >= 18 || h < 6) ? 'night' : 'day'
       }
+      // 套装 × 时辰 → 衣柜格子：rose 沿用 day/night 老名字，老数据零迁移
+      const t = themeSuite === 'taro' ? (phase === 'night' ? 'taro-night' : 'taro') : phase
       document.documentElement.setAttribute('data-theme', t)
       // 手机状态栏颜色跟着换（PWA 顶部那一条）
+      const barColors = { day: '#FAF3F6', night: '#2E2830', taro: '#F6F1FA', 'taro-night': '#322C3D' }
       const meta = document.querySelector('meta[name="theme-color"]')
-      if (meta) meta.setAttribute('content', t === 'night' ? '#2E2830' : '#FAF3F6')
+      if (meta) meta.setAttribute('content', barColors[t] || '#FAF3F6')
     }
     applyTheme()
     if (themeMode !== 'auto') return
     const timer = setInterval(applyTheme, 60000)
     return () => clearInterval(timer)
-  }, [themeMode])
+  }, [themeMode, themeSuite])
   const memoriesRef = useRef([])
   const sessionStartRef = useRef(new Date().toISOString())
   useEffect(() => { memoriesRef.current = memories }, [memories])
@@ -1365,7 +1370,7 @@ export default function App() {
         />
         {activePage === 'moments' && <Moments notes={notes} favorites={favorites} diaries={diaries} cornerMoments={cornerMoments} conversations={conversations} onUpdateNote={updateNote} onDeleteNote={deleteNote} onDeleteDiary={deleteDiary} onRemoveFavorite={removeFavorite} onLocateMessage={locateMessage} onOpenConversation={selectConversation} firstMetTime={firstMetTime} />}
         {activePage === 'corner' && <Corner courtyards={courtyards} moments={cornerMoments} comments={cornerComments} conversations={conversations} momentWriting={momentWriting} onCreate={createCourtyard} onRename={renameCourtyard} onRebind={rebindCourtyard} onUpdateQuiet={updateCourtyardQuiet} onDeleteYard={deleteCourtyard} onPushDoor={pushDoor} onToggleLike={toggleMomentLike} onAddComment={addCornerComment} onDeleteMoment={deleteCornerMoment} />}
-        {activePage === 'cottage' && <Cottage themeMode={themeMode} onChangeTheme={setThemeMode} tab={cottageTab} onTabChange={setCottageTab} apiKey={apiKey} systemPrompt={systemPrompt} model={model} temperature={temperature} topP={topP} maxContextMessages={maxContextMessages} memories={memories} stats={stats} onSaveApiKey={saveApiKey} onSaveSettings={saveSettings} onAddCoreMemory={addCoreMemory} onDeleteMemory={deleteMemory} onUpdateMemory={updateMemory} onExportAll={exportAllData} daysTogether={daysTogether} firstMetDate={firstMetDate} cottageName={cottageName} cottageSubtitle={cottageSubtitle} />}
+        {activePage === 'cottage' && <Cottage themeMode={themeMode} onChangeTheme={setThemeMode} themeSuite={themeSuite} onChangeSuite={setThemeSuite} tab={cottageTab} onTabChange={setCottageTab} apiKey={apiKey} systemPrompt={systemPrompt} model={model} temperature={temperature} topP={topP} maxContextMessages={maxContextMessages} memories={memories} stats={stats} onSaveApiKey={saveApiKey} onSaveSettings={saveSettings} onAddCoreMemory={addCoreMemory} onDeleteMemory={deleteMemory} onUpdateMemory={updateMemory} onExportAll={exportAllData} daysTogether={daysTogether} firstMetDate={firstMetDate} cottageName={cottageName} cottageSubtitle={cottageSubtitle} />}
         <BottomNav active={activePage} onChange={setActivePage} />
       </div>
       {searchOpen && <SearchPanel activeConvId={activeConvId} activeConvName={activeConv?.name} onClose={() => setSearchOpen(false)} onOpenResult={openSearchResult} />}
