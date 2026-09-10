@@ -8,6 +8,8 @@ import React, { useState } from 'react'
 export default function Cottage({
   themeMode,
   onChangeTheme,
+  themeSuite,
+  onChangeSuite,
   tab,
   onTabChange,
   apiKey,
@@ -152,12 +154,19 @@ export default function Cottage({
           <>
             <div className="settings-section">
               <div className="settings-label">小屋主题</div>
-              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '4px' }}>
-                {[['day', '日 · 藕粉雾紫'], ['night', '夜 · 暮色星屋'], ['auto', '跟随时间']].map(([v, label]) => (
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '4px', alignItems: 'center' }}>
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)', letterSpacing: '1px', minWidth: '26px' }}>套装</span>
+                {[['rose', '藕粉雾紫'], ['taro', '香芋奶芙']].map(([v, label]) => (
+                  <button key={v} onClick={() => onChangeSuite(v)} className={`capsule${themeSuite === v ? ' on' : ''}`}>{label}</button>
+                ))}
+              </div>
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '8px', alignItems: 'center' }}>
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)', letterSpacing: '1px', minWidth: '26px' }}>时辰</span>
+                {[['day', '日'], ['night', '夜'], ['auto', '跟随时间']].map(([v, label]) => (
                   <button key={v} onClick={() => onChangeTheme(v)} className={`capsule${themeMode === v ? ' on' : ''}`}>{label}</button>
                 ))}
               </div>
-              <div className="settings-hint">点一下立刻换装，无需保存 · 跟随时间：傍晚六点自动入夜，清晨六点回到白日</div>
+              <div className="settings-hint">点一下立刻换装，无需保存 · 套装挑颜色，时辰管日夜 · 跟随时间：傍晚六点自动入夜，清晨六点回到白日</div>
             </div>
 
             <div className="settings-section">
