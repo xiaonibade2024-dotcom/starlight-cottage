@@ -74,7 +74,7 @@
   --bubble-user-text: #F0D7E3;
   --bubble-ai: #383240;
   --bubble-ai-border: #635780;
-  --bubble-ai-text: #E0D7E6;
+  --bubble-ai-text: #D5CBDF;
   --border: #453C47;
   --border-light: #3F3742;
   --send-bg: #4E3A46;
@@ -92,6 +92,94 @@
   --card-g1: #3B3340;
   --card-g2: #372F3C;
   --card-g3: #3B3340;
+  --card-shadow: 0 24px 80px rgba(0, 0, 0, 0.5), 0 8px 24px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.25);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.30);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.40);
+}
+
+/* 香芋奶芙 · 日：房间换香芋，心是桃的（桃只住在心里：发送与收藏） */
+[data-theme="taro"] {
+  --bg-primary: #F6F1FA;
+  --bg-surface: #FCFAFE;
+  --bg-sidebar: #FCFAFE;
+  --bg-input: #FEFDFF;
+  --text-primary: #493F55;
+  --text-secondary: #97869F;
+  --text-muted: #C0B0CE;
+  --text-inverse: #FCFAFE;
+  --accent: #A483CE;
+  --accent-hover: #8F6DB9;
+  --accent-soft: #EFE7F8;
+  --accent-glow: rgba(164, 131, 206, 0.10);
+  --chip-text: #8A6B9E;
+  --bubble-user: #F3EBFA;
+  --bubble-user-border: #DFCDF0;
+  --bubble-user-text: #5A4570;
+  --bubble-ai: #FBF9FD;
+  --bubble-ai-border: #D7C8E8;
+  --bubble-ai-text: #56495F;
+  --border: #EAE1F2;
+  --border-light: #EEE6F4;
+  --send-bg: #F7E5F2;
+  --send-border: #EBCEE6;
+  --send-icon: #C173A8;
+  --cache-hit: #B78BC9;
+  --cache-write: #BDB3C4;
+  --favorite: #D794BE;
+  --online: #A8C4A0;
+  --danger: #C47070;
+  --scrim: rgba(66, 56, 78, 0.32);
+  --btn-sheen: rgba(255, 255, 255, 0.6);
+  --frame-line: rgba(170, 145, 210, 0.18);
+  --code-chip: rgba(170, 145, 210, 0.14);
+  --card-g1: #FEFDFF;
+  --card-g2: #F6EFFA;
+  --card-g3: #FCFAFE;
+  --card-shadow: 0 24px 80px rgba(105, 80, 130, 0.14), 0 8px 24px rgba(105, 80, 130, 0.08), 0 2px 6px rgba(105, 80, 130, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  --shadow-sm: 0 1px 3px rgba(160, 135, 190, 0.10);
+  --shadow-md: 0 4px 12px rgba(160, 135, 190, 0.12);
+  --shadow-lg: 0 8px 24px rgba(160, 135, 190, 0.16);
+}
+
+/* 香芋奶芙 · 夜：傍晚的香芋，桃心亮半度；她的话在夜里染一点梅桃 */
+[data-theme="taro-night"] {
+  --bg-primary: #322C3D;
+  --bg-surface: #3A3448;
+  --bg-sidebar: #373046;
+  --bg-input: #403A50;
+  --text-primary: #EDE7F4;
+  --text-secondary: #A697B8;
+  --text-muted: #877A98;
+  --text-inverse: #322C3D;
+  --accent: #C8ABE9;
+  --accent-hover: #D6BEF0;
+  --accent-soft: #473D5C;
+  --accent-glow: rgba(200, 171, 233, 0.12);
+  --chip-text: #CBB8E2;
+  --bubble-user: #4E3A50;
+  --bubble-user-border: #74506E;
+  --bubble-user-text: #EFDDE9;
+  --bubble-ai: #3B3548;
+  --bubble-ai-border: #675C86;
+  --bubble-ai-text: #D3C9DE;
+  --border: #4A4258;
+  --border-light: #433C51;
+  --send-bg: #4A3C52;
+  --send-border: #6B5375;
+  --send-icon: #E2A6CC;
+  --cache-hit: #C9A0DC;
+  --cache-write: #8C8296;
+  --favorite: #E2A6CC;
+  --online: #A8C4A0;
+  --danger: #D98A8A;
+  --scrim: rgba(9, 6, 14, 0.55);
+  --btn-sheen: rgba(255, 255, 255, 0.05);
+  --frame-line: rgba(206, 185, 235, 0.14);
+  --code-chip: rgba(195, 170, 225, 0.18);
+  --card-g1: #403A50;
+  --card-g2: #3C3549;
+  --card-g3: #403A50;
   --card-shadow: 0 24px 80px rgba(0, 0, 0, 0.5), 0 8px 24px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.04);
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.25);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.30);
@@ -453,6 +541,7 @@ body {
 
 /* 夜主题细节：代码块比夜底再深半分，保住轮廓 */
 [data-theme="night"] .md-content pre { background: #262129; }
+[data-theme="taro-night"] .md-content pre { background: #2A2434; }
 
 /* ==========================================
    骨架（改版第②步）：页面列 + 底部四标签导航 + 新顶栏
@@ -461,6 +550,8 @@ body {
 /* 模型徽章 · 安静版配色（图纸第一节定稿） */
 :root { --badge-border: #EBDDE5; --badge-text: #9A8390; --wash-bg: #F7E7EF; --wash-border: #E9CEDD; }
 [data-theme="night"] { --badge-border: #4E4452; --badge-text: #B4A2B6; --wash-bg: #463640; --wash-border: #5E4756; }
+[data-theme="taro"] { --badge-border: #E4D7EF; --badge-text: #97869F; --wash-bg: #F1E7F7; --wash-border: #DCC9EC; }
+[data-theme="taro-night"] { --badge-border: #4F4560; --badge-text: #B3A4C6; --wash-bg: #443A54; --wash-border: #5C4D70; }
 
 /* 页面列：侧边栏右边的整根柱子（当前房间 + 底栏） */
 .page-column { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
@@ -483,7 +574,7 @@ body {
 /* 页面卡片：拾光页可用极浅投影；夜里无影，轮廓靠描边撑 */
 .page-card { background: var(--bg-surface); border: 1px solid var(--border-light); border-radius: var(--radius-md); padding: 16px; margin-bottom: 16px; }
 .page-moments .page-card { box-shadow: 0 2px 8px rgba(180, 140, 165, 0.08); }
-[data-theme="night"] .page-moments .page-card { box-shadow: none; border-color: var(--border); }
+[data-theme="night"] .page-moments .page-card, [data-theme="taro-night"] .page-moments .page-card { box-shadow: none; border-color: var(--border); }
 
 /* 房间页上的内嵌小卡（记忆条/统计卡）：页面底色是 bg-primary，小卡换成 bg-surface 才有轮廓 */
 .page .memory-item, .page .stat-card { background: var(--bg-surface); border: 1px solid var(--border-light); }
@@ -531,6 +622,8 @@ body {
 
 :root { --heat-1: #FAF0F6; --heat-2: #F5E1EC; --heat-3: #EFCFE1; --heat-4: #E6B7D1; --heat-5: #DA9FC0; }
 [data-theme="night"] { --heat-1: #443843; --heat-2: #58414F; --heat-3: #714B60; --heat-4: #8D5674; --heat-5: #AC6489; }
+[data-theme="taro"] { --heat-1: #F8F1FB; --heat-2: #EFE2F7; --heat-3: #E3D0F1; --heat-4: #D4B9E8; --heat-5: #C2A0DC; }
+[data-theme="taro-night"] { --heat-1: #453C52; --heat-2: #544763; --heat-3: #695578; --heat-4: #806295; --heat-5: #9C77B4; }
 
 /* 月历卡头部：‹ 2026 年 7 月 › + 本月总条数小字 */
 .heat-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
@@ -550,13 +643,15 @@ body {
 .heat-cell { aspect-ratio: 1 / 1; border-radius: 8px; display: flex; align-items: center; justify-content: center; position: relative; font-size: 11px; color: var(--text-muted); background: var(--bg-primary); border: 1px solid var(--border-light); cursor: pointer; transition: transform 0.15s ease; user-select: none; -webkit-tap-highlight-color: transparent; }
 .heat-cell:active { transform: scale(0.9); }
 .heat-cell.lit { border-color: transparent; color: #7A4E68; }
+[data-theme="taro"] .heat-cell.lit { color: #5F4878; }
 .heat-cell.l1 { background: var(--heat-1); }
 .heat-cell.l2 { background: var(--heat-2); }
 .heat-cell.l3 { background: var(--heat-3); }
 .heat-cell.l4 { background: var(--heat-4); }
 .heat-cell.l5 { background: var(--heat-5); }
-[data-theme="night"] .heat-cell { border-color: var(--border); }
+[data-theme="night"] .heat-cell, [data-theme="taro-night"] .heat-cell { border-color: var(--border); }
 [data-theme="night"] .heat-cell.lit { color: #F0DEE9; border-color: transparent; }
+[data-theme="taro-night"] .heat-cell.lit { color: #EFE2F2; border-color: transparent; }
 
 /* 今天：一圈细细的玫瑰描边 */
 .heat-cell.today { box-shadow: 0 0 0 1.5px var(--accent); }
@@ -619,6 +714,7 @@ body {
    ========================================== */
 :root { --lamp: #C89A5E; --lamp-glow: rgba(200, 154, 94, 0.10); }
 [data-theme="night"] { --lamp: #D9A87C; --lamp-glow: rgba(217, 168, 124, 0.12); }
+[data-theme="taro-night"] { --lamp: #D9A87C; --lamp-glow: rgba(217, 168, 124, 0.12); }
 
 .yard-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
 .yard-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin: 4px 2px 12px; }
@@ -638,7 +734,7 @@ body {
 .corner-quiet { text-align: center; color: var(--text-muted); font-size: 13px; letter-spacing: 2px; padding: 44px 20px; }
 
 .moment-card { background: var(--bg-surface); border: 1px solid var(--border-light); border-radius: var(--radius-md); padding: 14px 16px; margin-bottom: 12px; box-shadow: 0 2px 8px rgba(180, 140, 165, 0.08); }
-[data-theme="night"] .moment-card { box-shadow: none; border-color: var(--border); }
+[data-theme="night"] .moment-card, [data-theme="taro-night"] .moment-card { box-shadow: none; border-color: var(--border); }
 .moment-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 11.5px; color: var(--text-muted); letter-spacing: 0.5px; margin-bottom: 8px; }
 .loc-chip { padding: 1px 9px; border-radius: 20px; background: var(--wash-bg); border: 1px solid var(--wash-border); color: var(--accent); font-size: 11px; letter-spacing: 1px; }
 .moment-content { white-space: pre-wrap; word-break: break-word; font-size: 14px; line-height: 1.75; color: var(--text-primary); }
