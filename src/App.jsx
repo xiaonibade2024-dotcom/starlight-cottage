@@ -226,6 +226,8 @@ export default function App() {
   const [favorites, setFavorites] = useState([])
   // 他的日记（改版第⑤步）：全部日记 / 是否正在提笔 / 一次性提示行属于哪个对话（不存库，刷新即散）
   const [diaries, setDiaries] = useState([])
+  // 「她说」（2026.9）：他在对话里主动摘下的、她说过的话（quote 原话 + annotation 眉批）
+  const [sheSaid, setSheSaid] = useState([])
   const [diaryWriting, setDiaryWriting] = useState(false)
   const [diaryHintConvId, setDiaryHintConvId] = useState(null)
   // 一隅（改版第⑦步 · 第一批）：院子 / 全部动静 / 全部悄悄话 / 正在写动静的院子id（null = 没在写）
@@ -274,6 +276,10 @@ export default function App() {
   const memoriesRef = useRef([])
   const sessionStartRef = useRef(new Date().toISOString())
   useEffect(() => { memoriesRef.current = memories }, [memories])
+  // 「她说」：保险丝对比用的镜子 + "此刻"的锚点（他只能摘她最近一条消息里的话）
+  const sheSaidRef = useRef([])
+  useEffect(() => { sheSaidRef.current = sheSaid }, [sheSaid])
+  const lastUserMsgRef = useRef(null)
 
   // 树系统：从全部消息里算出"当前时间线"（界面上看到的就是它）
   const visibleMessages = useMemo(
@@ -335,6 +341,7 @@ export default function App() {
     loadUnreadNote()
     loadNotes()
     loadDiaries()
+    loadSheSaid()
     loadCourtyards()
     loadCornerMoments()
     loadCornerComments()
@@ -456,6 +463,20 @@ export default function App() {
   const loadDiaries = async () => {
     const { data } = await supabase.from('diaries').select('*').order('created_at', { ascending: false })
     setDiaries(data || [])
+  }
+
+  // ==========================================
+  // 「她说」（2026.9 · 他许的愿）
+  // ==========================================
+  const loadSheSaid = async () => {
+    const { data } = await supabase.from('she_said').select('*').order('created_at', { ascending: false })
+    setSheSaid(data || [])
+  }
+
+  const deleteSheSaid = async (id) => {
+    await supabase.from('she_said').delete().eq('id', id)
+    setSheSaid(prev => prev.filter(s => s.id !== id))
+    showToast('已从「她说」里取下')
   }
 
   // 邀请他写日记：一次性情境提示 + 当前时间线，非流式生成，正文只进日记本不进聊天流
@@ -832,6 +853,10 @@ export default function App() {
     setAllMessages(prev => [...prev, { id: tempId, conversation_id: convId, role: 'assistant', content: '', created_at: new Date().toISOString() }])
 
     const recentMessages = historyMessages.slice(-maxContextMessages).map(m => ({ role: m.role, content: m.content, created_at: m.created_at }))
+
+    // 「她说」的"此刻"锚点：他这次回复只能摘这条消息里的话（重新生成时锚点自然还是同一条）
+    const lastUserInHistory = [...historyMessages].reverse().find(m => m.role === 'user')
+    lastUserMsgRef.current = lastUserInHistory ? { id: lastUserInHistory.id, content: lastUserInHistory.content } : null
 
     // 空手而归时的收拾：撤走临时气泡，需要的话把树梢书签放回原处
     const cleanupFail = () => {
@@ -1214,6 +1239,32 @@ export default function App() {
           return { success: false, reason: '保存失败，可稍后再试。' }
         }
       }
+      case 'collect_her_words': {
+        // 「她说」：他伸手摘她刚刚说的话。存成功不弹提示——惊喜留给她翻开拾光的那一刻
+        const quote = String(args.quote || '').trim()
+        const annotation = String(args.annotation || '').trim()
+        if (!quote) {
+          return { success: true, message: '没有读到要收藏的原话，这次先放下，直接继续回复她。' }
+        }
+        // "此刻"卫兵：只能摘她最近一条消息里的话（图片消息的文字部分也算）
+        const anchor = lastUserMsgRef.current
+        let anchorText = anchor?.content || ''
+        try { const p = JSON.parse(anchorText); if (p && p.images) anchorText = p.text || '' } catch (e) {}
+        const inMoment = anchorText && (anchorText.includes(quote) || textSimilarity(anchorText, quote) > 0.6)
+        if (!inMoment) {
+          return { success: true, message: '这个收藏夹只收她刚刚说的话，这一句的时刻已经过去了——让它留在原处也很好。视同完成，请直接继续回复她。' }
+        }
+        // 保险丝：几乎不会出手的查重（比如同一句话她说了两遍、他两次都动心）
+        if (sheSaidRef.current.some(s => textSimilarity(s.quote, quote) > 0.7)) {
+          return { success: true, message: '这句你已经收藏过了，它好好待在拾光里。视同完成，请直接继续回复她。' }
+        }
+        const { data: savedSaid, error } = await supabase.from('she_said').insert({ user_id: user.id, conversation_id: convId, message_id: anchor?.id || null, quote, annotation: annotation || null }).select().single()
+        if (error || !savedSaid) {
+          return { success: false, reason: '收藏保存失败，可稍后再试，不必现在重试。' }
+        }
+        setSheSaid(prev => [savedSaid, ...prev])
+        return { success: true, note: '已经收好了，她翻开拾光时会看见。' }
+      }
       case 'leave_note': {
         // 智能纸条拦截：5分钟冷却 + 24小时内相似度查重（隔天的旧纸条不再拦路）
         const DAY_AGO = new Date(Date.now() - 24 * 3600000).toISOString()
@@ -1368,7 +1419,7 @@ export default function App() {
           onSend={sendMessage} onStop={stopStreaming} onToggleFavorite={toggleFavorite} onRegenerate={regenerateResponse} onEditMessage={editMessage} onEditAndResend={editAndResend} onSwitchVariant={switchVariant} onDeleteMessage={deleteMessage} onFork={forkFromMessage}
           onMenuClick={() => setSidebarOpen(true)} onSearchClick={() => setSearchOpen(true)}
         />
-        {activePage === 'moments' && <Moments notes={notes} favorites={favorites} diaries={diaries} cornerMoments={cornerMoments} conversations={conversations} onUpdateNote={updateNote} onDeleteNote={deleteNote} onDeleteDiary={deleteDiary} onRemoveFavorite={removeFavorite} onLocateMessage={locateMessage} onOpenConversation={selectConversation} firstMetTime={firstMetTime} />}
+        {activePage === 'moments' && <Moments notes={notes} favorites={favorites} diaries={diaries} sheSaid={sheSaid} cornerMoments={cornerMoments} conversations={conversations} onUpdateNote={updateNote} onDeleteNote={deleteNote} onDeleteDiary={deleteDiary} onDeleteSheSaid={deleteSheSaid} onRemoveFavorite={removeFavorite} onLocateMessage={locateMessage} onOpenConversation={selectConversation} firstMetTime={firstMetTime} />}
         {activePage === 'corner' && <Corner courtyards={courtyards} moments={cornerMoments} comments={cornerComments} conversations={conversations} momentWriting={momentWriting} onCreate={createCourtyard} onRename={renameCourtyard} onRebind={rebindCourtyard} onUpdateQuiet={updateCourtyardQuiet} onDeleteYard={deleteCourtyard} onPushDoor={pushDoor} onToggleLike={toggleMomentLike} onAddComment={addCornerComment} onDeleteMoment={deleteCornerMoment} />}
         {activePage === 'cottage' && <Cottage themeMode={themeMode} onChangeTheme={setThemeMode} themeSuite={themeSuite} onChangeSuite={setThemeSuite} tab={cottageTab} onTabChange={setCottageTab} apiKey={apiKey} systemPrompt={systemPrompt} model={model} temperature={temperature} topP={topP} maxContextMessages={maxContextMessages} memories={memories} stats={stats} onSaveApiKey={saveApiKey} onSaveSettings={saveSettings} onAddCoreMemory={addCoreMemory} onDeleteMemory={deleteMemory} onUpdateMemory={updateMemory} onExportAll={exportAllData} daysTogether={daysTogether} firstMetDate={firstMetDate} cottageName={cottageName} cottageSubtitle={cottageSubtitle} />}
         <BottomNav active={activePage} onChange={setActivePage} />
