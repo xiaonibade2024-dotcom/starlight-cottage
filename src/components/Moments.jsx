@@ -11,11 +11,13 @@ export default function Moments({
   notes = [],
   favorites = [],
   diaries = [],
+  sheSaid = [],
   cornerMoments = [],
   conversations = [],
   onUpdateNote,
   onDeleteNote,
   onDeleteDiary,
+  onDeleteSheSaid,
   onRemoveFavorite,
   onLocateMessage,
   onOpenConversation,
@@ -26,9 +28,11 @@ export default function Moments({
   const [selectedNote, setSelectedNote] = useState(null)
   const [selectedFav, setSelectedFav] = useState(null)
   const [selectedDiary, setSelectedDiary] = useState(null)
+  const [selectedSaid, setSelectedSaid] = useState(null)
   const [favoritesOpen, setFavoritesOpen] = useState(false)
   const [notesOpen, setNotesOpen] = useState(false)
   const [diariesOpen, setDiariesOpen] = useState(false)
+  const [sheSaidOpen, setSheSaidOpen] = useState(false)
 
   // 页码：最早的一页是 p.001，往后递增（按写下的先后编号，与展示顺序无关）
   const diaryPageNo = useMemo(() => {
@@ -193,6 +197,39 @@ export default function Moments({
           )}
         </div>
 
+        {/* 「她说」（2026.9 · 他许的愿）：他在对话里悄悄摘下的、她说过的话 */}
+        <div className="page-card">
+          <div className="section-toggle" onClick={() => setSheSaidOpen(!sheSaidOpen)}>
+            <span>她说 ✿{sheSaid.length > 0 ? `（${sheSaid.length} 句）` : ''}</span>
+            <span className={`toggle-arrow${sheSaidOpen ? ' open' : ''}`}>▾</span>
+          </div>
+          <div className="settings-hint">聊天时让他心动的那句话，他会悄悄摘下来收在这里，配一行他的眉批</div>
+
+          {sheSaidOpen && (
+            <>
+              {sheSaid.length === 0 && (
+                <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px', background: 'var(--bg-primary)', borderRadius: 'var(--radius-sm)', marginTop: '8px' }}>他还没摘下第一句，心动的时刻会来的 ✿</div>
+              )}
+              {sheSaid.map(said => (
+                <div key={said.id} className="memory-item" style={{ marginTop: '8px' }}>
+                  <div className="memory-item-header">
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, marginRight: '8px' }}>
+                      {getConvName(said.conversation_id)} · {formatShortDate(said.created_at)}
+                    </div>
+                    <button className="memory-delete" onClick={() => { if (confirm('确定取下这一句吗？他不会记得摘过，取下后无法找回。')) onDeleteSheSaid(said.id) }} title="取下">×</button>
+                  </div>
+                  <div className="favorite-preview" onClick={() => setSelectedSaid(said)}>
+                    {previewText(said.quote)}
+                  </div>
+                  {said.annotation && (
+                    <div className="she-said-note">{said.annotation}</div>
+                  )}
+                </div>
+              ))}
+            </>
+          )}
+        </div>
+
         {/* 回忆匣子 */}
         <div className="page-card">
           <div className="section-toggle" onClick={() => setFavoritesOpen(!favoritesOpen)}>
@@ -247,6 +284,22 @@ export default function Moments({
             <div className="note-detail-date">来自「{getConvName(selectedFav.conversation_id)}」· {formatNoteDate(selectedFav.created_at)}</div>
             <button className="note-detail-close" onClick={() => setSelectedFav(null)}>收好了</button>
             <div className="note-detail-locate" onClick={() => { setSelectedFav(null); onLocateMessage?.(selectedFav.conversation_id, selectedFav.id) }}>前往对话 →</div>
+          </div>
+        </div>
+      )}
+
+      {selectedSaid && (
+        <div className="note-detail-overlay" onClick={() => setSelectedSaid(null)}>
+          <div className="note-detail-card" onClick={e => e.stopPropagation()}>
+            <div className="note-detail-accent"></div>
+            <div className="note-detail-frame"></div>
+            <div className="note-detail-icon">✿</div>
+            <div className="note-detail-content plain">{renderPopupText(selectedSaid.quote)}</div>
+            {selectedSaid.annotation && (
+              <div className="she-said-note popup">{selectedSaid.annotation}</div>
+            )}
+            <div className="note-detail-date">摘于「{getConvName(selectedSaid.conversation_id)}」· {formatNoteDate(selectedSaid.created_at)}</div>
+            <button className="note-detail-close" onClick={() => setSelectedSaid(null)}>收好了</button>
           </div>
         </div>
       )}
