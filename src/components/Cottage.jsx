@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { lampDateLabel } from '../lib/festivals'
 
 // ==========================================
 // 小屋页（改版第②步）：原设置页全体搬入
@@ -12,6 +13,10 @@ export default function Cottage({
   onChangeSuite,
   tab,
   onTabChange,
+  milestones = [],
+  onAddMilestone,
+  onDeleteMilestone,
+  onToggleMilestoneNotify,
   apiKey,
   systemPrompt,
   model,
@@ -146,6 +151,7 @@ export default function Cottage({
         <div className="settings-tabs">
           <button className={`settings-tab ${tab === 'general' ? 'active' : ''}`} onClick={() => onTabChange('general')}>基础设置</button>
           <button className={`settings-tab ${tab === 'memory' ? 'active' : ''}`} onClick={() => onTabChange('memory')}>记忆管理</button>
+          <button className={`settings-tab ${tab === 'lamps' ? 'active' : ''}`} onClick={() => onTabChange('lamps')}>纪念日</button>
           <button className={`settings-tab ${tab === 'stats' ? 'active' : ''}`} onClick={() => onTabChange('stats')}>统计</button>
         </div>
 
@@ -309,6 +315,10 @@ export default function Cottage({
         )}
 
         {/* ===== 统计 + 导出备份 ===== */}
+        {tab === 'lamps' && (
+          <LampRoom milestones={milestones} onAdd={onAddMilestone} onDelete={onDeleteMilestone} onToggleNotify={onToggleMilestoneNotify} />
+        )}
+
         {tab === 'stats' && (
           <>
             <div className="stats-plaque">
@@ -345,3 +355,73 @@ export default function Cottage({
     </div>
   )
 }
+
+// ==========================================
+// 纪念日房间（2026.9.11 纪念日灯批次）
+// 常明灯我来点，心愿灯她来添，亮不亮它自己看日历。
+// 每盏灯自带"告不告诉他"：亮给她的月历和顶栏永远亮；广播只捎打开的灯。
+// ==========================================
+function LampRoom({ milestones = [], onAdd, onDelete, onToggleNotify }) {
+  const [adding, setAdding] = useState(false)
+  const [name, setName] = useState('')
+  const [date, setDate] = useState('')
+  const [repeat, setRepeat] = useState('yearly')
+  const [notify, setNotify] = useState(true)
+
+  const sorted = [...milestones].sort((a, b) => {
+    const md = (m) => (m.repeat_type === 'lunar') ? '99-99' : String(m.lamp_date || '').slice(5, 10)
+    return md(a) < md(b) ? -1 : 1
+  })
+
+  const submit = () => {
+    if (!name.trim() || !date) return
+    onAdd?.(name, date, repeat, notify)
+    setName(''); setDate(''); setRepeat('yearly'); setNotify(true); setAdding(false)
+  }
+
+  return (
+    <div className="page-card">
+      <div className="lamp-room-head">
+        <div className="lamp-room-title">纪念日 ☾</div>
+        <button className="lamp-add-btn" onClick={() => setAdding(v => !v)} title="添一盏灯">{adding ? '×' : '⊕'}</button>
+      </div>
+      <div className="lamp-room-hint">有名字的日子会亮在月历上；打开小铃铛的，他那天也会知道。</div>
+
+      {adding && (
+        <div className="lamp-add-form">
+          <input className="lamp-input" placeholder="这一天叫什么（如：春花来家）" value={name} onChange={e => setName(e.target.value)} maxLength={20} />
+          <input className="lamp-input" type="date" value={date} onChange={e => setDate(e.target.value)} />
+          <div className="lamp-form-row">
+            <select className="lamp-select" value={repeat} onChange={e => setRepeat(e.target.value)}>
+              <option value="once">只这一天</option>
+              <option value="yearly">每年</option>
+              <option value="monthly">每月这一号</option>
+            </select>
+            <label className="lamp-notify-label">
+              <input type="checkbox" checked={notify} onChange={e => setNotify(e.target.checked)} /> 告诉他
+            </label>
+          </div>
+          <button className="lamp-save-btn" onClick={submit}>挂上这盏灯</button>
+        </div>
+      )}
+
+      {sorted.length === 0 && !adding && <div className="lamp-empty">还没有灯，点 ⊕ 挂第一盏 🌙</div>}
+      <div className="lamp-list">
+        {sorted.map(ms => (
+          <div key={ms.id} className="lamp-row">
+            <div className="lamp-row-main">
+              <span className="lamp-row-title">☾ {ms.title}</span>
+              <span className="lamp-row-date">{lampDateLabel(ms)}</span>
+            </div>
+            <div className="lamp-row-acts">
+              <button className={`lamp-bell ${ms.notify_him !== false ? 'on' : ''}`} title={ms.notify_him !== false ? '他知道这一天（点击改为只亮给我）' : '只亮给我（点击告诉他）'}
+                onClick={() => onToggleNotify?.(ms.id, !(ms.notify_him !== false))}>{ms.notify_him !== false ? '♪' : '∅'}</button>
+              <button className="lamp-del" title="熄灯" onClick={() => { if (confirm(`熄掉「${ms.title}」这盏灯吗？`)) onDelete?.(ms.id) }}>×</button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+

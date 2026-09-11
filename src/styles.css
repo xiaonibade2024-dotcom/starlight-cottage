@@ -822,3 +822,32 @@ body {
 .resume-branch { text-align: center; font-size: 12px; color: var(--text-muted); letter-spacing: 1px; padding: 12px 16px 4px; cursor: pointer; user-select: none; transition: color var(--transition); }
 @media (hover: hover) { .resume-branch:hover { color: var(--accent) } }
 .build-stamp { text-align: center; font-size: 11px; color: var(--text-muted); letter-spacing: 2px; text-indent: 2px; padding: 20px 0 10px; font-family: var(--font-accent); opacity: 0.8; }
+
+/* ===== 纪念日灯（2026.9.11 纪念日灯批次）===== */
+/* 月历格子的月牙：用主题激活色（灯的金只属于一隅的灯，铁律不碰） */
+.heat-moon { position: absolute; top: 2px; right: 4px; font-size: 8px; line-height: 1; color: var(--accent); opacity: 0.85; }
+.day-card-lamp { font-size: 12.5px; color: var(--accent); margin: 2px 0 6px; }
+/* 纪念日房间 */
+.lamp-room-head { display: flex; justify-content: space-between; align-items: center; }
+.lamp-room-title { font-size: 17px; color: var(--text-primary); letter-spacing: 2px; }
+.lamp-add-btn { background: none; border: none; font-size: 20px; color: var(--accent); cursor: pointer; padding: 4px 8px; }
+.lamp-room-hint { font-size: 12px; color: var(--text-muted); margin: 4px 0 12px; }
+.lamp-add-form { display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px dashed var(--border); border-radius: 12px; margin-bottom: 12px; }
+.lamp-input, .lamp-select { padding: 9px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-primary); color: var(--text-primary); font-size: 14px; font-family: inherit; }
+.lamp-form-row { display: flex; gap: 10px; align-items: center; }
+.lamp-notify-label { font-size: 13px; color: var(--text-secondary); display: flex; align-items: center; gap: 5px; white-space: nowrap; }
+.lamp-save-btn { padding: 9px; border: none; border-radius: 10px; background: var(--accent); color: #fff; font-size: 14px; cursor: pointer; font-family: inherit; }
+.lamp-empty { font-size: 13px; color: var(--text-muted); text-align: center; padding: 18px 0; }
+.lamp-list { display: flex; flex-direction: column; gap: 2px; }
+.lamp-row { display: flex; justify-content: space-between; align-items: center; padding: 9px 4px; border-bottom: 1px solid var(--border); }
+.lamp-row:last-child { border-bottom: none; }
+.lamp-row-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.lamp-row-title { font-size: 14.5px; color: var(--text-primary); }
+.lamp-row-date { font-size: 11.5px; color: var(--text-muted); }
+.lamp-row-acts { display: flex; gap: 4px; align-items: center; flex-shrink: 0; }
+.lamp-bell { background: none; border: none; cursor: pointer; font-size: 15px; color: var(--text-muted); padding: 5px 7px; border-radius: 8px; }
+.lamp-bell.on { color: var(--accent); }
+.lamp-del { background: none; border: none; cursor: pointer; font-size: 16px; color: var(--text-muted); padding: 5px 7px; border-radius: 8px; }
+@media (hover: hover) {
+  .lamp-bell:hover, .lamp-del:hover, .lamp-add-btn:hover { background: var(--accent-glow); }
+}

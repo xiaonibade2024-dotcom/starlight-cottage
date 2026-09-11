@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
+import { lampsOn } from '../lib/festivals'
 
 // ==========================================
 // 热力图月历（改版第④步）
@@ -17,7 +18,7 @@ const dayKey = (d) => `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`
 // 月度小抄：这次会话里看过的月份先亮旧账、后台悄悄对新账（去东京问一趟要一两秒，别让她干等）
 const monthCache = {}
 
-export default function HeatCalendar({ conversations = [], notes = [], diaries = [], cornerMoments = [], onOpenConversation, firstMetTime = null }) {
+export default function HeatCalendar({ conversations = [], notes = [], diaries = [], cornerMoments = [], onOpenConversation, firstMetTime = null, milestones = [] }) {
   const now = new Date()
   // 月历翻到哪个月：锚在该月 1 号
   const [anchor, setAnchor] = useState(() => new Date(now.getFullYear(), now.getMonth(), 1))
@@ -195,6 +196,7 @@ export default function HeatCalendar({ conversations = [], notes = [], diaries =
               {date.getDate()}
               {noteDays[k] > 0 && <span className="heat-dot" />}
               {diaryDays[k]?.pages > 0 && <span className="heat-stroke" />}
+              {lampsOn(date, milestones).length > 0 && <span className="heat-moon">☾</span>}
             </div>
           )
         })}
@@ -207,6 +209,9 @@ export default function HeatCalendar({ conversations = [], notes = [], diaries =
             <div className="day-card-date">
               {selected.date.getFullYear() !== now.getFullYear() ? selected.date.getFullYear() + ' 年 ' : ''}{selected.date.getMonth() + 1} 月 {selected.date.getDate()} 日 · 周{WEEKDAYS[(selected.date.getDay() + 6) % 7]}
             </div>
+            {lampsOn(selected.date, milestones).length > 0 && (
+              <div className="day-card-lamp">☾ {lampsOn(selected.date, milestones).map(m => m.title).join('、')}</div>
+            )}
 
             {(!sel || sel.count === 0) ? (
               <div className="day-card-empty">这一天小屋很安静 🌙</div>

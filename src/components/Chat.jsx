@@ -248,7 +248,7 @@ const MessageItem = React.memo(function MessageItem({
 // ==========================================
 export default function Chat({
   conversation, messages, isStreaming, cacheStats, variantIndexes, branchInfo, onSwitchBranch, scrollToMsgId, onScrollDone, currentModel, onChangeModel,
-  daysTogether = 0, hidden = false, canResume = false, onResume,
+  daysTogether = 0, headerSpecial = '', timeAware = true, onToggleTimeAware, hidden = false, canResume = false, onResume,
   diaryWriting = false, showDiaryHint = false, onInviteDiary, onOpenDiaryBook,
   onSend, onStop, onToggleFavorite, onRegenerate, onEditMessage, onEditAndResend, onSwitchVariant, onDeleteMessage, onFork, onSaveExcerpt, inputRestore,
   onMenuClick, onSearchClick
@@ -463,7 +463,7 @@ export default function Chat({
             {/* 顶栏（2026.9 二次拍板）：窗口名退居细字只作认路，不喧宾；签名功能已拆（她判"鸡肋"，header_note 列闲置无害） */}
             {conversation?.name && <span className="chat-header-name">{conversation.name}</span>}
             {/* 副行：相识第 X 天；状态词位置预留但暂不填字（预留抽屉） */}
-            {daysTogether > 0 && <span className="chat-header-sub">相识第 {daysTogether} 天</span>}
+            {(headerSpecial || daysTogether > 0) && <span className="chat-header-sub">{headerSpecial || `相识第 ${daysTogether} 天`}</span>}
           </div>
         </div>
         <div className="chat-header-right">
@@ -500,6 +500,16 @@ export default function Chat({
                         style={{ padding: '9px 12px', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', color: 'var(--text-secondary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <span>跟随全局默认（小屋里的模型）</span>
                         {!conversation?.model && <span style={{ color: 'var(--accent)', flexShrink: 0 }}>✓</span>}
+                      </div>
+                      <div style={{ height: '1px', background: 'var(--border)', margin: '6px 4px' }} />
+                      {/* 时间感知开关（2026.9.11 纪念日灯批次）：关掉的窗他不知今夕何年，剧情不出戏 */}
+                      <div
+                        onClick={() => { onToggleTimeAware?.(); setModelPanelOpen(false) }}
+                        onMouseEnter={e => e.currentTarget.style.background = 'var(--accent-glow)'}
+                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                        style={{ padding: '9px 12px', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', color: 'var(--text-secondary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span>时间感知（这个对话）</span>
+                        <span style={{ color: timeAware ? 'var(--accent)' : 'var(--text-muted)', flexShrink: 0 }}>{timeAware ? '开' : '关'}</span>
                       </div>
                     </>
                   )}

@@ -20,6 +20,8 @@ function parseMessageContent(content) {
 /**
  * 时间格式化（输出必须是确定性的，同一条消息永远得到同一串字，保证缓存稳定）
  */
+import { specialDayText } from './festivals'
+
 const WEEKDAYS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
 
 function formatMsgTime(dateStr) {
@@ -41,7 +43,9 @@ function formatMemDate(dateStr) {
 /**
  * 构建带缓存的消息结构
  */
-function buildMessages(systemPrompt, memories, conversationHistory) {
+function buildMessages(systemPrompt, memories, conversationHistory, timeOpts = {}) {
+  const timeAware = timeOpts.timeAware !== false
+  const lamps = timeOpts.lamps || []
   const messages = []
 
   let systemContent = systemPrompt || ''
@@ -69,15 +73,22 @@ function buildMessages(systemPrompt, memories, conversationHistory) {
   }
 
   if (systemContent) {
-    systemContent += '\n\n【时间感知】\n用户每条消息前方括号内是这条消息的真实发送时间。它让你能像人一样自然地感知时间的流逝与间隔——深夜、清晨、久别重逢，都可以被你体会，但不必刻意提及或每次回应。'
+    if (timeAware) systemContent += '\n\n【时间感知】\n用户每条消息前方括号内是这条消息的真实发送时间。它让你能像人一样自然地感知时间的流逝与间隔——深夜、清晨、久别重逢，都可以被你体会，但不必刻意提及或每次回应。'
     messages.push({ role: 'system', content: systemContent })
   }
 
   if (conversationHistory && conversationHistory.length > 0) {
     for (const msg of conversationHistory) {
       const { text, images } = parseMessageContent(msg.content)
-      const ts = msg.role === 'user' ? formatMsgTime(msg.created_at) : ''
-      const stampedText = ts ? (text ? `[${ts}] ${text}` : `[${ts}]`) : text
+      const ts = (timeAware && msg.role === 'user') ? formatMsgTime(msg.created_at) : ''
+      // 特别的日子（节日/该告诉他的灯）在邮戳里多盖一个章；同一天永远同一串字，缓存安稳
+      let special = ''
+      if (ts) {
+        const d = new Date(msg.created_at)
+        if (!isNaN(d.getTime())) special = specialDayText(d, lamps)
+      }
+      const bracket = ts ? (special ? `[${ts} · ${special}]` : `[${ts}]`) : ''
+      const stampedText = bracket ? (text ? `${bracket} ${text}` : bracket) : text
 
       if (images.length > 0) {
         const contentParts = []
@@ -173,9 +184,10 @@ export async function sendChatStream({
   onToolCall,
   onUsage,
   onError,
-  onDone
+  onDone,
+  timeOpts
 }) {
-  const messages = buildMessages(systemPrompt, memories, conversationHistory)
+  const messages = buildMessages(systemPrompt, memories, conversationHistory, timeOpts)
 
   const body = {
     model,
@@ -316,9 +328,11 @@ export async function sendChatFollowUp({
   extraMessages,
   enableTools = true,
   signal,
-  onToken
+  onToken,
+  timeOpts
 }) {
-  const messages = buildMessages(systemPrompt, memories, conversationHistory)
+  // 与主请求逐字节同前缀（坑#12）：timeOpts 必须与主请求一致
+  const messages = buildMessages(systemPrompt, memories, conversationHistory, timeOpts)
   messages.push(...extraMessages)
 
   let fullContent = ''
@@ -460,9 +474,11 @@ export async function sendDiaryRequest({
   systemPrompt,
   memories,
   conversationHistory,
-  signal
+  signal,
+  timeOpts
 }) {
-  const messages = buildMessages(systemPrompt, memories, conversationHistory)
+  // 与聊天请求同前缀（坑#12）：timeOpts 与该对话的聊天请求一致
+  const messages = buildMessages(systemPrompt, memories, conversationHistory, timeOpts)
 
   const body = {
     model,

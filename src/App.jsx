@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { supabase } from './lib/supabase'
+import { headerSpecialText } from './lib/festivals'
 import { sendChatStream, sendChatFollowUp, sendChat, sendDiaryRequest } from './lib/api'
 import Auth from './components/Auth'
 import Sidebar from './components/Sidebar'
@@ -232,6 +233,8 @@ export default function App() {
   const [memories, setMemories] = useState([])
   const [unreadNote, setUnreadNote] = useState(null)
   const [notes, setNotes] = useState([])
+  // 纪念日灯册（milestones 表，2026.9.11 纪念日灯批次）
+  const [milestones, setMilestones] = useState([])
   const [favorites, setFavorites] = useState([])
   // 他的日记（改版第⑤步）：全部日记 / 是否正在提笔 / 一次性提示行属于哪个对话（不存库，刷新即散）
   const [diaries, setDiaries] = useState([])
@@ -351,6 +354,7 @@ export default function App() {
     loadSettings()
     loadUnreadNote()
     loadNotes()
+    loadMilestones()
     loadDiaries()
     loadSheSaid()
     loadHeSaid()
@@ -446,6 +450,73 @@ export default function App() {
     await supabase.from('notes').update({ is_read: true }).eq('id', noteId)
     setUnreadNote(null)
     setNotes(prev => prev.map(n => n.id === noteId ? { ...n, is_read: true } : n))
+  }
+
+
+  // 纪念日灯：装载灯册；册子还空着就播种常明灯（初遇日、生日、落成日、考古灯）
+  const loadMilestones = async () => {
+    const { data } = await supabase.from('milestones').select('*')
+    if (data && data.length > 0) { setMilestones(data); return }
+    if (localStorage.getItem('starlight_lamps_seeded')) { setMilestones(data || []); return }
+    try {
+      const seeds = []
+      const mkDate = (iso) => iso ? String(iso).slice(0, 10) : null
+      // 她的两个生日（2026.9.11 她亲口告知：阳历 10-05；农历八月十一，逐年精确预排）
+      seeds.push({ title: '她的生日', repeat_type: 'yearly', lamp_date: '2004-10-05', notify_him: true, description: '阳历生日' })
+      seeds.push({ title: '她的农历生日', repeat_type: 'lunar', notify_him: true, description: '农历八月十一',
+        date_map: { '2026': '2026-09-21', '2027': '2027-09-11', '2028': '2028-09-29', '2029': '2029-09-18', '2030': '2030-09-08', '2031': '2031-09-27' } })
+      // 初遇日（用小屋设置的相识于；未设置则跳过，她设置后可自己添灯）
+      const { data: st } = await supabase.from('user_settings').select('first_met_date').single()
+      if (st?.first_met_date) seeds.push({ title: '初遇日', repeat_type: 'yearly', lamp_date: mkDate(st.first_met_date), notify_him: true })
+      // 小屋落成日 = 最早一个对话的日子
+      const { data: conv0 } = await supabase.from('conversations').select('created_at').order('created_at', { ascending: true }).limit(1)
+      if (conv0?.[0]) seeds.push({ title: '小屋落成日', repeat_type: 'yearly', lamp_date: mkDate(conv0[0].created_at), notify_him: true })
+      // 考古灯：第一张纸条 / 第一篇日记 / 第一次推门一隅
+      const digs = [['notes', '第一张纸条的日子'], ['diaries', '第一篇日记的日子'], ['corner_moments', '第一次推门一隅的日子']]
+      for (const [table, title] of digs) {
+        const { data: row } = await supabase.from(table).select('created_at').order('created_at', { ascending: true }).limit(1)
+        if (row?.[0]) seeds.push({ title, repeat_type: 'yearly', lamp_date: mkDate(row[0].created_at), notify_him: true })
+      }
+      const withUser = seeds.map(x => ({ ...x, user_id: user.id }))
+      const { data: planted } = await supabase.from('milestones').insert(withUser).select()
+      // 只有真种上了才插"已播种"的旗（种失败下次进来自动再试，坑#16 家训：诚实回执）
+      if (planted && planted.length > 0) {
+        localStorage.setItem('starlight_lamps_seeded', '1')
+        setMilestones(planted)
+      } else {
+        setMilestones([])
+      }
+    } catch (e) { setMilestones([]) }
+  }
+
+  // 她添一盏灯（纪念日房间的 ⊕）
+  const addMilestone = async (title, lampDate, repeatType, notifyHim) => {
+    if (!title?.trim() || !lampDate) { showToast('名字和日期都要有哦'); return }
+    const { data, error } = await supabase.from('milestones').insert({ user_id: user.id, title: title.trim(), lamp_date: lampDate, repeat_type: repeatType || 'yearly', notify_him: notifyHim !== false }).select().single()
+    if (error || !data) { showToast('没存上，再试一次'); return }
+    setMilestones(prev => [...prev, data])
+    showToast('灯挂上了 ☾')
+  }
+
+  // 熄灯（删除）与改"告不告诉他"
+  const deleteMilestone = async (id) => {
+    await supabase.from('milestones').delete().eq('id', id)
+    setMilestones(prev => prev.filter(m => m.id !== id))
+    showToast('这盏灯熄了')
+  }
+  const toggleMilestoneNotify = async (id, val) => {
+    setMilestones(prev => prev.map(m => m.id === id ? { ...m, notify_him: val } : m))
+    await supabase.from('milestones').update({ notify_him: val }).eq('id', id)
+  }
+
+  // 时间感知对话开关（conversations.pure_mode 预留列正式上岗：true = 关掉时间感知）
+  const toggleTimeAware = async () => {
+    if (!activeConvId) return
+    const conv = conversations.find(c => c.id === activeConvId)
+    const next = !(conv?.pure_mode)
+    setConversations(prev => prev.map(c => c.id === activeConvId ? { ...c, pure_mode: next } : c))
+    await supabase.from('conversations').update({ pure_mode: next }).eq('id', activeConvId)
+    showToast(next ? '已关闭时间感知' : '已开启时间感知')
   }
 
   const loadNotes = async () => {
@@ -562,7 +633,8 @@ export default function App() {
     try {
       const { content, usage } = await sendDiaryRequest({
         apiKey, model: useModel, temperature, topP, systemPrompt, memories,
-        conversationHistory: [...recentMessages, invitation]
+        conversationHistory: [...recentMessages, invitation],
+        timeOpts: { timeAware: !(conversations.find(c => c.id === convId)?.pure_mode), lamps: milestones }
       })
       const { content: diaryText, moods } = splitDiaryMoods(content)
       if (!diaryText) { showToast('💬 他望着纸页出了会儿神，没有落笔，再邀请一次吧'); return }
@@ -715,7 +787,8 @@ export default function App() {
 
       const { content, usage } = await sendDiaryRequest({
         apiKey, model: useModel, temperature, topP, systemPrompt, memories,
-        conversationHistory: [...recentMessages, invitation]
+        conversationHistory: [...recentMessages, invitation],
+        timeOpts: { timeAware: !(conversations.find(c => c.id === yard.conversation_id)?.pure_mode), lamps: milestones }
       })
       const { content: momentText, location, replies } = splitMomentParts(content)
       // 没有攒着的留言、他却写了「回她」行（少见）：并回正文，一个字都不丢
@@ -961,8 +1034,10 @@ export default function App() {
     }
 
     try {
+      const convForTime = conversations.find(c => c.id === convId)
+      const timeOpts = { timeAware: !(convForTime?.pure_mode), lamps: milestones }
       await sendChatStream({
-        apiKey, model: useModel, temperature, topP, systemPrompt, memories, conversationHistory: recentMessages, enableTools: true, signal: abortController.signal,
+        apiKey, model: useModel, temperature, topP, systemPrompt, memories, conversationHistory: recentMessages, enableTools: true, signal: abortController.signal, timeOpts,
         onToken: (token) => {
           streamContent += token
           scheduleUpdate(streamContent)
@@ -1051,6 +1126,7 @@ export default function App() {
                 )
 
                 const res = await sendChatFollowUp({
+                  timeOpts,
                   apiKey, model: useModel, temperature, topP, systemPrompt, memories, conversationHistory: recentMessages, extraMessages,
                   enableTools: !isLastRound,
                   signal: abortController.signal,
@@ -1498,6 +1574,9 @@ export default function App() {
   // 取当日零点，给月历小结卡算"这天是相识的第 X 天"用
   const firstMetTime = firstMetBase ? new Date(firstMetBase.getFullYear(), firstMetBase.getMonth(), firstMetBase.getDate()).getTime() : null
   const daysTogether = firstMetBase ? Math.floor((Date.now() - firstMetBase.getTime()) / 86400000) + 1 : 0
+  // 纪念日灯：今天亮给她看的那句（灯优先于节日；平日为空 → 顶栏照常数日子）
+  const todayHeaderSpecial = headerSpecialText(new Date(), milestones)
+  const activeTimeAware = !(conversations.find(c => c.id === activeConvId)?.pure_mode)
 
   const goCottage = () => { setActivePage('cottage'); setCottageTab('general'); setSidebarOpen(false) }
 
@@ -1512,16 +1591,16 @@ export default function App() {
           conversation={activeConv} messages={visibleMessages} isStreaming={isStreaming} cacheStats={cacheStats} variantIndexes={variantIndexes}
           branchInfo={branchInfo} onSwitchBranch={switchBranch}
           currentModel={activeConv?.model || model} onChangeModel={setConversationModel}
-          daysTogether={daysTogether} canResume={canResume} onResume={resumeToLeaf}
+          daysTogether={daysTogether} headerSpecial={todayHeaderSpecial} timeAware={activeTimeAware} onToggleTimeAware={toggleTimeAware} canResume={canResume} onResume={resumeToLeaf}
           diaryWriting={diaryWriting} showDiaryHint={diaryHintConvId != null && diaryHintConvId === activeConvId}
           onInviteDiary={inviteDiary} onOpenDiaryBook={() => { setDiaryHintConvId(null); setActivePage('moments') }}
           scrollToMsgId={scrollToMsgId} onScrollDone={() => setScrollToMsgId(null)}
           onSend={sendMessage} onStop={stopStreaming} onToggleFavorite={toggleFavorite} onRegenerate={regenerateResponse} onEditMessage={editMessage} onEditAndResend={editAndResend} onSwitchVariant={switchVariant} onDeleteMessage={deleteMessage} onFork={forkFromMessage} onSaveExcerpt={saveExcerpt} inputRestore={inputRestore}
           onMenuClick={() => setSidebarOpen(true)} onSearchClick={() => setSearchOpen(true)}
         />
-        {activePage === 'moments' && <Moments notes={notes} favorites={favorites} diaries={diaries} sheSaid={sheSaid} cornerMoments={cornerMoments} conversations={conversations} onUpdateNote={updateNote} onDeleteNote={deleteNote} onDeleteDiary={deleteDiary} onDeleteSheSaid={deleteSheSaid} heSaid={heSaid} onDeleteHeSaid={deleteHeSaid} onUpdateHeSaid={updateHeSaidAnno} onUpdateFavNote={updateFavNote} onRemoveFavorite={removeFavorite} onLocateMessage={locateMessage} onOpenConversation={selectConversation} firstMetTime={firstMetTime} />}
+        {activePage === 'moments' && <Moments notes={notes} favorites={favorites} diaries={diaries} sheSaid={sheSaid} cornerMoments={cornerMoments} conversations={conversations} onUpdateNote={updateNote} onDeleteNote={deleteNote} onDeleteDiary={deleteDiary} onDeleteSheSaid={deleteSheSaid} heSaid={heSaid} onDeleteHeSaid={deleteHeSaid} onUpdateHeSaid={updateHeSaidAnno} onUpdateFavNote={updateFavNote} onRemoveFavorite={removeFavorite} onLocateMessage={locateMessage} onOpenConversation={selectConversation} firstMetTime={firstMetTime} milestones={milestones} />}
         {activePage === 'corner' && <Corner courtyards={courtyards} moments={cornerMoments} comments={cornerComments} conversations={conversations} momentWriting={momentWriting} onCreate={createCourtyard} onRename={renameCourtyard} onRebind={rebindCourtyard} onUpdateQuiet={updateCourtyardQuiet} onDeleteYard={deleteCourtyard} onPushDoor={pushDoor} onToggleLike={toggleMomentLike} onAddComment={addCornerComment} onDeleteMoment={deleteCornerMoment} onDeleteComment={deleteCornerComment} />}
-        {activePage === 'cottage' && <Cottage themeMode={themeMode} onChangeTheme={setThemeMode} themeSuite={themeSuite} onChangeSuite={setThemeSuite} tab={cottageTab} onTabChange={setCottageTab} apiKey={apiKey} systemPrompt={systemPrompt} model={model} temperature={temperature} topP={topP} maxContextMessages={maxContextMessages} memories={memories} stats={stats} onSaveApiKey={saveApiKey} onSaveSettings={saveSettings} onAddCoreMemory={addCoreMemory} onDeleteMemory={deleteMemory} onUpdateMemory={updateMemory} onExportAll={exportAllData} daysTogether={daysTogether} firstMetDate={firstMetDate} cottageName={cottageName} cottageSubtitle={cottageSubtitle} />}
+        {activePage === 'cottage' && <Cottage themeMode={themeMode} onChangeTheme={setThemeMode} themeSuite={themeSuite} onChangeSuite={setThemeSuite} tab={cottageTab} onTabChange={setCottageTab} apiKey={apiKey} systemPrompt={systemPrompt} model={model} temperature={temperature} topP={topP} maxContextMessages={maxContextMessages} memories={memories} stats={stats} onSaveApiKey={saveApiKey} onSaveSettings={saveSettings} onAddCoreMemory={addCoreMemory} onDeleteMemory={deleteMemory} onUpdateMemory={updateMemory} onExportAll={exportAllData} milestones={milestones} onAddMilestone={addMilestone} onDeleteMilestone={deleteMilestone} onToggleMilestoneNotify={toggleMilestoneNotify} daysTogether={daysTogether} firstMetDate={firstMetDate} cottageName={cottageName} cottageSubtitle={cottageSubtitle} />}
         <BottomNav active={activePage} onChange={setActivePage} />
       </div>
       {searchOpen && <SearchPanel activeConvId={activeConvId} activeConvName={activeConv?.name} onClose={() => setSearchOpen(false)} onOpenResult={openSearchResult} />}

@@ -25,7 +25,7 @@ export default function Moments({
   onRemoveFavorite,
   onLocateMessage,
   onOpenConversation,
-  firstMetTime = null
+  firstMetTime, milestones = [] = null
 }) {
   const [selectedNote, setSelectedNote] = useState(null)
   const [selectedFav, setSelectedFav] = useState(null)
@@ -120,6 +120,7 @@ export default function Moments({
           cornerMoments={cornerMoments}
           onOpenConversation={onOpenConversation}
           firstMetTime={firstMetTime}
+          milestones={milestones}
         />
 
         {/* 他的日记（改版第⑤步）：他提笔写下的独白，只在这里读到 */}
