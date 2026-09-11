@@ -27,8 +27,6 @@ export default function Moments({
   onOpenConversation,
   firstMetTime = null
 }) {
-  const [editingNoteId, setEditingNoteId] = useState(null)
-  const [editNoteText, setEditNoteText] = useState('')
   const [selectedNote, setSelectedNote] = useState(null)
   const [selectedFav, setSelectedFav] = useState(null)
   const [selectedDiary, setSelectedDiary] = useState(null)
@@ -40,8 +38,8 @@ export default function Moments({
   const [favFlipped, setFavFlipped] = useState(false)
   const [exFlipped, setExFlipped] = useState(false)
   const [diaryFlipped, setDiaryFlipped] = useState(false)
-  // 「他说」眉批编辑：正在编辑哪一条（'x-id' 摘句 / 'f-id' 整条收藏）
-  const [editingAnnoKey, setEditingAnnoKey] = useState(null)
+  // 「他说」眉批编辑：在卡片正面就地写/改（annoEditing 只对当前打开的卡生效）
+  const [annoEditing, setAnnoEditing] = useState(false)
   const [annoText, setAnnoText] = useState('')
   const [favoritesOpen, setFavoritesOpen] = useState(false)
   const [notesOpen, setNotesOpen] = useState(false)
@@ -56,33 +54,17 @@ export default function Moments({
     return map
   }, [diaries])
 
+  // 卡面眉批编辑器的三件套样式
+  const ANNO_BOX = { width: '100%', boxSizing: 'border-box', padding: '8px 10px', border: '1px solid var(--accent-soft)', borderRadius: '8px', background: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: '13px', lineHeight: '1.6', fontFamily: 'inherit', resize: 'vertical', outline: 'none' }
+  const BTN_SAVE = { padding: '5px 18px', fontSize: '12px', border: '1px solid var(--wash-border)', borderRadius: '20px', background: 'var(--wash-bg)', color: 'var(--accent)', cursor: 'pointer' }
+  const BTN_CANCEL = { padding: '5px 18px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: '20px', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer' }
+
   // 「他说」合并清单：整条收藏 ♡ 与摘句 ❀ 混住一个匣子，按时间倒序
   const heSaidItems = useMemo(() => {
     const favs = favorites.map(f => ({ kind: 'fav', id: 'f-' + f.id, time: f.created_at, data: f }))
     const exs = heSaid.map(x => ({ kind: 'ex', id: 'x-' + x.id, time: x.created_at, data: x }))
     return [...favs, ...exs].sort((a, b) => new Date(b.time) - new Date(a.time))
   }, [favorites, heSaid])
-
-  const startAnnoEdit = (item) => {
-    setEditingAnnoKey(item.id)
-    setAnnoText((item.kind === 'ex' ? item.data.annotation : item.data.favorite_note) || '')
-  }
-
-  const saveAnnoEdit = (item) => {
-    const text = annoText.trim()
-    if (item.kind === 'ex') onUpdateHeSaid?.(item.data.id, text)
-    else onUpdateFavNote?.(item.data.id, text)
-    setEditingAnnoKey(null)
-    setAnnoText('')
-  }
-
-  const saveNoteEdit = () => {
-    if (editNoteText.trim() && editingNoteId) {
-      onUpdateNote(editingNoteId, editNoteText.trim())
-    }
-    setEditingNoteId(null)
-    setEditNoteText('')
-  }
 
   const formatNoteDate = (dateStr) => {
     if (!dateStr) return ''
@@ -120,28 +102,6 @@ export default function Moments({
     ))
   }
 
-  const renderNoteBody = (note) => {
-    if (editingNoteId !== note.id) return (
-      <div className="favorite-preview" onClick={() => { setSelectedNote(note); setNoteFlipped(false) }}>
-        {previewText(note.content)}
-      </div>
-    )
-    return (
-      <div>
-        <textarea
-          value={editNoteText}
-          onChange={e => setEditNoteText(e.target.value)}
-          rows={4}
-          style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', border: '1px solid var(--accent-soft)', borderRadius: '8px', background: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: '13px', lineHeight: '1.6', fontFamily: 'inherit', resize: 'vertical', outline: 'none' }}
-        />
-        <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
-          <button onClick={saveNoteEdit} style={{ padding: '5px 18px', fontSize: '12px', border: '1px solid var(--wash-border)', borderRadius: '20px', background: 'var(--wash-bg)', color: 'var(--accent)', cursor: 'pointer' }}>保存</button>
-          <button onClick={() => { setEditingNoteId(null); setEditNoteText('') }} style={{ padding: '5px 18px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: '20px', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer' }}>取消</button>
-        </div>
-      </div>
-    )
-  }
-
   const unreadCount = notes.filter(n => !n.is_read).length
 
   return (
@@ -177,12 +137,6 @@ export default function Moments({
               )}
               {diaries.map(diary => (
                 <div key={diary.id} className="memory-item" style={{ marginTop: '8px' }}>
-                  <div className="memory-item-header">
-                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', flex: 1, marginRight: '8px' }}>✎</div>
-                    <div className="memory-actions">
-                      <button className="memory-delete" onClick={() => { if (confirm('确定撕去这页日记吗？撕去后无法找回。')) onDeleteDiary(diary.id) }} title="删除">×</button>
-                    </div>
-                  </div>
                   <div className="favorite-preview" onClick={() => { setSelectedDiary(diary); setDiaryFlipped(false) }}>
                     {previewText(diary.content)}
                   </div>
@@ -207,10 +161,6 @@ export default function Moments({
               )}
               {sheSaid.map(said => (
                 <div key={said.id} className="memory-item" style={{ marginTop: '8px' }}>
-                  <div className="memory-item-header">
-                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', flex: 1, marginRight: '8px' }}>✿</div>
-                    <button className="memory-delete" onClick={() => { if (confirm('确定取下这一句吗？他不会记得摘过，取下后无法找回。')) onDeleteSheSaid(said.id) }} title="取下">×</button>
-                  </div>
                   <div className="favorite-preview" onClick={() => { setSelectedSaid(said); setSaidFlipped(false) }}>
                     {previewText(said.quote)}
                   </div>
@@ -242,31 +192,10 @@ export default function Moments({
                 const anno = isEx ? d.annotation : d.favorite_note
                 return (
                   <div key={item.id} className="memory-item" style={{ marginTop: '8px' }}>
-                    <div className="memory-item-header">
-                      <div style={{ fontSize: '12px', color: 'var(--text-muted)', flex: 1, marginRight: '8px' }}>{isEx ? '❀' : '♡'}</div>
-                      <div className="memory-actions">
-                        <button className="memory-delete" onClick={() => startAnnoEdit(item)} title={anno ? '改眉批' : '写眉批'}>✎</button>
-                        {isEx ? (
-                          <button className="memory-delete" onClick={() => { if (confirm('取下这句摘录吗？取下后无法找回。')) onDeleteHeSaid?.(d.id) }} title="取下">×</button>
-                        ) : (
-                          <button className="memory-delete" onClick={() => { if (confirm('取消收藏这条消息吗？')) onRemoveFavorite(d.id) }} title="取消收藏">×</button>
-                        )}
-                      </div>
-                    </div>
-                    <div className="favorite-preview" onClick={() => { if (isEx) { setSelectedEx(d); setExFlipped(false) } else { setSelectedFav(d); setFavFlipped(false) } }}>
+                    <div className="favorite-preview" onClick={() => { setAnnoEditing(false); if (isEx) { setSelectedEx(d); setExFlipped(false) } else { setSelectedFav(d); setFavFlipped(false) } }}>
                       {previewText(isEx ? d.excerpt : parseMsgText(d.content))}
                     </div>
-                    {editingAnnoKey === item.id ? (
-                      <div style={{ marginTop: '6px' }}>
-                        <textarea value={annoText} onChange={e => setAnnoText(e.target.value)} rows={2} placeholder="写一行你的眉批" style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', border: '1px solid var(--accent-soft)', borderRadius: '8px', background: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: '13px', lineHeight: '1.6', fontFamily: 'inherit', resize: 'vertical', outline: 'none' }} />
-                        <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
-                          <button onClick={() => saveAnnoEdit(item)} style={{ padding: '5px 18px', fontSize: '12px', border: '1px solid var(--wash-border)', borderRadius: '20px', background: 'var(--wash-bg)', color: 'var(--accent)', cursor: 'pointer' }}>保存</button>
-                          <button onClick={() => { setEditingAnnoKey(null); setAnnoText('') }} style={{ padding: '5px 18px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: '20px', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer' }}>取消</button>
-                        </div>
-                      </div>
-                    ) : (
-                      anno ? <div className="she-said-note he">{anno}</div> : null
-                    )}
+                    {anno ? <div className="she-said-note he">{anno}</div> : null}
                   </div>
                 )
               })}
@@ -289,14 +218,9 @@ export default function Moments({
               )}
               {notes.map(note => (
                 <div key={note.id} className="memory-item" style={{ marginTop: '8px' }}>
-                  <div className="memory-item-header">
-                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', flex: 1, marginRight: '8px' }}>{!note.is_read && <span title="还未在弹窗中遇见">💌 </span>}✦</div>
-                    <div className="memory-actions">
-                      <button className="memory-delete" onClick={() => { setEditingNoteId(note.id); setEditNoteText(note.content) }} title="编辑">✎</button>
-                      <button className="memory-delete" onClick={() => { if (confirm('确定删除这张纸条吗？')) onDeleteNote(note.id) }} title="删除">×</button>
-                    </div>
+                  <div className="favorite-preview" onClick={() => { setSelectedNote(note); setNoteFlipped(false) }}>
+                    {!note.is_read && <span title="还未在弹窗中遇见">💌 </span>}{previewText(note.content)}
                   </div>
-                  {renderNoteBody(note)}
                 </div>
               ))}
             </>
@@ -321,6 +245,7 @@ export default function Moments({
                 <div className="note-detail-icon">✦</div>
                 <div className="flip-back-meta">来自「{getConvName(selectedNote.conversation_id)}」</div>
                 <div className="flip-back-meta">{formatNoteDate(selectedNote.created_at)}</div>
+                <div className="flip-back-del" onClick={e => { e.stopPropagation(); if (confirm('确定删除这张纸条吗？')) { setSelectedNote(null); setNoteFlipped(false); onDeleteNote(selectedNote.id) } }}>删除这张纸条 ×</div>
               </div>
             </div>
           </div>
@@ -336,6 +261,19 @@ export default function Moments({
                 <div className="note-detail-frame"></div>
                 <div className="note-detail-icon">♡</div>
                 <div className="note-detail-content plain">{renderPopupText(parseMsgText(selectedFav.content))}</div>
+                {annoEditing ? (
+                  <div style={{ flexShrink: 0, marginTop: '8px' }} onClick={e => e.stopPropagation()}>
+                    <textarea value={annoText} onChange={e => setAnnoText(e.target.value)} rows={2} placeholder="写一行你的眉批" style={ANNO_BOX} />
+                    <div style={{ display: 'flex', gap: '8px', marginTop: '6px', justifyContent: 'center' }}>
+                      <button onClick={() => { const t = annoText.trim(); onUpdateFavNote?.(selectedFav.id, t); setSelectedFav({ ...selectedFav, favorite_note: t || null }); setAnnoEditing(false) }} style={BTN_SAVE}>保存</button>
+                      <button onClick={() => setAnnoEditing(false)} style={BTN_CANCEL}>取消</button>
+                    </div>
+                  </div>
+                ) : selectedFav.favorite_note ? (
+                  <div className="she-said-note he popup">{selectedFav.favorite_note}<span className="anno-edit" onClick={e => { e.stopPropagation(); setAnnoText(selectedFav.favorite_note || ''); setAnnoEditing(true) }} title="改眉批"> ✎</span></div>
+                ) : (
+                  <div className="anno-ghost" onClick={e => { e.stopPropagation(); setAnnoText(''); setAnnoEditing(true) }}>写一行眉批 ✎</div>
+                )}
               </div>
               <div className="note-detail-card flip-face flip-back">
                 <div className="note-detail-accent"></div>
@@ -344,6 +282,7 @@ export default function Moments({
                 <div className="flip-back-meta">来自「{getConvName(selectedFav.conversation_id)}」</div>
                 <div className="flip-back-meta">{formatNoteDate(selectedFav.created_at)}</div>
                 <div className="note-detail-locate" onClick={e => { e.stopPropagation(); setSelectedFav(null); setFavFlipped(false); onLocateMessage?.(selectedFav.conversation_id, selectedFav.id) }}>前往对话 →</div>
+                <div className="flip-back-del" onClick={e => { e.stopPropagation(); if (confirm('取消收藏这条消息吗？')) { setSelectedFav(null); setFavFlipped(false); onRemoveFavorite(selectedFav.id) } }}>取消收藏 ×</div>
               </div>
             </div>
           </div>
@@ -372,6 +311,7 @@ export default function Moments({
                 {selectedSaid.message_id && (
                   <div className="note-detail-locate" onClick={e => { e.stopPropagation(); setSelectedSaid(null); setSaidFlipped(false); onLocateMessage?.(selectedSaid.conversation_id, selectedSaid.message_id) }}>回到那句话 →</div>
                 )}
+                <div className="flip-back-del" onClick={e => { e.stopPropagation(); if (confirm('确定取下这一句吗？他不会记得摘过，取下后无法找回。')) { setSelectedSaid(null); setSaidFlipped(false); onDeleteSheSaid(selectedSaid.id) } }}>取下这一句 ×</div>
               </div>
             </div>
           </div>
@@ -387,8 +327,18 @@ export default function Moments({
                 <div className="note-detail-frame"></div>
                 <div className="note-detail-icon">❀</div>
                 <div className="note-detail-content plain centered">{renderPopupText(selectedEx.excerpt)}</div>
-                {selectedEx.annotation && (
-                  <div className="she-said-note he popup">{selectedEx.annotation}</div>
+                {annoEditing ? (
+                  <div style={{ flexShrink: 0, marginTop: '8px' }} onClick={e => e.stopPropagation()}>
+                    <textarea value={annoText} onChange={e => setAnnoText(e.target.value)} rows={2} placeholder="写一行你的眉批" style={ANNO_BOX} />
+                    <div style={{ display: 'flex', gap: '8px', marginTop: '6px', justifyContent: 'center' }}>
+                      <button onClick={() => { const t = annoText.trim(); onUpdateHeSaid?.(selectedEx.id, t); setSelectedEx({ ...selectedEx, annotation: t || null }); setAnnoEditing(false) }} style={BTN_SAVE}>保存</button>
+                      <button onClick={() => setAnnoEditing(false)} style={BTN_CANCEL}>取消</button>
+                    </div>
+                  </div>
+                ) : selectedEx.annotation ? (
+                  <div className="she-said-note he popup">{selectedEx.annotation}<span className="anno-edit" onClick={e => { e.stopPropagation(); setAnnoText(selectedEx.annotation || ''); setAnnoEditing(true) }} title="改眉批"> ✎</span></div>
+                ) : (
+                  <div className="anno-ghost" onClick={e => { e.stopPropagation(); setAnnoText(''); setAnnoEditing(true) }}>写一行眉批 ✎</div>
                 )}
               </div>
               <div className="note-detail-card flip-face flip-back">
@@ -398,6 +348,7 @@ export default function Moments({
                 <div className="flip-back-meta">摘于「{getConvName(selectedEx.conversation_id)}」</div>
                 <div className="flip-back-meta">{formatNoteDate(selectedEx.created_at)}</div>
                 <div className="note-detail-locate" onClick={e => { e.stopPropagation(); setSelectedEx(null); setExFlipped(false); onLocateMessage?.(selectedEx.conversation_id, selectedEx.message_id) }}>回到那句话 →</div>
+                <div className="flip-back-del" onClick={e => { e.stopPropagation(); if (confirm('取下这句摘录吗？取下后无法找回。')) { setSelectedEx(null); setExFlipped(false); onDeleteHeSaid?.(selectedEx.id) } }}>取下这句摘录 ×</div>
               </div>
             </div>
           </div>
@@ -427,6 +378,7 @@ export default function Moments({
                 )}
                 <div className="flip-back-meta"><span className="diary-page-no">{diaryPageNo[selectedDiary.id]}</span> · 写于「{getConvName(selectedDiary.conversation_id)}」</div>
                 <div className="flip-back-meta">{formatNoteDate(selectedDiary.created_at)}</div>
+                <div className="flip-back-del" onClick={e => { e.stopPropagation(); if (confirm('确定撕去这页日记吗？撕去后无法找回。')) { setSelectedDiary(null); setDiaryFlipped(false); onDeleteDiary(selectedDiary.id) } }}>撕去这一页 ×</div>
               </div>
             </div>
           </div>
