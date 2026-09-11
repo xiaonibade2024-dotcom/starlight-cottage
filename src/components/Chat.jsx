@@ -148,7 +148,7 @@ const MessageItem = React.memo(function MessageItem({
   isActive, isLastAssistant, variantIndex, isStreaming,
   branchIndex, branchTotal, onSwitchBranch,
   onMessageClick, onStartEdit, onSaveEdit, onSaveAndResend, onCancelEdit,
-  onRegenerate, onCopyMessage, onToggleFavorite, onSwitchVariant, onDeleteMessage, onFork, onPickExcerpt
+  onRegenerate, onCopyMessage, onToggleFavorite, onSwitchVariant, onDeleteMessage, onFork, onPickExcerpt, onResend
 }) {
   const editRef = useRef(null)
 
@@ -191,6 +191,11 @@ const MessageItem = React.memo(function MessageItem({
 
       <div className="message-meta">
         <span className="message-time">{formatTime(msg.created_at)}</span>
+        {msg.send_failed && (
+          <button className="resend-chip" onClick={(e) => { e.stopPropagation(); onResend?.(msg.id) }}>
+            这条还没送到，字帮你留着呢 · 点我再送
+          </button>
+        )}
         {branchTotal > 1 && !isEditing && !isStreaming && (
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '2px', marginLeft: '4px' }}>
             <button className="msg-action" style={{ padding: '3px 4px' }} onClick={(e) => { e.stopPropagation(); if (branchIndex > 0) onSwitchBranch(msg.id, branchIndex - 1) }} disabled={branchIndex <= 0}><Icon name="chevL" size={13} /></button>
@@ -205,7 +210,7 @@ const MessageItem = React.memo(function MessageItem({
             <button className="msg-action" style={{ padding: '3px 4px' }} onClick={(e) => { e.stopPropagation(); if (variantIndex < variants.length - 1) onSwitchVariant(msg.id, variantIndex + 1) }} disabled={variantIndex >= variants.length - 1}><Icon name="chevR" size={13} /></button>
           </span>
         )}
-        {isActive && !msg.id?.startsWith('streaming-') && !isEditing && !isStreaming && (
+        {isActive && !msg.id?.startsWith('streaming-') && !msg.id?.startsWith('pending-') && !isEditing && !isStreaming && (
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '2px', marginLeft: '4px' }}>
             <button className="msg-action" onClick={(e) => { e.stopPropagation(); onStartEdit(msg) }} title="编辑"><Icon name="pencil" size={15} /></button>
             {msg.role === 'assistant' && isLastAssistant && (
@@ -250,10 +255,33 @@ export default function Chat({
   conversation, messages, isStreaming, cacheStats, variantIndexes, branchInfo, onSwitchBranch, scrollToMsgId, onScrollDone, currentModel, onChangeModel,
   daysTogether = 0, hidden = false, canResume = false, onResume,
   diaryWriting = false, showDiaryHint = false, onInviteDiary, onOpenDiaryBook,
-  onSend, onStop, onToggleFavorite, onRegenerate, onEditMessage, onEditAndResend, onSwitchVariant, onDeleteMessage, onFork, onSaveExcerpt,
+  onSend, onStop, onToggleFavorite, onRegenerate, onEditMessage, onEditAndResend, onSwitchVariant, onDeleteMessage, onFork, onSaveExcerpt, onResend,
   onMenuClick, onSearchClick
 }) {
   const [input, setInput] = useState('')
+  // ===== 草稿保护（2026.9.11 手感批次）=====
+  // 打到一半切对话/去拾光/手机杀后台，回来字还在；发出去那一刻才清空。
+  // 每个对话一格抽屉（starlight_draft_对话号），纯本地，零成本
+  const draftKey = 'starlight_draft_' + (conversation?.id || 'new')
+  const inputValRef = useRef('')
+  useEffect(() => { inputValRef.current = input }, [input])
+  // 换对话时：先把上一个对话的草稿收进它自己的抽屉，再取出新对话的草稿
+  useEffect(() => {
+    let saved = ''
+    try { saved = localStorage.getItem(draftKey) || '' } catch (e) {}
+    setInput(saved)
+    return () => {
+      const v = inputValRef.current
+      try { if (v && v.trim()) localStorage.setItem(draftKey, v); else localStorage.removeItem(draftKey) } catch (e) {}
+    }
+  }, [draftKey])
+  // 随打随存（防手机杀后台时来不及告别）：停笔 250ms 就落一次本地
+  useEffect(() => {
+    const t = setTimeout(() => {
+      try { if (input && input.trim()) localStorage.setItem(draftKey, input); else localStorage.removeItem(draftKey) } catch (e) {}
+    }, 250)
+    return () => clearTimeout(t)
+  }, [input, draftKey])
   const [showScrollBtn, setShowScrollBtn] = useState(false)
   // 「他说」摘句小卡：正在摘哪条、点亮了哪些句、写了什么眉批
   const [pickerMsg, setPickerMsg] = useState(null)
@@ -375,6 +403,7 @@ export default function Chat({
       onSend(input.trim())
     }
     setInput('')
+    try { localStorage.removeItem(draftKey) } catch (e) {}
     isNearBottomRef.current = true
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
     if (textareaRef.current) textareaRef.current.style.height = '44px'
@@ -512,6 +541,7 @@ export default function Chat({
             onDeleteMessage={onDeleteMessage}
             onFork={onFork}
             onPickExcerpt={(m) => { setPickerMsg(m); setPickSel([]); setPickAnno('') }}
+            onResend={onResend}
           />
         ))}
         {/* 回到枝头（2026.9 补针）：停在半山腰时的免费回程票 */}
