@@ -346,11 +346,11 @@ export default function Moments({
             <div className="note-detail-accent"></div>
             <div className="note-detail-frame"></div>
             <div className="note-detail-icon">✿</div>
+            <div className="note-detail-date top">摘于「{getConvName(selectedSaid.conversation_id)}」· {formatNoteDate(selectedSaid.created_at)}</div>
             <div className="note-detail-content plain">{renderPopupText(selectedSaid.quote)}</div>
             {selectedSaid.annotation && (
               <div className="she-said-note popup">{selectedSaid.annotation}</div>
             )}
-            <div className="note-detail-date">摘于「{getConvName(selectedSaid.conversation_id)}」· {formatNoteDate(selectedSaid.created_at)}</div>
             <button className="note-detail-close" onClick={() => setSelectedSaid(null)}>收好了</button>
           </div>
         </div>
@@ -362,11 +362,11 @@ export default function Moments({
             <div className="note-detail-accent"></div>
             <div className="note-detail-frame"></div>
             <div className="note-detail-icon">❀</div>
+            <div className="note-detail-date top">摘于「{getConvName(selectedEx.conversation_id)}」· {formatNoteDate(selectedEx.created_at)}</div>
             <div className="note-detail-content plain">{renderPopupText(selectedEx.excerpt)}</div>
             {selectedEx.annotation && (
               <div className="she-said-note he popup">{selectedEx.annotation}</div>
             )}
-            <div className="note-detail-date">摘于「{getConvName(selectedEx.conversation_id)}」· {formatNoteDate(selectedEx.created_at)}</div>
             <button className="note-detail-close" onClick={() => setSelectedEx(null)}>收好了</button>
             <div className="note-detail-locate" onClick={() => { setSelectedEx(null); onLocateMessage?.(selectedEx.conversation_id, selectedEx.message_id) }}>回到那句话 →</div>
           </div>
