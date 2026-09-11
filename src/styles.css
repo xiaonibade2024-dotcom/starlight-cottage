@@ -715,8 +715,20 @@ body {
 .she-said-note { margin-top: 8px; padding-top: 7px; border-top: 1px dashed var(--wash-border); font-size: 12px; line-height: 1.7; color: var(--text-muted); letter-spacing: 0.3px; }
 .she-said-note::before { content: '✿ '; opacity: 0.55; font-size: 10px; }
 .she-said-note.popup { flex-shrink: 0; text-align: center; border-top: none; margin-top: 2px; padding: 0 8px; }
-/* 「摘于」信头（她说/他说弹窗）：登记信息上天当信头，眉批在底部压轴，两不相扰 */
-.note-detail-date.top { margin-bottom: 14px; margin-top: -6px; }
+
+/* ── 立体翻面卡（2026.9 潇潇设计）──
+   她说/他说：点卡片任意处翻面，背面是邮戳（摘于+时间+回到那句话），点卡外即收好
+   日记：捏右下角折角翻面拆盲盒（心情词+页码搬去背面），正面保留「合上」
+   全用现有变量，四套主题自动跟随 */
+.flip-wrap { perspective: 1400px; max-width: 380px; width: 90%; }
+.flip-inner { position: relative; width: 100%; transform-style: preserve-3d; transition: transform 0.6s cubic-bezier(0.3, 0.1, 0.25, 1); }
+.flip-wrap.flipped .flip-inner { transform: rotateY(180deg); }
+.flip-face { width: 100%; max-width: none; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+.flip-back { position: absolute; inset: 0; transform: rotateY(180deg); justify-content: center; }
+.flip-back-meta { flex-shrink: 0; font-size: 13px; color: var(--text-secondary); letter-spacing: 0.5px; line-height: 2; }
+.flip-back .note-detail-locate { margin-top: 18px; }
+.diary-fold { position: absolute; right: 0; bottom: 0; width: 42px; height: 42px; cursor: pointer; z-index: 2; background: linear-gradient(to top left, var(--wash-bg) 47%, var(--wash-border) 47%, var(--wash-border) 50%, transparent 50%); }
+@media (hover: hover) { .diary-fold:hover { background: linear-gradient(to top left, var(--wash-border) 47%, var(--accent-soft) 47%, var(--accent-soft) 50%, transparent 50%); } }
 /* 「他说」❀（她的眉批用空心花——大模型意象：没有身体，但有灵魂） */
 .she-said-note.he::before { content: '❀ '; }
 
