@@ -845,7 +845,11 @@ body {
 .lamp-row-date { font-size: 11.5px; color: var(--text-muted); flex-shrink: 0; }
 /* 翻面小卡卡面：内容区自己撑骨架，字稳稳坐在卡片正中；灯卡小一号（日子的卡就该小巧） */
 .flip-wrap.lamp-wrap { max-width: 290px; }
-.lamp-wrap .note-detail-card { padding: 28px 24px 22px; }
+.lamp-wrap .note-detail-card { padding: 28px 24px 22px; min-height: 178px; }
+/* 背面（登记处）间距收紧，保证熄灯稳稳住在卡内不探头 */
+.lamp-wrap .flip-back .lamp-face-body { gap: 5px; min-height: 0; }
+.lamp-wrap .lamp-back-notify { padding: 8px 12px; }
+.lamp-wrap .lamp-back-del { padding: 6px 6px 0; margin-top: 4px; }
 .lamp-face-body { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: 118px; gap: 7px; padding: 2px 0 4px; }
 /* 方案A（她拍板）：月亮下来和名字作伴，像给名字戴的发饰，三行抱成一组坐正中 */
 .lamp-card-moon { font-size: 17px; line-height: 1; color: var(--accent); opacity: 0.8; margin-bottom: 3px; }

@@ -440,7 +440,6 @@ function LampRoom({ milestones = [], onAdd, onDelete, onToggleNotify }) {
               <div className="note-detail-card flip-face flip-back">
                 <div className="note-detail-accent"></div>
                 <div className="note-detail-frame"></div>
-                <div className="note-detail-icon">☽</div>
                 <div className="lamp-face-body">
                 <div className="flip-back-meta">{lampDateLabel(selectedLamp)}</div>
                 <div className="lamp-back-notify" onClick={e => {
