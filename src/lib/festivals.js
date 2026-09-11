@@ -86,7 +86,7 @@ export function specialDayText(date, milestones) {
 // 顶栏用：亮给她看的那句（灯优先于节日，一次只说一件，最贴心的那件）
 export function headerSpecialText(date, milestones) {
   const lamps = lampsOn(date, milestones)
-  if (lamps.length > 0) return `今天是${lamps[0].title} ☾`
+  if (lamps.length > 0) return `今天是${lamps[0].title} ☽`
   const fests = festivalsOn(date)
   if (fests.length > 0) return `今天是${fests[0]} 🌙`
   return ''

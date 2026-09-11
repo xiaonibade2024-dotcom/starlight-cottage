@@ -495,7 +495,7 @@ export default function App() {
     const { data, error } = await supabase.from('milestones').insert({ user_id: user.id, title: title.trim(), lamp_date: lampDate, repeat_type: repeatType || 'yearly', notify_him: notifyHim !== false }).select().single()
     if (error || !data) { showToast('没存上，再试一次'); return }
     setMilestones(prev => [...prev, data])
-    showToast('灯挂上了 ☾')
+    showToast('灯挂上了 ☽')
   }
 
   // 熄灯（删除）与改"告不告诉他"

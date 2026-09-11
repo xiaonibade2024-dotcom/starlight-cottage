@@ -196,7 +196,7 @@ export default function HeatCalendar({ conversations = [], notes = [], diaries =
               {date.getDate()}
               {noteDays[k] > 0 && <span className="heat-dot" />}
               {diaryDays[k]?.pages > 0 && <span className="heat-stroke" />}
-              {lampsOn(date, milestones).length > 0 && <span className="heat-moon">☾</span>}
+              {lampsOn(date, milestones).length > 0 && <span className="heat-moon">☽</span>}
             </div>
           )
         })}
@@ -210,7 +210,7 @@ export default function HeatCalendar({ conversations = [], notes = [], diaries =
               {selected.date.getFullYear() !== now.getFullYear() ? selected.date.getFullYear() + ' 年 ' : ''}{selected.date.getMonth() + 1} 月 {selected.date.getDate()} 日 · 周{WEEKDAYS[(selected.date.getDay() + 6) % 7]}
             </div>
             {lampsOn(selected.date, milestones).length > 0 && (
-              <div className="day-card-lamp">☾ {lampsOn(selected.date, milestones).map(m => m.title).join('、')}</div>
+              <div className="day-card-lamp">☽ {lampsOn(selected.date, milestones).map(m => m.title).join('、')}</div>
             )}
 
             {(!sel || sel.count === 0) ? (

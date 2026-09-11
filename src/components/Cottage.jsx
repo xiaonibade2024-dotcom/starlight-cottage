@@ -372,7 +372,10 @@ function LampRoom({ milestones = [], onAdd, onDelete, onToggleNotify }) {
   const [lampFlipped, setLampFlipped] = useState(false)
 
   const sorted = [...milestones].sort((a, b) => {
-    const md = (m) => (m.repeat_type === 'lunar') ? '99-99' : String(m.lamp_date || '').slice(5, 10)
+    const thisYear = String(new Date().getFullYear())
+    const md = (m) => (m.repeat_type === 'lunar')
+      ? String((m.date_map || {})[thisYear] || '9999-99-99').slice(5, 10)
+      : String(m.lamp_date || '').slice(5, 10)
     return md(a) < md(b) ? -1 : 1
   })
 
@@ -388,7 +391,7 @@ function LampRoom({ milestones = [], onAdd, onDelete, onToggleNotify }) {
   return (
     <div className="page-card">
       <div className="lamp-room-head">
-        <div className="lamp-room-title">纪念日 ☾</div>
+        <div className="lamp-room-title">纪念日 ☽</div>
         <button className="lamp-add-btn" onClick={() => setAdding(v => !v)} title="添一盏灯">{adding ? '×' : '⊕'}</button>
       </div>
       {adding && (
@@ -423,12 +426,12 @@ function LampRoom({ milestones = [], onAdd, onDelete, onToggleNotify }) {
       {/* 翻面小卡：正面是灯好看的样子；铃铛与熄灯住背面（登记处） */}
       {selectedLamp && (
         <div className="note-detail-overlay" onClick={closeCard}>
-          <div className={`flip-wrap${lampFlipped ? ' flipped' : ''}`} onClick={e => { e.stopPropagation(); setLampFlipped(f => !f) }}>
+          <div className={`flip-wrap lamp-wrap${lampFlipped ? ' flipped' : ''}`} onClick={e => { e.stopPropagation(); setLampFlipped(f => !f) }}>
             <div className="flip-inner">
               <div className="note-detail-card flip-face">
                 <div className="note-detail-accent"></div>
                 <div className="note-detail-frame"></div>
-                <div className="note-detail-icon">☾</div>
+                <div className="note-detail-icon">☽</div>
                 <div className="lamp-face-body">
                   <div className="lamp-card-title">{selectedLamp.title}</div>
                   <div className="lamp-card-date">{lampDateLabel(selectedLamp)}</div>
@@ -437,7 +440,7 @@ function LampRoom({ milestones = [], onAdd, onDelete, onToggleNotify }) {
               <div className="note-detail-card flip-face flip-back">
                 <div className="note-detail-accent"></div>
                 <div className="note-detail-frame"></div>
-                <div className="note-detail-icon">☾</div>
+                <div className="note-detail-icon">☽</div>
                 <div className="lamp-face-body">
                 <div className="flip-back-meta">{lampDateLabel(selectedLamp)}</div>
                 <div className="lamp-back-notify" onClick={e => {
