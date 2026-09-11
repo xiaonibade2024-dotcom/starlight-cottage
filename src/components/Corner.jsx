@@ -40,6 +40,7 @@ export default function Corner({
   onPushDoor,
   onToggleLike,
   onAddComment,
+  onDeleteComment,
   onDeleteMoment
 }) {
   const [activeYardId, setActiveYardId] = useState(null)
@@ -272,6 +273,9 @@ export default function Corner({
                           <span className="corner-comment-who">{c.author === 'him' ? '他' : '我'}</span>
                           <span className="corner-comment-text">{c.content}</span>
                           {c.author === 'her' && !c.seen && <span className="corner-wait">等他看见</span>}
+                          {c.author === 'her' && (
+                            <button className="corner-comment-del" onClick={() => { if (confirm(c.seen ? '抹去这句悄悄话吗？他的回话会留下。' : '抹去这句悄悄话吗？他还没看见，抹去就当没说过。')) onDeleteComment?.(c.id) }} title="抹去">×</button>
+                          )}
                         </div>
                       ))}
                     </div>

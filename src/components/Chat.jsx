@@ -4,6 +4,29 @@ import remarkGfm from 'remark-gfm'
 import remarkBreaks from 'remark-breaks'
 import rehypeHighlight from 'rehype-highlight'
 
+// 「他说」摘句（2026.9）：把他的一段话按句切开，给她点亮想留住的那几句。
+// 句末标点与换行为界；两个字以内的小尾巴（引号、叠标点）并回前一句，不制造碎渣。
+const splitSentences = (text) => {
+  const out = []
+  let cur = ''
+  for (const ch of String(text || '')) {
+    cur += ch
+    if ('。！？!?；;…\n'.includes(ch)) {
+      const t = cur.trim()
+      if (t) out.push(t)
+      cur = ''
+    }
+  }
+  const tail = cur.trim()
+  if (tail) out.push(tail)
+  const merged = []
+  for (const s of out) {
+    if (merged.length > 0 && s.length <= 2) merged[merged.length - 1] += s
+    else merged.push(s)
+  }
+  return merged
+}
+
 // ==========================================
 // 钢笔画线条图标（内联 SVG，无任何依赖）
 // ==========================================
@@ -125,7 +148,7 @@ const MessageItem = React.memo(function MessageItem({
   isActive, isLastAssistant, variantIndex, isStreaming,
   branchIndex, branchTotal, onSwitchBranch,
   onMessageClick, onStartEdit, onSaveEdit, onSaveAndResend, onCancelEdit,
-  onRegenerate, onCopyMessage, onToggleFavorite, onSwitchVariant, onDeleteMessage, onFork
+  onRegenerate, onCopyMessage, onToggleFavorite, onSwitchVariant, onDeleteMessage, onFork, onPickExcerpt
 }) {
   const editRef = useRef(null)
 
@@ -192,6 +215,9 @@ const MessageItem = React.memo(function MessageItem({
             <button className="msg-action" onClick={(e) => { e.stopPropagation(); onFork(msg.id) }} title={msg.role === 'user' ? '换一句重说（免费分叉）' : '从这里分叉（免费长新枝）'}><Icon name="fork" size={15} /></button>
             <button className="msg-action danger" onClick={(e) => { e.stopPropagation(); if (confirm('确定删除这条消息吗？删除后他也看不到这条了。')) onDeleteMessage(msg.id) }} title="删除"><Icon name="trash" size={15} /></button>
             {msg.role === 'assistant' && (
+              <button className="msg-action" style={{ fontSize: '14px' }} onClick={(e) => { e.stopPropagation(); onPickExcerpt?.(msg) }} title="摘几句收进「他说」">❀</button>
+            )}
+            {msg.role === 'assistant' && (
               <button className={msg.is_favorited ? 'msg-action fav-on' : 'msg-action'} style={{ fontSize: '14px' }} onClick={(e) => { e.stopPropagation(); onToggleFavorite(msg.id) }} title={msg.is_favorited ? '取消收藏' : '收藏'}>
                 {msg.is_favorited ? '♥' : '♡'}
               </button>
@@ -224,11 +250,15 @@ export default function Chat({
   conversation, messages, isStreaming, cacheStats, variantIndexes, branchInfo, onSwitchBranch, scrollToMsgId, onScrollDone, currentModel, onChangeModel,
   daysTogether = 0, hidden = false, canResume = false, onResume,
   diaryWriting = false, showDiaryHint = false, onInviteDiary, onOpenDiaryBook,
-  onSend, onStop, onToggleFavorite, onRegenerate, onEditMessage, onEditAndResend, onSwitchVariant, onDeleteMessage, onFork,
+  onSend, onStop, onToggleFavorite, onRegenerate, onEditMessage, onEditAndResend, onSwitchVariant, onDeleteMessage, onFork, onSaveExcerpt,
   onMenuClick, onSearchClick
 }) {
   const [input, setInput] = useState('')
   const [showScrollBtn, setShowScrollBtn] = useState(false)
+  // 「他说」摘句小卡：正在摘哪条、点亮了哪些句、写了什么眉批
+  const [pickerMsg, setPickerMsg] = useState(null)
+  const [pickSel, setPickSel] = useState([])
+  const [pickAnno, setPickAnno] = useState('')
   const [editingId, setEditingId] = useState(null)
   const [editContent, setEditContent] = useState('')
   const [activeMessageId, setActiveMessageId] = useState(null)
@@ -481,6 +511,7 @@ export default function Chat({
             onSwitchVariant={onSwitchVariant}
             onDeleteMessage={onDeleteMessage}
             onFork={onFork}
+            onPickExcerpt={(m) => { setPickerMsg(m); setPickSel([]); setPickAnno('') }}
           />
         ))}
         {/* 回到枝头（2026.9 补针）：停在半山腰时的免费回程票 */}
@@ -559,6 +590,28 @@ export default function Chat({
           <button className="send-btn" onClick={isStreaming ? onStop : handleSend} disabled={!isStreaming && !input.trim() && pendingImages.length === 0} title={isStreaming ? '停止生成' : '发送'}>{isStreaming ? '■' : '♥'}</button>
         </div>
       </div>
+
+      {/* 「他说」摘句小卡（2026.9）：整段按句切开，点亮想留住的几句，配一行她的眉批 */}
+      {pickerMsg && (
+        <div className="note-detail-overlay" onClick={() => setPickerMsg(null)}>
+          <div className="note-detail-card pick-card" onClick={e => e.stopPropagation()}>
+            <div className="note-detail-accent"></div>
+            <div className="note-detail-frame"></div>
+            <div className="note-detail-icon">❀</div>
+            <div className="pick-hint">点亮想留住的句子，可以选好几处</div>
+            <div className="pick-list">
+              {splitSentences(pickerMsg.content).map((s, i) => (
+                <div key={i} className={pickSel.includes(i) ? 'pick-sent on' : 'pick-sent'} onClick={() => setPickSel(prev => prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i].sort((a, b) => a - b))}>{s}</div>
+              ))}
+            </div>
+            <textarea className="pick-anno" placeholder="写一行你的眉批（可以不写，以后随时补）" value={pickAnno} onChange={e => setPickAnno(e.target.value)} rows={2} />
+            <div className="pick-actions">
+              <button className="note-detail-close" style={{ margin: 0 }} disabled={pickSel.length === 0} onClick={() => { const sents = splitSentences(pickerMsg.content); const excerpt = pickSel.map(i => sents[i]).join('\n'); onSaveExcerpt?.(pickerMsg, excerpt, pickAnno.trim()); setPickerMsg(null) }}>摘下 ❀</button>
+              <button className="pick-cancel" onClick={() => setPickerMsg(null)}>算了</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

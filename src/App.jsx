@@ -228,6 +228,8 @@ export default function App() {
   const [diaries, setDiaries] = useState([])
   // 「她说」（2026.9）：他在对话里主动摘下的、她说过的话（quote 原话 + annotation 眉批）
   const [sheSaid, setSheSaid] = useState([])
+  // 「他说」（2026.9 · 她说的镜子）：她从他的消息里摘下的句子（excerpt + 她的眉批，可改可删）
+  const [heSaid, setHeSaid] = useState([])
   const [diaryWriting, setDiaryWriting] = useState(false)
   const [diaryHintConvId, setDiaryHintConvId] = useState(null)
   // 一隅（改版第⑦步 · 第一批）：院子 / 全部动静 / 全部悄悄话 / 正在写动静的院子id（null = 没在写）
@@ -342,6 +344,7 @@ export default function App() {
     loadNotes()
     loadDiaries()
     loadSheSaid()
+    loadHeSaid()
     loadCourtyards()
     loadCornerMoments()
     loadCornerComments()
@@ -477,6 +480,46 @@ export default function App() {
     await supabase.from('she_said').delete().eq('id', id)
     setSheSaid(prev => prev.filter(s => s.id !== id))
     showToast('已从「她说」里取下')
+  }
+
+  // ==========================================
+  // 「他说」（2026.9 · 她说的镜子，原回忆匣子改造）
+  // 她摘他：不设围栏不设卫兵——她是真的记得的那个人，围栏是给失忆者的
+  // ==========================================
+  const loadHeSaid = async () => {
+    const { data } = await supabase.from('he_said').select('*').order('created_at', { ascending: false })
+    setHeSaid(data || [])
+  }
+
+  const saveExcerpt = async (msg, excerpt, annotation) => {
+    const { data, error } = await supabase.from('he_said').insert({ user_id: user.id, conversation_id: msg.conversation_id, message_id: msg.id, excerpt, annotation: annotation || null }).select().single()
+    if (error || !data) { showToast('没摘下来，稍后再试一次'); return }
+    setHeSaid(prev => [data, ...prev])
+    showToast('❀ 摘下来了，收进「他说」')
+  }
+
+  const updateHeSaidAnno = async (id, annotation) => {
+    await supabase.from('he_said').update({ annotation: annotation || null }).eq('id', id)
+    setHeSaid(prev => prev.map(x => x.id === id ? { ...x, annotation: annotation || null } : x))
+  }
+
+  const deleteHeSaid = async (id) => {
+    await supabase.from('he_said').delete().eq('id', id)
+    setHeSaid(prev => prev.filter(x => x.id !== id))
+    showToast('已从「他说」里取下')
+  }
+
+  // 整条收藏的眉批（存 messages.favorite_note，传空 = 擦掉眉批）
+  const updateFavNote = async (msgId, note) => {
+    await supabase.from('messages').update({ favorite_note: note || null }).eq('id', msgId)
+    setFavorites(prev => prev.map(f => f.id === msgId ? { ...f, favorite_note: note || null } : f))
+    setAllMessages(prev => prev.map(m => m.id === msgId ? { ...m, favorite_note: note || null } : m))
+  }
+
+  // 一隅：抹去她自己的一句悄悄话（他的动静与回话一根汗毛不动）
+  const deleteCornerComment = async (commentId) => {
+    await supabase.from('corner_comments').delete().eq('id', commentId)
+    setCornerComments(prev => prev.filter(c => c.id !== commentId))
   }
 
   // 邀请他写日记：一次性情境提示 + 当前时间线，非流式生成，正文只进日记本不进聊天流
@@ -1416,11 +1459,11 @@ export default function App() {
           diaryWriting={diaryWriting} showDiaryHint={diaryHintConvId != null && diaryHintConvId === activeConvId}
           onInviteDiary={inviteDiary} onOpenDiaryBook={() => { setDiaryHintConvId(null); setActivePage('moments') }}
           scrollToMsgId={scrollToMsgId} onScrollDone={() => setScrollToMsgId(null)}
-          onSend={sendMessage} onStop={stopStreaming} onToggleFavorite={toggleFavorite} onRegenerate={regenerateResponse} onEditMessage={editMessage} onEditAndResend={editAndResend} onSwitchVariant={switchVariant} onDeleteMessage={deleteMessage} onFork={forkFromMessage}
+          onSend={sendMessage} onStop={stopStreaming} onToggleFavorite={toggleFavorite} onRegenerate={regenerateResponse} onEditMessage={editMessage} onEditAndResend={editAndResend} onSwitchVariant={switchVariant} onDeleteMessage={deleteMessage} onFork={forkFromMessage} onSaveExcerpt={saveExcerpt}
           onMenuClick={() => setSidebarOpen(true)} onSearchClick={() => setSearchOpen(true)}
         />
-        {activePage === 'moments' && <Moments notes={notes} favorites={favorites} diaries={diaries} sheSaid={sheSaid} cornerMoments={cornerMoments} conversations={conversations} onUpdateNote={updateNote} onDeleteNote={deleteNote} onDeleteDiary={deleteDiary} onDeleteSheSaid={deleteSheSaid} onRemoveFavorite={removeFavorite} onLocateMessage={locateMessage} onOpenConversation={selectConversation} firstMetTime={firstMetTime} />}
-        {activePage === 'corner' && <Corner courtyards={courtyards} moments={cornerMoments} comments={cornerComments} conversations={conversations} momentWriting={momentWriting} onCreate={createCourtyard} onRename={renameCourtyard} onRebind={rebindCourtyard} onUpdateQuiet={updateCourtyardQuiet} onDeleteYard={deleteCourtyard} onPushDoor={pushDoor} onToggleLike={toggleMomentLike} onAddComment={addCornerComment} onDeleteMoment={deleteCornerMoment} />}
+        {activePage === 'moments' && <Moments notes={notes} favorites={favorites} diaries={diaries} sheSaid={sheSaid} cornerMoments={cornerMoments} conversations={conversations} onUpdateNote={updateNote} onDeleteNote={deleteNote} onDeleteDiary={deleteDiary} onDeleteSheSaid={deleteSheSaid} heSaid={heSaid} onDeleteHeSaid={deleteHeSaid} onUpdateHeSaid={updateHeSaidAnno} onUpdateFavNote={updateFavNote} onRemoveFavorite={removeFavorite} onLocateMessage={locateMessage} onOpenConversation={selectConversation} firstMetTime={firstMetTime} />}
+        {activePage === 'corner' && <Corner courtyards={courtyards} moments={cornerMoments} comments={cornerComments} conversations={conversations} momentWriting={momentWriting} onCreate={createCourtyard} onRename={renameCourtyard} onRebind={rebindCourtyard} onUpdateQuiet={updateCourtyardQuiet} onDeleteYard={deleteCourtyard} onPushDoor={pushDoor} onToggleLike={toggleMomentLike} onAddComment={addCornerComment} onDeleteMoment={deleteCornerMoment} onDeleteComment={deleteCornerComment} />}
         {activePage === 'cottage' && <Cottage themeMode={themeMode} onChangeTheme={setThemeMode} themeSuite={themeSuite} onChangeSuite={setThemeSuite} tab={cottageTab} onTabChange={setCottageTab} apiKey={apiKey} systemPrompt={systemPrompt} model={model} temperature={temperature} topP={topP} maxContextMessages={maxContextMessages} memories={memories} stats={stats} onSaveApiKey={saveApiKey} onSaveSettings={saveSettings} onAddCoreMemory={addCoreMemory} onDeleteMemory={deleteMemory} onUpdateMemory={updateMemory} onExportAll={exportAllData} daysTogether={daysTogether} firstMetDate={firstMetDate} cottageName={cottageName} cottageSubtitle={cottageSubtitle} />}
         <BottomNav active={activePage} onChange={setActivePage} />
       </div>
