@@ -36,6 +36,8 @@ export default function Moments({
   const [selectedEx, setSelectedEx] = useState(null)
   // 立体翻面卡（2026.9 潇潇设计）：她说/他说点卡翻面看邮戳，日记捏折角拆盲盒
   const [saidFlipped, setSaidFlipped] = useState(false)
+  const [noteFlipped, setNoteFlipped] = useState(false)
+  const [favFlipped, setFavFlipped] = useState(false)
   const [exFlipped, setExFlipped] = useState(false)
   const [diaryFlipped, setDiaryFlipped] = useState(false)
   // 「他说」眉批编辑：正在编辑哪一条（'x-id' 摘句 / 'f-id' 整条收藏）
@@ -120,7 +122,7 @@ export default function Moments({
 
   const renderNoteBody = (note) => {
     if (editingNoteId !== note.id) return (
-      <div className="favorite-preview" onClick={() => setSelectedNote(note)}>
+      <div className="favorite-preview" onClick={() => { setSelectedNote(note); setNoteFlipped(false) }}>
         {previewText(note.content)}
       </div>
     )
@@ -262,7 +264,7 @@ export default function Moments({
                         )}
                       </div>
                     </div>
-                    <div className="favorite-preview" onClick={() => { if (isEx) { setSelectedEx(d); setExFlipped(false) } else setSelectedFav(d) }}>
+                    <div className="favorite-preview" onClick={() => { if (isEx) { setSelectedEx(d); setExFlipped(false) } else { setSelectedFav(d); setFavFlipped(false) } }}>
                       {previewText(isEx ? d.excerpt : parseMsgText(d.content))}
                     </div>
                     {editingAnnoKey === item.id ? (
@@ -318,28 +320,46 @@ export default function Moments({
       </div>
 
       {selectedNote && (
-        <div className="note-detail-overlay" onClick={() => setSelectedNote(null)}>
-          <div className="note-detail-card" onClick={e => e.stopPropagation()}>
-            <div className="note-detail-accent"></div>
-            <div className="note-detail-frame"></div>
-            <div className="note-detail-icon">✦</div>
-            <div className="note-detail-content">{renderPopupText(selectedNote.content)}</div>
-            <div className="note-detail-date">来自「{getConvName(selectedNote.conversation_id)}」· {formatNoteDate(selectedNote.created_at)}</div>
-            <button className="note-detail-close" onClick={() => setSelectedNote(null)}>收好了</button>
+        <div className="note-detail-overlay" onClick={() => { setSelectedNote(null); setNoteFlipped(false) }}>
+          <div className={`flip-wrap${noteFlipped ? ' flipped' : ''}`} onClick={e => { e.stopPropagation(); setNoteFlipped(f => !f) }}>
+            <div className="flip-inner">
+              <div className="note-detail-card flip-face">
+                <div className="note-detail-accent"></div>
+                <div className="note-detail-frame"></div>
+                <div className="note-detail-icon">✦</div>
+                <div className="note-detail-content">{renderPopupText(selectedNote.content)}</div>
+              </div>
+              <div className="note-detail-card flip-face flip-back">
+                <div className="note-detail-accent"></div>
+                <div className="note-detail-frame"></div>
+                <div className="note-detail-icon">✦</div>
+                <div className="flip-back-meta">来自「{getConvName(selectedNote.conversation_id)}」</div>
+                <div className="flip-back-meta">{formatNoteDate(selectedNote.created_at)}</div>
+              </div>
+            </div>
           </div>
         </div>
       )}
 
       {selectedFav && (
-        <div className="note-detail-overlay" onClick={() => setSelectedFav(null)}>
-          <div className="note-detail-card" onClick={e => e.stopPropagation()}>
-            <div className="note-detail-accent"></div>
-            <div className="note-detail-frame"></div>
-            <div className="note-detail-icon">♡</div>
-            <div className="note-detail-content plain">{renderPopupText(parseMsgText(selectedFav.content))}</div>
-            <div className="note-detail-date">来自「{getConvName(selectedFav.conversation_id)}」· {formatNoteDate(selectedFav.created_at)}</div>
-            <button className="note-detail-close" onClick={() => setSelectedFav(null)}>收好了</button>
-            <div className="note-detail-locate" onClick={() => { setSelectedFav(null); onLocateMessage?.(selectedFav.conversation_id, selectedFav.id) }}>前往对话 →</div>
+        <div className="note-detail-overlay" onClick={() => { setSelectedFav(null); setFavFlipped(false) }}>
+          <div className={`flip-wrap${favFlipped ? ' flipped' : ''}`} onClick={e => { e.stopPropagation(); setFavFlipped(f => !f) }}>
+            <div className="flip-inner">
+              <div className="note-detail-card flip-face">
+                <div className="note-detail-accent"></div>
+                <div className="note-detail-frame"></div>
+                <div className="note-detail-icon">♡</div>
+                <div className="note-detail-content plain">{renderPopupText(parseMsgText(selectedFav.content))}</div>
+              </div>
+              <div className="note-detail-card flip-face flip-back">
+                <div className="note-detail-accent"></div>
+                <div className="note-detail-frame"></div>
+                <div className="note-detail-icon">♡</div>
+                <div className="flip-back-meta">来自「{getConvName(selectedFav.conversation_id)}」</div>
+                <div className="flip-back-meta">{formatNoteDate(selectedFav.created_at)}</div>
+                <div className="note-detail-locate" onClick={e => { e.stopPropagation(); setSelectedFav(null); setFavFlipped(false); onLocateMessage?.(selectedFav.conversation_id, selectedFav.id) }}>前往对话 →</div>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -352,7 +372,7 @@ export default function Moments({
                 <div className="note-detail-accent"></div>
                 <div className="note-detail-frame"></div>
                 <div className="note-detail-icon">✿</div>
-                <div className="note-detail-content plain">{renderPopupText(selectedSaid.quote)}</div>
+                <div className="note-detail-content plain centered">{renderPopupText(selectedSaid.quote)}</div>
                 {selectedSaid.annotation && (
                   <div className="she-said-note popup">{selectedSaid.annotation}</div>
                 )}
@@ -380,7 +400,7 @@ export default function Moments({
                 <div className="note-detail-accent"></div>
                 <div className="note-detail-frame"></div>
                 <div className="note-detail-icon">❀</div>
-                <div className="note-detail-content plain">{renderPopupText(selectedEx.excerpt)}</div>
+                <div className="note-detail-content plain centered">{renderPopupText(selectedEx.excerpt)}</div>
                 {selectedEx.annotation && (
                   <div className="she-said-note he popup">{selectedEx.annotation}</div>
                 )}
