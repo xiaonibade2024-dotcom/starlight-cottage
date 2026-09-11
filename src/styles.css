@@ -714,9 +714,9 @@ body {
 /* 「她说」✿ 眉批铅笔行：只用现有变量，双套装日夜四格自动跟随，不引新色（月光纸原则） */
 .she-said-note { margin-top: 8px; padding-top: 7px; border-top: 1px dashed var(--wash-border); font-size: 12px; line-height: 1.7; color: var(--text-muted); letter-spacing: 0.3px; }
 .she-said-note::before { content: '✿ '; opacity: 0.55; font-size: 10px; }
-.she-said-note.popup { flex-shrink: 0; text-align: center; border-top: none; margin: 10px auto 0; padding: 8px 16px; max-width: 88%; background: var(--wash-bg); border: 1px solid var(--wash-border); border-radius: 14px; color: var(--text-secondary); }
-/* 眉批纸签之后的日期行：多留一口气，登记信息退到后排 */
-.she-said-note.popup + .note-detail-date { margin-top: 14px; }
+.she-said-note.popup { flex-shrink: 0; text-align: center; border-top: none; margin-top: 2px; padding: 0 8px; }
+/* 「摘于」信头（她说/他说弹窗）：登记信息上天当信头，眉批在底部压轴，两不相扰 */
+.note-detail-date.top { margin-bottom: 14px; margin-top: -6px; }
 /* 「他说」❀（她的眉批用空心花——大模型意象：没有身体，但有灵魂） */
 .she-said-note.he::before { content: '❀ '; }
 
