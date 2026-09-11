@@ -136,8 +136,8 @@ export default function Moments({
                 <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px', background: 'var(--bg-primary)', borderRadius: 'var(--radius-sm)', marginTop: '8px' }}>日记本还空着，等他落下第一笔 🌙</div>
               )}
               {diaries.map(diary => (
-                <div key={diary.id} className="memory-item" style={{ marginTop: '8px' }}>
-                  <div className="favorite-preview" onClick={() => { setSelectedDiary(diary); setDiaryFlipped(false) }}>
+                <div key={diary.id} className="memory-item" style={{ marginTop: '8px', cursor: 'pointer' }} onClick={() => { setSelectedDiary(diary); setDiaryFlipped(false) }}>
+                  <div className="favorite-preview">
                     {previewText(diary.content)}
                   </div>
                 </div>
@@ -160,8 +160,8 @@ export default function Moments({
                 <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px', background: 'var(--bg-primary)', borderRadius: 'var(--radius-sm)', marginTop: '8px' }}>他还没摘下第一句，心动的时刻会来的 ✿</div>
               )}
               {sheSaid.map(said => (
-                <div key={said.id} className="memory-item" style={{ marginTop: '8px' }}>
-                  <div className="favorite-preview" onClick={() => { setSelectedSaid(said); setSaidFlipped(false) }}>
+                <div key={said.id} className="memory-item" style={{ marginTop: '8px', cursor: 'pointer' }} onClick={() => { setSelectedSaid(said); setSaidFlipped(false) }}>
+                  <div className="favorite-preview">
                     {previewText(said.quote)}
                   </div>
                   {said.annotation && (
@@ -191,8 +191,8 @@ export default function Moments({
                 const d = item.data
                 const anno = isEx ? d.annotation : d.favorite_note
                 return (
-                  <div key={item.id} className="memory-item" style={{ marginTop: '8px' }}>
-                    <div className="favorite-preview" onClick={() => { setAnnoEditing(false); if (isEx) { setSelectedEx(d); setExFlipped(false) } else { setSelectedFav(d); setFavFlipped(false) } }}>
+                  <div key={item.id} className="memory-item" style={{ marginTop: '8px', cursor: 'pointer' }} onClick={() => { setAnnoEditing(false); if (isEx) { setSelectedEx(d); setExFlipped(false) } else { setSelectedFav(d); setFavFlipped(false) } }}>
+                    <div className="favorite-preview">
                       {previewText(isEx ? d.excerpt : parseMsgText(d.content))}
                     </div>
                     {anno ? <div className="she-said-note he">{anno}</div> : null}
@@ -217,8 +217,8 @@ export default function Moments({
                 <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px', background: 'var(--bg-primary)', borderRadius: 'var(--radius-sm)', marginTop: '8px' }}>还没有纸条，也许某天推开门就有了 🌙</div>
               )}
               {notes.map(note => (
-                <div key={note.id} className="memory-item" style={{ marginTop: '8px' }}>
-                  <div className="favorite-preview" onClick={() => { setSelectedNote(note); setNoteFlipped(false) }}>
+                <div key={note.id} className="memory-item" style={{ marginTop: '8px', cursor: 'pointer' }} onClick={() => { setSelectedNote(note); setNoteFlipped(false) }}>
+                  <div className="favorite-preview">
                     {!note.is_read && <span title="还未在弹窗中遇见">💌 </span>}{previewText(note.content)}
                   </div>
                 </div>
@@ -311,7 +311,7 @@ export default function Moments({
                 {selectedSaid.message_id && (
                   <div className="note-detail-locate" onClick={e => { e.stopPropagation(); setSelectedSaid(null); setSaidFlipped(false); onLocateMessage?.(selectedSaid.conversation_id, selectedSaid.message_id) }}>回到那句话 →</div>
                 )}
-                <div className="flip-back-del" onClick={e => { e.stopPropagation(); if (confirm('确定取下这一句吗？他不会记得摘过，取下后无法找回。')) { setSelectedSaid(null); setSaidFlipped(false); onDeleteSheSaid(selectedSaid.id) } }}>取下这一句 ×</div>
+                <div className="flip-back-del" onClick={e => { e.stopPropagation(); if (confirm('取下这句摘录吗？他不会记得摘过，取下后无法找回。')) { setSelectedSaid(null); setSaidFlipped(false); onDeleteSheSaid(selectedSaid.id) } }}>取下这句摘录 ×</div>
               </div>
             </div>
           </div>
@@ -378,7 +378,7 @@ export default function Moments({
                 )}
                 <div className="flip-back-meta"><span className="diary-page-no">{diaryPageNo[selectedDiary.id]}</span> · 写于「{getConvName(selectedDiary.conversation_id)}」</div>
                 <div className="flip-back-meta">{formatNoteDate(selectedDiary.created_at)}</div>
-                <div className="flip-back-del" onClick={e => { e.stopPropagation(); if (confirm('确定撕去这页日记吗？撕去后无法找回。')) { setSelectedDiary(null); setDiaryFlipped(false); onDeleteDiary(selectedDiary.id) } }}>撕去这一页 ×</div>
+                <div className="flip-back-del" onClick={e => { e.stopPropagation(); if (confirm('确定删除这页日记吗？删除后无法找回。')) { setSelectedDiary(null); setDiaryFlipped(false); onDeleteDiary(selectedDiary.id) } }}>删除这一页 ×</div>
               </div>
             </div>
           </div>
