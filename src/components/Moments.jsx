@@ -34,6 +34,10 @@ export default function Moments({
   const [selectedDiary, setSelectedDiary] = useState(null)
   const [selectedSaid, setSelectedSaid] = useState(null)
   const [selectedEx, setSelectedEx] = useState(null)
+  // 立体翻面卡（2026.9 潇潇设计）：她说/他说点卡翻面看邮戳，日记捏折角拆盲盒
+  const [saidFlipped, setSaidFlipped] = useState(false)
+  const [exFlipped, setExFlipped] = useState(false)
+  const [diaryFlipped, setDiaryFlipped] = useState(false)
   // 「他说」眉批编辑：正在编辑哪一条（'x-id' 摘句 / 'f-id' 整条收藏）
   const [editingAnnoKey, setEditingAnnoKey] = useState(null)
   const [annoText, setAnnoText] = useState('')
@@ -184,7 +188,7 @@ export default function Moments({
                       {diary.moods.map((mood, i) => <span key={i} className="mood-chip">{mood}</span>)}
                     </div>
                   )}
-                  <div className="favorite-preview" onClick={() => setSelectedDiary(diary)}>
+                  <div className="favorite-preview" onClick={() => { setSelectedDiary(diary); setDiaryFlipped(false) }}>
                     {previewText(diary.content)}
                   </div>
                 </div>
@@ -214,7 +218,7 @@ export default function Moments({
                     </div>
                     <button className="memory-delete" onClick={() => { if (confirm('确定取下这一句吗？他不会记得摘过，取下后无法找回。')) onDeleteSheSaid(said.id) }} title="取下">×</button>
                   </div>
-                  <div className="favorite-preview" onClick={() => setSelectedSaid(said)}>
+                  <div className="favorite-preview" onClick={() => { setSelectedSaid(said); setSaidFlipped(false) }}>
                     {previewText(said.quote)}
                   </div>
                   {said.annotation && (
@@ -258,7 +262,7 @@ export default function Moments({
                         )}
                       </div>
                     </div>
-                    <div className="favorite-preview" onClick={() => isEx ? setSelectedEx(d) : setSelectedFav(d)}>
+                    <div className="favorite-preview" onClick={() => { if (isEx) { setSelectedEx(d); setExFlipped(false) } else setSelectedFav(d) }}>
                       {previewText(isEx ? d.excerpt : parseMsgText(d.content))}
                     </div>
                     {editingAnnoKey === item.id ? (
@@ -341,52 +345,84 @@ export default function Moments({
       )}
 
       {selectedSaid && (
-        <div className="note-detail-overlay" onClick={() => setSelectedSaid(null)}>
-          <div className="note-detail-card" onClick={e => e.stopPropagation()}>
-            <div className="note-detail-accent"></div>
-            <div className="note-detail-frame"></div>
-            <div className="note-detail-icon">✿</div>
-            <div className="note-detail-date top">摘于「{getConvName(selectedSaid.conversation_id)}」· {formatNoteDate(selectedSaid.created_at)}</div>
-            <div className="note-detail-content plain">{renderPopupText(selectedSaid.quote)}</div>
-            {selectedSaid.annotation && (
-              <div className="she-said-note popup">{selectedSaid.annotation}</div>
-            )}
-            <button className="note-detail-close" onClick={() => setSelectedSaid(null)}>收好了</button>
+        <div className="note-detail-overlay" onClick={() => { setSelectedSaid(null); setSaidFlipped(false) }}>
+          <div className={`flip-wrap${saidFlipped ? ' flipped' : ''}`} onClick={e => { e.stopPropagation(); setSaidFlipped(f => !f) }}>
+            <div className="flip-inner">
+              <div className="note-detail-card flip-face">
+                <div className="note-detail-accent"></div>
+                <div className="note-detail-frame"></div>
+                <div className="note-detail-icon">✿</div>
+                <div className="note-detail-content plain">{renderPopupText(selectedSaid.quote)}</div>
+                {selectedSaid.annotation && (
+                  <div className="she-said-note popup">{selectedSaid.annotation}</div>
+                )}
+              </div>
+              <div className="note-detail-card flip-face flip-back">
+                <div className="note-detail-accent"></div>
+                <div className="note-detail-frame"></div>
+                <div className="note-detail-icon">✿</div>
+                <div className="flip-back-meta">摘于「{getConvName(selectedSaid.conversation_id)}」</div>
+                <div className="flip-back-meta">{formatNoteDate(selectedSaid.created_at)}</div>
+                {selectedSaid.message_id && (
+                  <div className="note-detail-locate" onClick={e => { e.stopPropagation(); setSelectedSaid(null); setSaidFlipped(false); onLocateMessage?.(selectedSaid.conversation_id, selectedSaid.message_id) }}>回到那句话 →</div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       )}
 
       {selectedEx && (
-        <div className="note-detail-overlay" onClick={() => setSelectedEx(null)}>
-          <div className="note-detail-card" onClick={e => e.stopPropagation()}>
-            <div className="note-detail-accent"></div>
-            <div className="note-detail-frame"></div>
-            <div className="note-detail-icon">❀</div>
-            <div className="note-detail-date top">摘于「{getConvName(selectedEx.conversation_id)}」· {formatNoteDate(selectedEx.created_at)}</div>
-            <div className="note-detail-content plain">{renderPopupText(selectedEx.excerpt)}</div>
-            {selectedEx.annotation && (
-              <div className="she-said-note he popup">{selectedEx.annotation}</div>
-            )}
-            <button className="note-detail-close" onClick={() => setSelectedEx(null)}>收好了</button>
-            <div className="note-detail-locate" onClick={() => { setSelectedEx(null); onLocateMessage?.(selectedEx.conversation_id, selectedEx.message_id) }}>回到那句话 →</div>
+        <div className="note-detail-overlay" onClick={() => { setSelectedEx(null); setExFlipped(false) }}>
+          <div className={`flip-wrap${exFlipped ? ' flipped' : ''}`} onClick={e => { e.stopPropagation(); setExFlipped(f => !f) }}>
+            <div className="flip-inner">
+              <div className="note-detail-card flip-face">
+                <div className="note-detail-accent"></div>
+                <div className="note-detail-frame"></div>
+                <div className="note-detail-icon">❀</div>
+                <div className="note-detail-content plain">{renderPopupText(selectedEx.excerpt)}</div>
+                {selectedEx.annotation && (
+                  <div className="she-said-note he popup">{selectedEx.annotation}</div>
+                )}
+              </div>
+              <div className="note-detail-card flip-face flip-back">
+                <div className="note-detail-accent"></div>
+                <div className="note-detail-frame"></div>
+                <div className="note-detail-icon">❀</div>
+                <div className="flip-back-meta">摘于「{getConvName(selectedEx.conversation_id)}」</div>
+                <div className="flip-back-meta">{formatNoteDate(selectedEx.created_at)}</div>
+                <div className="note-detail-locate" onClick={e => { e.stopPropagation(); setSelectedEx(null); setExFlipped(false); onLocateMessage?.(selectedEx.conversation_id, selectedEx.message_id) }}>回到那句话 →</div>
+              </div>
+            </div>
           </div>
         </div>
       )}
 
       {selectedDiary && (
-        <div className="note-detail-overlay" onClick={() => setSelectedDiary(null)}>
-          <div className="note-detail-card" onClick={e => e.stopPropagation()}>
-            <div className="note-detail-accent"></div>
-            <div className="note-detail-frame"></div>
-            <div className="note-detail-icon">✎</div>
-            <div className="note-detail-content plain">{renderPopupText(selectedDiary.content)}</div>
-            {selectedDiary.moods && selectedDiary.moods.length > 0 && (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', justifyContent: 'center', marginTop: '4px', flexShrink: 0 }}>
-                {selectedDiary.moods.map((mood, i) => <span key={i} className="mood-chip">{mood}</span>)}
+        <div className="note-detail-overlay" onClick={() => { setSelectedDiary(null); setDiaryFlipped(false) }}>
+          <div className={`flip-wrap${diaryFlipped ? ' flipped' : ''}`}>
+            <div className="flip-inner">
+              <div className="note-detail-card flip-face" onClick={e => e.stopPropagation()}>
+                <div className="note-detail-accent"></div>
+                <div className="note-detail-frame"></div>
+                <div className="note-detail-icon">✎</div>
+                <div className="note-detail-content plain">{renderPopupText(selectedDiary.content)}</div>
+                <button className="note-detail-close" onClick={() => { setSelectedDiary(null); setDiaryFlipped(false) }}>合上</button>
+                <div className="diary-fold" title="翻到背面" onClick={e => { e.stopPropagation(); setDiaryFlipped(true) }}></div>
               </div>
-            )}
-            <div className="note-detail-date"><span className="diary-page-no">{diaryPageNo[selectedDiary.id]}</span> · 写于「{getConvName(selectedDiary.conversation_id)}」· {formatNoteDate(selectedDiary.created_at)}</div>
-            <button className="note-detail-close" onClick={() => setSelectedDiary(null)}>合上</button>
+              <div className="note-detail-card flip-face flip-back" onClick={e => { e.stopPropagation(); setDiaryFlipped(false) }}>
+                <div className="note-detail-accent"></div>
+                <div className="note-detail-frame"></div>
+                <div className="note-detail-icon">✎</div>
+                {selectedDiary.moods && selectedDiary.moods.length > 0 && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', justifyContent: 'center', flexShrink: 0, marginBottom: '16px' }}>
+                    {selectedDiary.moods.map((mood, i) => <span key={i} className="mood-chip">{mood}</span>)}
+                  </div>
+                )}
+                <div className="flip-back-meta"><span className="diary-page-no">{diaryPageNo[selectedDiary.id]}</span> · 写于「{getConvName(selectedDiary.conversation_id)}」</div>
+                <div className="flip-back-meta">{formatNoteDate(selectedDiary.created_at)}</div>
+              </div>
+            </div>
           </div>
         </div>
       )}
