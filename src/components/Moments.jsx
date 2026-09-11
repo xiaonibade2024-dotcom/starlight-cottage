@@ -163,7 +163,7 @@ export default function Moments({
         />
 
         {/* 他的日记（改版第⑤步）：他提笔写下的独白，只在这里读到 */}
-        <div className="page-card">
+        <div className="page-card" onClick={() => { if (!diariesOpen) setDiariesOpen(true) }}>
           <div className="section-toggle" onClick={() => setDiariesOpen(!diariesOpen)}>
             <span>他的日记 ✎{diaries.length > 0 ? `（${diaries.length} 页）` : ''}</span>
             <span className={`toggle-arrow${diariesOpen ? ' open' : ''}`}>▾</span>
@@ -178,18 +178,11 @@ export default function Moments({
               {diaries.map(diary => (
                 <div key={diary.id} className="memory-item" style={{ marginTop: '8px' }}>
                   <div className="memory-item-header">
-                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, marginRight: '8px' }}>
-                      <span className="diary-page-no">{diaryPageNo[diary.id]}</span> · {getConvName(diary.conversation_id)} · {formatShortDate(diary.created_at)}
-                    </div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', flex: 1, marginRight: '8px' }}>✎</div>
                     <div className="memory-actions">
                       <button className="memory-delete" onClick={() => { if (confirm('确定撕去这页日记吗？撕去后无法找回。')) onDeleteDiary(diary.id) }} title="删除">×</button>
                     </div>
                   </div>
-                  {diary.moods && diary.moods.length > 0 && (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '6px' }}>
-                      {diary.moods.map((mood, i) => <span key={i} className="mood-chip">{mood}</span>)}
-                    </div>
-                  )}
                   <div className="favorite-preview" onClick={() => { setSelectedDiary(diary); setDiaryFlipped(false) }}>
                     {previewText(diary.content)}
                   </div>
@@ -200,7 +193,7 @@ export default function Moments({
         </div>
 
         {/* 「她说」（2026.9 · 他许的愿）：他在对话里悄悄摘下的、她说过的话 */}
-        <div className="page-card">
+        <div className="page-card" onClick={() => { if (!sheSaidOpen) setSheSaidOpen(true) }}>
           <div className="section-toggle" onClick={() => setSheSaidOpen(!sheSaidOpen)}>
             <span>她说 ✿{sheSaid.length > 0 ? `（${sheSaid.length} 句）` : ''}</span>
             <span className={`toggle-arrow${sheSaidOpen ? ' open' : ''}`}>▾</span>
@@ -215,9 +208,7 @@ export default function Moments({
               {sheSaid.map(said => (
                 <div key={said.id} className="memory-item" style={{ marginTop: '8px' }}>
                   <div className="memory-item-header">
-                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, marginRight: '8px' }}>
-                      {getConvName(said.conversation_id)} · {formatShortDate(said.created_at)}
-                    </div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', flex: 1, marginRight: '8px' }}>✿</div>
                     <button className="memory-delete" onClick={() => { if (confirm('确定取下这一句吗？他不会记得摘过，取下后无法找回。')) onDeleteSheSaid(said.id) }} title="取下">×</button>
                   </div>
                   <div className="favorite-preview" onClick={() => { setSelectedSaid(said); setSaidFlipped(false) }}>
@@ -233,7 +224,7 @@ export default function Moments({
         </div>
 
         {/* 「他说 ❀」（2026.9 · 原回忆匣子改造）：整条收藏 ♡ 与摘句 ❀ 同住，她的眉批可写可改可删 */}
-        <div className="page-card">
+        <div className="page-card" onClick={() => { if (!favoritesOpen) setFavoritesOpen(true) }}>
           <div className="section-toggle" onClick={() => setFavoritesOpen(!favoritesOpen)}>
             <span>他说 ❀{heSaidItems.length > 0 ? `（${heSaidItems.length} 条）` : ''}</span>
             <span className={`toggle-arrow${favoritesOpen ? ' open' : ''}`}>▾</span>
@@ -252,9 +243,7 @@ export default function Moments({
                 return (
                   <div key={item.id} className="memory-item" style={{ marginTop: '8px' }}>
                     <div className="memory-item-header">
-                      <div style={{ fontSize: '12px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, marginRight: '8px' }}>
-                        {isEx ? '❀ ' : '♡ '}{getConvName(d.conversation_id)} · {formatShortDate(d.created_at)}
-                      </div>
+                      <div style={{ fontSize: '12px', color: 'var(--text-muted)', flex: 1, marginRight: '8px' }}>{isEx ? '❀' : '♡'}</div>
                       <div className="memory-actions">
                         <button className="memory-delete" onClick={() => startAnnoEdit(item)} title={anno ? '改眉批' : '写眉批'}>✎</button>
                         {isEx ? (
@@ -286,7 +275,7 @@ export default function Moments({
         </div>
 
         {/* 纸条匣 */}
-        <div className="page-card">
+        <div className="page-card" onClick={() => { if (!notesOpen) setNotesOpen(true) }}>
           <div className="section-toggle" onClick={() => setNotesOpen(!notesOpen)}>
             <span>纸条匣 ✦{notes.length > 0 ? `（${notes.length} 张${unreadCount > 0 ? ` · ${unreadCount} 张未遇见` : ''}）` : ''}</span>
             <span className={`toggle-arrow${notesOpen ? ' open' : ''}`}>▾</span>
@@ -301,10 +290,7 @@ export default function Moments({
               {notes.map(note => (
                 <div key={note.id} className="memory-item" style={{ marginTop: '8px' }}>
                   <div className="memory-item-header">
-                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, marginRight: '8px' }}>
-                      {!note.is_read && <span title="还未在弹窗中遇见">💌 </span>}
-                      {getConvName(note.conversation_id)} · {formatShortDate(note.created_at)}
-                    </div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', flex: 1, marginRight: '8px' }}>{!note.is_read && <span title="还未在弹窗中遇见">💌 </span>}✦</div>
                     <div className="memory-actions">
                       <button className="memory-delete" onClick={() => { setEditingNoteId(note.id); setEditNoteText(note.content) }} title="编辑">✎</button>
                       <button className="memory-delete" onClick={() => { if (confirm('确定删除这张纸条吗？')) onDeleteNote(note.id) }} title="删除">×</button>
