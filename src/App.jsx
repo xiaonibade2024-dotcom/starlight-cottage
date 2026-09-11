@@ -878,7 +878,7 @@ export default function App() {
     // 没送到：撤下这条，字退回输入框，叫他的那条路也一并刹住（这一轮当没发生）
     setAllMessages(prev => prev.filter(m => m.id !== msg.id))
     setInputRestore({ text: msg.content, t: Date.now() })
-    showToast('发送失败：这条没送到，字已放回输入框')
+    showToast('发送失败')
     try { abortControllerRef.current?.abort() } catch (e) {}
     return null
   }
@@ -983,7 +983,7 @@ export default function App() {
         },
         onError: (error) => {
           if (rafId) { cancelAnimationFrame(rafId); rafId = null }
-          showToast('发送失败: ' + error.message)
+          showToast('发送失败')
           cleanupFail()
         },
         onDone: async (finalContent, toolCalls) => {
@@ -1120,7 +1120,7 @@ export default function App() {
       setIsStreaming(false)
       abortControllerRef.current = null
       cleanupFail()
-      showToast('发送失败: ' + error.message)
+      showToast('发送失败')
     }
   }
 
@@ -1474,7 +1474,10 @@ export default function App() {
     const { data: allYards } = await supabase.from('courtyards').select('*')
     const { data: allMoments } = await supabase.from('corner_moments').select('*')
     const { data: allComments } = await supabase.from('corner_comments').select('*')
-    const exportData = { conversations: allConvs || [], messages: allMsgs || [], memories: allMems || [], notes: allNotes || [], diaries: allDiaries || [], courtyards: allYards || [], corner_moments: allMoments || [], corner_comments: allComments || [], exportedAt: new Date().toISOString() }
+    const { data: allSheSaid } = await supabase.from('she_said').select('*')
+    const { data: allHeSaid } = await supabase.from('he_said').select('*')
+    const { data: allSettings } = await supabase.from('user_settings').select('*')
+    const exportData = { conversations: allConvs || [], messages: allMsgs || [], memories: allMems || [], notes: allNotes || [], diaries: allDiaries || [], courtyards: allYards || [], corner_moments: allMoments || [], corner_comments: allComments || [], she_said: allSheSaid || [], he_said: allHeSaid || [], user_settings: allSettings || [], exportedAt: new Date().toISOString() }
     const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
