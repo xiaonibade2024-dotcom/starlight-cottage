@@ -829,7 +829,7 @@ body {
 .day-card-lamp { font-size: 12.5px; color: var(--accent); margin: 2px 0 6px; }
 /* 纪念日房间 */
 .lamp-room-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
-.lamp-room-title { font-size: 17px; color: var(--text-primary); letter-spacing: 2px; }
+.lamp-room-title { font-size: 17px; color: var(--text-primary); letter-spacing: 2px; padding-left: 4px; }
 .lamp-add-btn { background: none; border: none; font-size: 20px; color: var(--accent); cursor: pointer; padding: 4px 8px; }
 .lamp-room-hint { font-size: 12px; color: var(--text-muted); margin: 4px 0 12px; }
 .lamp-add-form { display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px dashed var(--border); border-radius: 12px; margin-bottom: 12px; }
@@ -846,7 +846,9 @@ body {
 /* 翻面小卡卡面：内容区自己撑骨架，字稳稳坐在卡片正中；灯卡小一号（日子的卡就该小巧） */
 .flip-wrap.lamp-wrap { max-width: 290px; }
 .lamp-wrap .note-detail-card { padding: 28px 24px 22px; }
-.lamp-face-body { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: 128px; gap: 8px; padding: 4px 0 6px; }
+.lamp-face-body { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: 118px; gap: 7px; padding: 2px 0 4px; }
+/* 方案A（她拍板）：月亮下来和名字作伴，像给名字戴的发饰，三行抱成一组坐正中 */
+.lamp-card-moon { font-size: 17px; line-height: 1; color: var(--accent); opacity: 0.8; margin-bottom: 3px; }
 .lamp-card-title { font-size: 20px; color: var(--text-primary); text-align: center; letter-spacing: 3px; }
 .lamp-card-date { font-size: 13px; color: var(--text-muted); text-align: center; }
 .lamp-back-notify { font-size: 14px; color: var(--accent); text-align: center; padding: 10px 14px; cursor: pointer; border-radius: 10px; }

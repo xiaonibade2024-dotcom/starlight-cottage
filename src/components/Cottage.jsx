@@ -431,8 +431,8 @@ function LampRoom({ milestones = [], onAdd, onDelete, onToggleNotify }) {
               <div className="note-detail-card flip-face">
                 <div className="note-detail-accent"></div>
                 <div className="note-detail-frame"></div>
-                <div className="note-detail-icon">☽</div>
                 <div className="lamp-face-body">
+                  <div className="lamp-card-moon">☽</div>
                   <div className="lamp-card-title">{selectedLamp.title}</div>
                   <div className="lamp-card-date">{lampDateLabel(selectedLamp)}</div>
                 </div>
