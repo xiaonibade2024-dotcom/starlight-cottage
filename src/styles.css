@@ -729,6 +729,12 @@ body {
 .flip-wrap.flipped .flip-back { transform: rotateY(0deg); pointer-events: auto; }
 .flip-back-meta { flex-shrink: 0; font-size: 13px; color: var(--text-secondary); letter-spacing: 0.5px; line-height: 2; }
 .flip-back .note-detail-locate { margin-top: 18px; }
+/* 背面的删除行：住在最底下，冷静低调，误触不了(有 confirm) */
+.flip-back-del { flex-shrink: 0; margin-top: 14px; font-size: 12px; color: var(--text-muted); opacity: 0.75; cursor: pointer; letter-spacing: 0.5px; transition: color var(--transition); }
+@media (hover: hover) { .flip-back-del:hover { color: var(--accent); opacity: 1; } }
+/* 正面的眉批小笔与"还没写"的幽灵行：编辑就在眉批住的地方 */
+.anno-edit { cursor: pointer; opacity: 0.55; font-size: 11px; }
+.anno-ghost { flex-shrink: 0; margin-top: 8px; font-size: 12px; color: var(--text-muted); opacity: 0.6; cursor: pointer; letter-spacing: 0.5px; }
 /* 短句（她说/他说的摘录）在卡上居中；长文（整条/日记）保持 plain 左对齐好读 */
 .note-detail-content.plain.centered { text-align: center; }
 .diary-fold { position: absolute; right: 0; bottom: 0; width: 42px; height: 42px; cursor: pointer; z-index: 2; background: linear-gradient(to top left, var(--wash-bg) 47%, var(--wash-border) 47%, var(--wash-border) 50%, transparent 50%); }
