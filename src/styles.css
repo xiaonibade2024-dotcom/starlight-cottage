@@ -724,9 +724,9 @@ body {
 .flip-wrap .note-detail-card { animation: none; }
 .flip-inner { position: relative; width: 100%; }
 .flip-face { width: 100%; max-width: none; backface-visibility: hidden; -webkit-backface-visibility: hidden; transform: rotateY(0deg); transition: transform 0.6s cubic-bezier(0.3, 0.1, 0.25, 1); }
-.flip-back { position: absolute; inset: 0; transform: rotateY(-180deg); justify-content: center; }
-.flip-wrap.flipped .flip-face { transform: rotateY(180deg); }
-.flip-wrap.flipped .flip-back { transform: rotateY(0deg); }
+.flip-back { position: absolute; inset: 0; transform: rotateY(-180deg); justify-content: center; pointer-events: none; }
+.flip-wrap.flipped .flip-face { transform: rotateY(180deg); pointer-events: none; }
+.flip-wrap.flipped .flip-back { transform: rotateY(0deg); pointer-events: auto; }
 .flip-back-meta { flex-shrink: 0; font-size: 13px; color: var(--text-secondary); letter-spacing: 0.5px; line-height: 2; }
 .flip-back .note-detail-locate { margin-top: 18px; }
 /* 短句（她说/他说的摘录）在卡上居中；长文（整条/日记）保持 plain 左对齐好读 */
