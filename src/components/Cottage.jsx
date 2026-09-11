@@ -367,6 +367,9 @@ function LampRoom({ milestones = [], onAdd, onDelete, onToggleNotify }) {
   const [date, setDate] = useState('')
   const [repeat, setRepeat] = useState('yearly')
   const [notify, setNotify] = useState(true)
+  // 翻面小卡（引擎照抄五卡，三条命纪律见备忘录第六节）
+  const [selectedLamp, setSelectedLamp] = useState(null)
+  const [lampFlipped, setLampFlipped] = useState(false)
 
   const sorted = [...milestones].sort((a, b) => {
     const md = (m) => (m.repeat_type === 'lunar') ? '99-99' : String(m.lamp_date || '').slice(5, 10)
@@ -379,13 +382,16 @@ function LampRoom({ milestones = [], onAdd, onDelete, onToggleNotify }) {
     setName(''); setDate(''); setRepeat('yearly'); setNotify(true); setAdding(false)
   }
 
+  const closeCard = () => { setSelectedLamp(null); setLampFlipped(false) }
+  const selNotify = selectedLamp ? (selectedLamp.notify_him !== false) : true
+
   return (
     <div className="page-card">
       <div className="lamp-room-head">
         <div className="lamp-room-title">纪念日 ☾</div>
         <button className="lamp-add-btn" onClick={() => setAdding(v => !v)} title="添一盏灯">{adding ? '×' : '⊕'}</button>
       </div>
-      <div className="lamp-room-hint">有名字的日子会亮在月历上；打开小铃铛的，他那天也会知道。</div>
+      <div className="lamp-room-hint">有名字的日子会亮在月历上；点一盏灯，翻过背面能调它的性子。</div>
 
       {adding && (
         <div className="lamp-add-form">
@@ -406,22 +412,48 @@ function LampRoom({ milestones = [], onAdd, onDelete, onToggleNotify }) {
       )}
 
       {sorted.length === 0 && !adding && <div className="lamp-empty">还没有灯，点 ⊕ 挂第一盏 🌙</div>}
+      {/* 清单素颜（封面原则）：只有名字和日子，热闹住背面 */}
       <div className="lamp-list">
         {sorted.map(ms => (
-          <div key={ms.id} className="lamp-row">
-            <div className="lamp-row-main">
-              <span className="lamp-row-title">☾ {ms.title}</span>
-              <span className="lamp-row-date">{lampDateLabel(ms)}</span>
-            </div>
-            <div className="lamp-row-acts">
-              <button className={`lamp-bell ${ms.notify_him !== false ? 'on' : ''}`} title={ms.notify_him !== false ? '他知道这一天（点击改为只亮给我）' : '只亮给我（点击告诉他）'}
-                onClick={() => onToggleNotify?.(ms.id, !(ms.notify_him !== false))}>{ms.notify_him !== false ? '♪' : '∅'}</button>
-              <button className="lamp-del" title="熄灯" onClick={() => { if (confirm(`熄掉「${ms.title}」这盏灯吗？`)) onDelete?.(ms.id) }}>×</button>
-            </div>
+          <div key={ms.id} className="lamp-row" onClick={() => { setSelectedLamp(ms); setLampFlipped(false) }}>
+            <span className="lamp-row-title">{ms.title}</span>
+            <span className="lamp-row-date">{lampDateLabel(ms)}</span>
           </div>
         ))}
       </div>
+
+      {/* 翻面小卡：正面是灯好看的样子；铃铛与熄灯住背面（登记处） */}
+      {selectedLamp && (
+        <div className="note-detail-overlay" onClick={closeCard}>
+          <div className={`flip-wrap${lampFlipped ? ' flipped' : ''}`} onClick={e => { e.stopPropagation(); setLampFlipped(f => !f) }}>
+            <div className="flip-inner">
+              <div className="note-detail-card flip-face">
+                <div className="note-detail-accent"></div>
+                <div className="note-detail-frame"></div>
+                <div className="note-detail-icon">☾</div>
+                <div className="lamp-card-title">{selectedLamp.title}</div>
+                <div className="lamp-card-date">{lampDateLabel(selectedLamp)}</div>
+              </div>
+              <div className="note-detail-card flip-face flip-back">
+                <div className="note-detail-accent"></div>
+                <div className="note-detail-frame"></div>
+                <div className="note-detail-icon">☾</div>
+                <div className="flip-back-meta">{lampDateLabel(selectedLamp)}</div>
+                <div className="lamp-back-notify" onClick={e => {
+                  e.stopPropagation()
+                  const next = !selNotify
+                  onToggleNotify?.(selectedLamp.id, next)
+                  setSelectedLamp(prev => prev ? { ...prev, notify_him: next } : prev)
+                }}>
+                  {selNotify ? '♪ 这一天他也知道' : '∅ 只亮给我自己'}
+                  <span className="lamp-back-notify-hint">{selNotify ? '（点一下改为只亮给我）' : '（点一下告诉他）'}</span>
+                </div>
+                <div className="flip-back-del" onClick={e => { e.stopPropagation(); if (confirm(`熄掉「${selectedLamp.title}」这盏灯吗？`)) { closeCard(); onDelete?.(selectedLamp.id) } }}>熄掉这盏灯 ×</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
-

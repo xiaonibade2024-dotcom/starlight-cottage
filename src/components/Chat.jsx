@@ -508,7 +508,7 @@ export default function Chat({
                         onMouseEnter={e => e.currentTarget.style.background = 'var(--accent-glow)'}
                         onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                         style={{ padding: '9px 12px', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', color: 'var(--text-secondary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span>时间感知（这个对话）</span>
+                        <span>时间感知</span>
                         <span style={{ color: timeAware ? 'var(--accent)' : 'var(--text-muted)', flexShrink: 0 }}>{timeAware ? '开' : '关'}</span>
                       </div>
                     </>

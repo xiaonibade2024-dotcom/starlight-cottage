@@ -839,15 +839,17 @@ body {
 .lamp-save-btn { padding: 9px; border: none; border-radius: 10px; background: var(--accent); color: #fff; font-size: 14px; cursor: pointer; font-family: inherit; }
 .lamp-empty { font-size: 13px; color: var(--text-muted); text-align: center; padding: 18px 0; }
 .lamp-list { display: flex; flex-direction: column; gap: 2px; }
-.lamp-row { display: flex; justify-content: space-between; align-items: center; padding: 9px 4px; border-bottom: 1px solid var(--border); }
+.lamp-row { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 11px 4px; border-bottom: 1px solid var(--border); cursor: pointer; border-radius: 8px; transition: background var(--transition); }
 .lamp-row:last-child { border-bottom: none; }
-.lamp-row-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.lamp-row-title { font-size: 14.5px; color: var(--text-primary); }
-.lamp-row-date { font-size: 11.5px; color: var(--text-muted); }
-.lamp-row-acts { display: flex; gap: 4px; align-items: center; flex-shrink: 0; }
-.lamp-bell { background: none; border: none; cursor: pointer; font-size: 15px; color: var(--text-muted); padding: 5px 7px; border-radius: 8px; }
-.lamp-bell.on { color: var(--accent); }
-.lamp-del { background: none; border: none; cursor: pointer; font-size: 16px; color: var(--text-muted); padding: 5px 7px; border-radius: 8px; }
+.lamp-row-title { font-size: 14.5px; color: var(--text-primary); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lamp-row-date { font-size: 11.5px; color: var(--text-muted); flex-shrink: 0; }
+/* 翻面小卡卡面 */
+.lamp-card-title { font-size: 19px; color: var(--text-primary); text-align: center; letter-spacing: 2px; margin: 14px 0 8px; }
+.lamp-card-date { font-size: 13px; color: var(--text-muted); text-align: center; margin-bottom: 10px; }
+.lamp-back-notify { font-size: 13.5px; color: var(--accent); text-align: center; padding: 10px 6px; cursor: pointer; border-radius: 10px; margin: 6px 0; }
+.lamp-back-notify-hint { display: block; font-size: 11px; color: var(--text-muted); margin-top: 3px; }
 @media (hover: hover) {
-  .lamp-bell:hover, .lamp-del:hover, .lamp-add-btn:hover { background: var(--accent-glow); }
+  .lamp-row:hover { background: var(--accent-glow); }
+  .lamp-back-notify:hover { background: var(--accent-glow); }
+  .lamp-add-btn:hover { background: var(--accent-glow); }
 }
