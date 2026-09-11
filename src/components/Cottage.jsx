@@ -391,8 +391,6 @@ function LampRoom({ milestones = [], onAdd, onDelete, onToggleNotify }) {
         <div className="lamp-room-title">纪念日 ☾</div>
         <button className="lamp-add-btn" onClick={() => setAdding(v => !v)} title="添一盏灯">{adding ? '×' : '⊕'}</button>
       </div>
-      <div className="lamp-room-hint">有名字的日子会亮在月历上；点一盏灯，翻过背面能调它的性子。</div>
-
       {adding && (
         <div className="lamp-add-form">
           <input className="lamp-input" placeholder="这一天叫什么（如：春花来家）" value={name} onChange={e => setName(e.target.value)} maxLength={20} />
@@ -431,13 +429,16 @@ function LampRoom({ milestones = [], onAdd, onDelete, onToggleNotify }) {
                 <div className="note-detail-accent"></div>
                 <div className="note-detail-frame"></div>
                 <div className="note-detail-icon">☾</div>
-                <div className="lamp-card-title">{selectedLamp.title}</div>
-                <div className="lamp-card-date">{lampDateLabel(selectedLamp)}</div>
+                <div className="lamp-face-body">
+                  <div className="lamp-card-title">{selectedLamp.title}</div>
+                  <div className="lamp-card-date">{lampDateLabel(selectedLamp)}</div>
+                </div>
               </div>
               <div className="note-detail-card flip-face flip-back">
                 <div className="note-detail-accent"></div>
                 <div className="note-detail-frame"></div>
                 <div className="note-detail-icon">☾</div>
+                <div className="lamp-face-body">
                 <div className="flip-back-meta">{lampDateLabel(selectedLamp)}</div>
                 <div className="lamp-back-notify" onClick={e => {
                   e.stopPropagation()
@@ -448,7 +449,8 @@ function LampRoom({ milestones = [], onAdd, onDelete, onToggleNotify }) {
                   {selNotify ? '♪ 这一天他也知道' : '∅ 只亮给我自己'}
                   <span className="lamp-back-notify-hint">{selNotify ? '（点一下改为只亮给我）' : '（点一下告诉他）'}</span>
                 </div>
-                <div className="flip-back-del" onClick={e => { e.stopPropagation(); if (confirm(`熄掉「${selectedLamp.title}」这盏灯吗？`)) { closeCard(); onDelete?.(selectedLamp.id) } }}>熄掉这盏灯 ×</div>
+                <div className="lamp-back-del" onClick={e => { e.stopPropagation(); if (confirm(`熄掉「${selectedLamp.title}」这盏灯吗？`)) { closeCard(); onDelete?.(selectedLamp.id) } }}>熄掉这盏灯 ×</div>
+                </div>
               </div>
             </div>
           </div>
