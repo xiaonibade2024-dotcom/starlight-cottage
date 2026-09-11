@@ -148,7 +148,7 @@ const MessageItem = React.memo(function MessageItem({
   isActive, isLastAssistant, variantIndex, isStreaming,
   branchIndex, branchTotal, onSwitchBranch,
   onMessageClick, onStartEdit, onSaveEdit, onSaveAndResend, onCancelEdit,
-  onRegenerate, onCopyMessage, onToggleFavorite, onSwitchVariant, onDeleteMessage, onFork, onPickExcerpt, onResend
+  onRegenerate, onCopyMessage, onToggleFavorite, onSwitchVariant, onDeleteMessage, onFork, onPickExcerpt
 }) {
   const editRef = useRef(null)
 
@@ -191,11 +191,6 @@ const MessageItem = React.memo(function MessageItem({
 
       <div className="message-meta">
         <span className="message-time">{formatTime(msg.created_at)}</span>
-        {msg.send_failed && (
-          <button className="resend-chip" onClick={(e) => { e.stopPropagation(); onResend?.(msg.id) }}>
-            这条还没送到，字帮你留着呢 · 点我再送
-          </button>
-        )}
         {branchTotal > 1 && !isEditing && !isStreaming && (
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '2px', marginLeft: '4px' }}>
             <button className="msg-action" style={{ padding: '3px 4px' }} onClick={(e) => { e.stopPropagation(); if (branchIndex > 0) onSwitchBranch(msg.id, branchIndex - 1) }} disabled={branchIndex <= 0}><Icon name="chevL" size={13} /></button>
@@ -255,7 +250,7 @@ export default function Chat({
   conversation, messages, isStreaming, cacheStats, variantIndexes, branchInfo, onSwitchBranch, scrollToMsgId, onScrollDone, currentModel, onChangeModel,
   daysTogether = 0, hidden = false, canResume = false, onResume,
   diaryWriting = false, showDiaryHint = false, onInviteDiary, onOpenDiaryBook,
-  onSend, onStop, onToggleFavorite, onRegenerate, onEditMessage, onEditAndResend, onSwitchVariant, onDeleteMessage, onFork, onSaveExcerpt, onResend,
+  onSend, onStop, onToggleFavorite, onRegenerate, onEditMessage, onEditAndResend, onSwitchVariant, onDeleteMessage, onFork, onSaveExcerpt, inputRestore,
   onMenuClick, onSearchClick
 }) {
   const [input, setInput] = useState('')
@@ -282,6 +277,10 @@ export default function Chat({
     }, 250)
     return () => clearTimeout(t)
   }, [input, draftKey])
+  // 发送失败时接住退回来的字（微调版）：App 递来信物，原文放回输入框，草稿也会顺手存好
+  useEffect(() => {
+    if (inputRestore && inputRestore.text) setInput(inputRestore.text)
+  }, [inputRestore])
   const [showScrollBtn, setShowScrollBtn] = useState(false)
   // 「他说」摘句小卡：正在摘哪条、点亮了哪些句、写了什么眉批
   const [pickerMsg, setPickerMsg] = useState(null)
@@ -541,7 +540,6 @@ export default function Chat({
             onDeleteMessage={onDeleteMessage}
             onFork={onFork}
             onPickExcerpt={(m) => { setPickerMsg(m); setPickSel([]); setPickAnno('') }}
-            onResend={onResend}
           />
         ))}
         {/* 回到枝头（2026.9 补针）：停在半山腰时的免费回程票 */}

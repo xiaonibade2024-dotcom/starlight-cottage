@@ -221,6 +221,8 @@ export default function App() {
   const [cottageTab, setCottageTab] = useState('general')
   const [isStreaming, setIsStreaming] = useState(false)
   const [toast, setToast] = useState(null)
+  // 发送失败时把她的字退回输入框用的信物（微调版：不自动重试，字还给她自己来）
+  const [inputRestore, setInputRestore] = useState(null)
   const [apiKey, setApiKey] = useState('')
   const [systemPrompt, setSystemPrompt] = useState('')
   const [model, setModel] = useState('anthropic/claude-sonnet-4.5')
@@ -849,8 +851,9 @@ export default function App() {
   // ==========================================
   // 发送消息
   // ==========================================
-  // ========== 乐观渲染（2026.9.11 手感批次）==========
-  // 铁律：自动重试只碰存档（免费），AI 回复失败永远停下来问她，绝不自动重发
+  // ========== 乐观渲染（2026.9.11 手感批次 · 当日微调：兜底降级为"老实告诉她"）==========
+  // 铁律：失败不自动重试、不自动重发。字先上屏；万一没送到，这一轮当没发生——
+  // 她的字退回输入框、临时气泡收走、一句简单提示，重发全由她自己来
 
   // 存档收尾：临时消息换成真身份证，树梢书签在背后办（不阻塞任何人）
   const finalizeSavedUserMsg = (pendingId, saved, convId) => {
@@ -865,33 +868,19 @@ export default function App() {
     return saved
   }
 
-  // 背后存档，自己悄悄重试两次：网络抖一下她根本不会知道发生过。
-  // 单号撞锁（duplicate/unique）= 上一趟其实送到了只是回执丢在路上 → 把已存的那条取回来，视同成功
-  const saveUserMessageWithRetry = async (msg, convId) => {
+  // 背后存档，只试一次：送到了万事大吉；没送到就把字还给她，绝不自作主张
+  const saveUserMessage = async (msg, convId) => {
     const row = { conversation_id: convId, role: 'user', content: msg.content, parent_id: msg.parent_id, client_id: msg.client_id }
-    for (let attempt = 0; attempt < 3; attempt++) {
-      try {
-        const { data, error } = await supabase.from('messages').insert(row).select().single()
-        if (data) return finalizeSavedUserMsg(msg.id, data, convId)
-        if (error && (error.code === '23505' || /duplicate|unique/i.test(error.message || ''))) {
-          const { data: existed } = await supabase.from('messages').select('*').eq('client_id', msg.client_id).single()
-          if (existed) return finalizeSavedUserMsg(msg.id, existed, convId)
-        }
-      } catch (e) {}
-      if (attempt < 2) await new Promise(r => setTimeout(r, 1200 * (attempt + 1)))
-    }
-    // 三趟都没送到：安静地做个记号，字留在原地，等她点一下再送
-    setAllMessages(prev => prev.map(m => m.id === msg.id ? { ...m, send_failed: true } : m))
+    try {
+      const { data } = await supabase.from('messages').insert(row).select().single()
+      if (data) return finalizeSavedUserMsg(msg.id, data, convId)
+    } catch (e) {}
+    // 没送到：撤下这条，字退回输入框，叫他的那条路也一并刹住（这一轮当没发生）
+    setAllMessages(prev => prev.filter(m => m.id !== msg.id))
+    setInputRestore({ text: msg.content, t: Date.now() })
+    showToast('发送失败：这条没送到，字已放回输入框')
+    try { abortControllerRef.current?.abort() } catch (e) {}
     return null
-  }
-
-  // 她点了小记号：同一单号再送一次（数据库锁着门，怎么送都只会有一条）
-  const resendMessage = async (msgId) => {
-    const msg = allMessages.find(m => m.id === msgId)
-    if (!msg || !msg.send_failed) return
-    setAllMessages(prev => prev.map(m => m.id === msgId ? { ...m, send_failed: false } : m))
-    const saved = await saveUserMessageWithRetry(msg, msg.conversation_id)
-    if (saved) showToast('送到啦')
   }
 
   const sendMessage = async (content) => {
@@ -915,14 +904,14 @@ export default function App() {
     const clientId = genClientId()
     const tempUserMsg = { id: 'pending-' + clientId, client_id: clientId, conversation_id: convId, role: 'user', content: content.trim(), parent_id: parentId, created_at: new Date().toISOString() }
     setAllMessages(prev => [...prev, tempUserMsg])
-    const userSavePromise = saveUserMessageWithRetry(tempUserMsg, convId)
+    const userSavePromise = saveUserMessage(tempUserMsg, convId)
 
     // 新对话：起名和对话并行（起名不阻塞聊天）
     if (isNewConv) {
       autoNameConversation(convId, content.trim())
     }
 
-    await streamAIResponse(convId, [...timeline, tempUserMsg], { userSavePromise, fallbackParentId: parentId })
+    await streamAIResponse(convId, [...timeline, tempUserMsg], { userSavePromise })
   }
 
   // opts.parentId：新回复要挂在哪条消息下面；opts.onFail：失败时把树梢书签放回原处
@@ -1013,12 +1002,15 @@ export default function App() {
             setAllMessages(prev => prev.map(m => m.id === tempId ? { ...m, content } : m))
             // 树系统：新回复挂到指定的枝头上，并把树梢书签移过去
             // 挂枝头：老路（parentId 直接给）照旧；乐观渲染的新路要等她那条消息的真身份证。
-            // 正常情况下存档早就办完了，这里的等待是零；极罕见地存档失败（数据库那边打盹但 AI 通着），
-            // 回复就先挂回上一个枝头，对话不断，她那条消息带着小记号等她补送
+            // 正常情况下存档早就办完了，这里的等待是零。她那条若没送到，这一轮当没发生：
+            // 他的临时气泡一并收走，不往库里存孤儿回复（她重发时自然会重新问他）
             let parentForAssistant = opts.parentId || null
             if (!parentForAssistant && opts.userSavePromise) {
               try { const savedUser = await opts.userSavePromise; if (savedUser) parentForAssistant = savedUser.id } catch (e) {}
-              if (!parentForAssistant) parentForAssistant = opts.fallbackParentId || null
+              if (!parentForAssistant) {
+                setAllMessages(prev => prev.filter(m => m.id !== tempId))
+                return
+              }
             }
             if (!parentForAssistant) parentForAssistant = (historyMessages.length > 0 ? historyMessages[historyMessages.length - 1].id : convId)
             // 费用记账：小票汇总（cost 单位是美元；bills = 这条回复背后一共几笔账单）
@@ -1521,7 +1513,7 @@ export default function App() {
           diaryWriting={diaryWriting} showDiaryHint={diaryHintConvId != null && diaryHintConvId === activeConvId}
           onInviteDiary={inviteDiary} onOpenDiaryBook={() => { setDiaryHintConvId(null); setActivePage('moments') }}
           scrollToMsgId={scrollToMsgId} onScrollDone={() => setScrollToMsgId(null)}
-          onSend={sendMessage} onStop={stopStreaming} onToggleFavorite={toggleFavorite} onRegenerate={regenerateResponse} onEditMessage={editMessage} onEditAndResend={editAndResend} onSwitchVariant={switchVariant} onDeleteMessage={deleteMessage} onFork={forkFromMessage} onSaveExcerpt={saveExcerpt} onResend={resendMessage}
+          onSend={sendMessage} onStop={stopStreaming} onToggleFavorite={toggleFavorite} onRegenerate={regenerateResponse} onEditMessage={editMessage} onEditAndResend={editAndResend} onSwitchVariant={switchVariant} onDeleteMessage={deleteMessage} onFork={forkFromMessage} onSaveExcerpt={saveExcerpt} inputRestore={inputRestore}
           onMenuClick={() => setSidebarOpen(true)} onSearchClick={() => setSearchOpen(true)}
         />
         {activePage === 'moments' && <Moments notes={notes} favorites={favorites} diaries={diaries} sheSaid={sheSaid} cornerMoments={cornerMoments} conversations={conversations} onUpdateNote={updateNote} onDeleteNote={deleteNote} onDeleteDiary={deleteDiary} onDeleteSheSaid={deleteSheSaid} heSaid={heSaid} onDeleteHeSaid={deleteHeSaid} onUpdateHeSaid={updateHeSaidAnno} onUpdateFavNote={updateFavNote} onRemoveFavorite={removeFavorite} onLocateMessage={locateMessage} onOpenConversation={selectConversation} firstMetTime={firstMetTime} />}
