@@ -716,17 +716,21 @@ body {
 .she-said-note::before { content: '✿ '; opacity: 0.55; font-size: 10px; }
 .she-said-note.popup { flex-shrink: 0; text-align: center; border-top: none; margin-top: 2px; padding: 0 8px; }
 
-/* ── 立体翻面卡（2026.9 潇潇设计）──
-   她说/他说：点卡片任意处翻面，背面是邮戳（摘于+时间+回到那句话），点卡外即收好
-   日记：捏右下角折角翻面拆盲盒（心情词+页码搬去背面），正面保留「合上」
+/* ── 立体翻面卡（2026.9 潇潇设计，五卡一家：✦ 纸条 / ♡ 整条 / ✿ 她说 / ❀ 他说 / ✎ 日记折角）──
+   入场动画在外壳上（卡面不再自带动画——动画的 transform 会抢掉背面的转身，这就是"开卡闪背面"的病根）
+   不用 preserve-3d 舞台，两张卡面各自转身同步交接（iOS 里 3D 舞台会克死内部滚动，拆掉舞台正面就能滑）
    全用现有变量，四套主题自动跟随 */
-.flip-wrap { perspective: 1400px; max-width: 380px; width: 90%; }
-.flip-inner { position: relative; width: 100%; transform-style: preserve-3d; transition: transform 0.6s cubic-bezier(0.3, 0.1, 0.25, 1); }
-.flip-wrap.flipped .flip-inner { transform: rotateY(180deg); }
-.flip-face { width: 100%; max-width: none; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
-.flip-back { position: absolute; inset: 0; transform: rotateY(180deg); justify-content: center; }
+.flip-wrap { perspective: 1400px; max-width: 380px; width: 90%; animation: noteDetailIn 0.45s cubic-bezier(0.16, 1, 0.3, 1); }
+.flip-wrap .note-detail-card { animation: none; }
+.flip-inner { position: relative; width: 100%; }
+.flip-face { width: 100%; max-width: none; backface-visibility: hidden; -webkit-backface-visibility: hidden; transform: rotateY(0deg); transition: transform 0.6s cubic-bezier(0.3, 0.1, 0.25, 1); }
+.flip-back { position: absolute; inset: 0; transform: rotateY(-180deg); justify-content: center; }
+.flip-wrap.flipped .flip-face { transform: rotateY(180deg); }
+.flip-wrap.flipped .flip-back { transform: rotateY(0deg); }
 .flip-back-meta { flex-shrink: 0; font-size: 13px; color: var(--text-secondary); letter-spacing: 0.5px; line-height: 2; }
 .flip-back .note-detail-locate { margin-top: 18px; }
+/* 短句（她说/他说的摘录）在卡上居中；长文（整条/日记）保持 plain 左对齐好读 */
+.note-detail-content.plain.centered { text-align: center; }
 .diary-fold { position: absolute; right: 0; bottom: 0; width: 42px; height: 42px; cursor: pointer; z-index: 2; background: linear-gradient(to top left, var(--wash-bg) 47%, var(--wash-border) 47%, var(--wash-border) 50%, transparent 50%); }
 @media (hover: hover) { .diary-fold:hover { background: linear-gradient(to top left, var(--wash-border) 47%, var(--accent-soft) 47%, var(--accent-soft) 50%, transparent 50%); } }
 /* 「他说」❀（她的眉批用空心花——大模型意象：没有身体，但有灵魂） */
